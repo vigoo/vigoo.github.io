@@ -1,6 +1,7 @@
 ---
 layout: post
 title: Cloning WPF flow document fragments
+tags: .net, c#
 ---
 Today I had to write such an ugly hack to fix a bug that I decided to start writing a blog where I can show it to the world :)
 

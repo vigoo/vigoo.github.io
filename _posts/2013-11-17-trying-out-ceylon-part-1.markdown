@@ -1,6 +1,7 @@
 ---
 layout: post
 title: Trying out Ceylon - Part 1
+tags: ceylon
 ---
 Ceylon's first production release was announced on 12th of November. I decided to try it out after going through the quick introduction, as it looked quite promising. In a series of posts I'd like to share my first attempts to use this interesting language.
 
