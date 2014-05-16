@@ -19,7 +19,7 @@ Basically it tries to make .NET development more convenient, when
 * The developers want to use the full power of their *IDE*
 
 The main idea is to generate Visual Studio solutions and projects *on
-the fly* as needed, from a conceise *declarative*  build
+the fly* as needed, from a concise *declarative*  build
 description. I tried to optimize this build description for human
 readability. Let's see an example, a short section from **bari**'s own
 build definition:
