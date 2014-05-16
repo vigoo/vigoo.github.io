@@ -1,3 +1,4 @@
 name: vigoo's software development blog
 markdown: redcarpet
-pygments: true
+highlighter: pygments
+
