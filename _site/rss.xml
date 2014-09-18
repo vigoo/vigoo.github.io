@@ -1,0 +1,1031 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+  xmlns:trackback="http://madskills.com/public/xml/rss/module/trackback/">
+  <channel>
+    <title>vigoo's software development blog</title>
+    <link>http://vigoo.github.io</link>
+    <description>RSS feed for vigoo's software development blog</description>
+    <pubDate>Mon, 15 Sep 2014 00:00:00 +0200</pubDate>
+    <item>
+      <title>A python/thrift profiling story</title>
+      <link>http://vigoo.github.io/2014/09/15/thrift-profiling.html</link>
+      <description><![CDATA[A few weeks ago I met a problem where a script, running once every night sending out some emails did not run correctly because a remote thrift call timed out in it. As I started investigating it, turned out that it&#39;s a search call:
+]]></description>
+      <pubDate>Mon, 15 Sep 2014 00:00:00 +0200</pubDate>
+      <guid>http://vigoo.github.io/2014/09/15/thrift-profiling.html</guid>
+      <content:encoded><![CDATA[<p>A few weeks ago I met a problem where a script, running once every night sending out some emails did not run correctly because a remote thrift call timed out in it. As I started investigating it, turned out that it&#39;s a <em>search</em> call:</p>
+
+<div class="highlight"><pre><code class="language-python" data-lang="python"><span class="n">staff_users</span> <span class="o">=</span> <span class="n">RemoteUserFactory</span><span class="p">()</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">is_staff</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span></code></pre></div>
+
+<p>The details here are not really important, what this call does is that it asks a service to return a <em>set of users</em>, and the communication is going on <a href="https://thrift.apache.org/">thrift</a>.</p>
+
+<p>Executing it manually on the server revealed that it should return <em>5649</em> users. Checking out the logs I could see that the call took extremely long time, between 8 to 12 seconds. Even when the cron job was moved from 3:00 AM to a less busy time (several other jobs were executing at the same time), it took more than 6 seconds!</p>
+
+<p>This was suspicious so I also checked the log of a <em>proxy</em> which runs on the same host as the script itself and provides client side load balancing, circuit breaking, retry logic etc. for thrift connections. This log showed that the service replied in <em>2.5 seconds</em>, but it took almost 4 seconds to get this response from the proxy to the client on localhost! This seemed to be completely unacceptable, and also the 2.5 second response time from the service seemed to be too big (I ran the query on one of the server nodes and it returned the users from the database almost instantly). I also had similar experience (but without measurements) before.</p>
+
+<p>So I decided to find out what&#39;s going on. And I found the process interesting enough to write this post about it :)</p>
+
+<h2>Test environment</h2>
+
+<p>I started by adding a test method to the service&#39;s thrift API called <code>test_get_users(count, sleep)</code> which returns <code>count</code> fake users after waiting <code>sleep</code> seconds. Then in the following experiments I called it with <code>(5499, 1)</code>. The 1 second sleep was intended to simulate the network latency and database query; there was no advantage from having it at the end, but as it is visible everywhere in the results, I had to mention.</p>
+
+<p>For finding out what&#39;s going on I used <a href="https://docs.python.org/2/library/profile.html">cProfile</a> with <a href="https://code.google.com/p/jrfonseca/">gprof2dot</a>, calling the remote test method from a django shell, while everything is running on localhost.</p>
+
+<h3>First measurement</h3>
+
+<p>Without touching anything, returning 5499 dummy users on localhost took <strong>5.272 seconds</strong>!</p>
+
+<p>The client side of the call looked like this:</p>
+
+<p><a href="/assets/images/profile1.png" class="zimg"><img width="600" src="/assets/images/profile1.png" alt=""></a></p>
+
+<p>Here we can see that the call has two major phases:</p>
+
+<ul>
+<li>The thrift call itself (65%)</li>
+<li>Converting the raw results to model objects with <code>_row_to_model</code> (35%)</li>
+</ul>
+
+<p>Let&#39;s see first the thrift call (the green branch on the picture). Once again it has two, nearly equivalent branches:</p>
+
+<ul>
+<li><code>send_test_get_users</code> which sends the request and waits for the response. This includes the 1 second sleep as well.</li>
+<li><code>recv_test_get_users</code> processes the response</li>
+</ul>
+
+<p>What&#39;s interesting here is that <code>recv_test_get_users</code> took ~32% of the overall time which is around ~1.6 seconds for simple data deserialization.</p>
+
+<h3>Optimizing thrift deserialization</h3>
+
+<p>I did not want to believe that the python thrift deserialization is that slow, so I did a search and found that the <code>TBinaryProtocol</code> which we are using is really that slow.</p>
+
+<p>But the thrift library contains a class called <code>TBinaryProtocolAccelerated</code> which is about 10x faster (according to a stackoverflow post).</p>
+
+<p>First I simply changed the used protocol to this, but nothing happened. Digging deeper I found that this is not a real protocol implementation, but a lower level hack.</p>
+
+<p>The documentation of the protocol class says:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">  C-Accelerated version of TBinaryProtocol.
+
+  This class does not override any of TBinaryProtocol&#39;s methods,
+  but the generated code recognizes it directly and will call into
+  our C module to do the encoding, bypassing this object entirely.
+  We inherit from TBinaryProtocol so that the normal TBinaryProtocol
+  encoding can happen if the fastbinary module doesn&#39;t work for some
+  reason.  (TODO(dreiss): Make this happen sanely in more cases.)
+
+  In order to take advantage of the C module, just use
+  TBinaryProtocolAccelerated instead of TBinaryProtocol.
+</code></pre></div>
+<p>So why didn&#39;t it work? The answer is in <a href="https://github.com/apache/thrift/blob/master/lib/py/src/protocol/TBase.py#L52-L58">TBase.py</a>.</p>
+
+<p>The following conditions have to met in order to use the fast deserializer:</p>
+
+<ul>
+<li>Protocol must be <code>TBinaryProtocolAccelerated</code> (I changed that)</li>
+<li>Protocol&#39;s transport implementation must implement the <code>TTransport.CReadableTransport</code> interface</li>
+<li><code>thrift_spec</code> must be available (this was true in this case)</li>
+<li><code>fastbinary</code> must be available (also true)</li>
+</ul>
+
+<p>The problem was that we were replacing the <code>TTransport</code> implementation with a custom class called <code>ThriftifyTransport</code> in order to do thrift logging, HMAC authentication, etc.</p>
+
+<p>Fortunately all the default transport implementations implement the <code>CReadableTransport</code> interface, and one of them, <code>TBufferedTransport</code> can be used to wrap another transport to add buffering around it. That&#39;s what I did, and it immediately started using the fast deserialization code.</p>
+
+<p>The test call now ran in <strong>3.624 seconds</strong>.</p>
+
+<p>And the new profiling results with this change:</p>
+
+<p><a href="/assets/images/profile2.png" class="zimg"><img width="600" src="/assets/images/profile2.png" alt=""></a></p>
+
+<p>The left-hand side of the call graph remained the same, but <code>recv_test_get_users</code> is now only 2.35% of the overall time which is ~0.08 seconds (to be compared with the 1.6 seconds with the original deserializer!)</p>
+
+<h3>Optimizing thrift serialization</h3>
+
+<p>The obvious next step was to apply this change on the server side as well, so our service can use the fast binary protocol for serialization too. For this I simply copied the change and remeasured everything.</p>
+
+<p>The test call now ran in <strong>3.328 seconds</strong>!</p>
+
+<p>Let&#39;s see the call graph of this stage:</p>
+
+<p><a href="/assets/images/profile3.png" class="zimg"><img width="600" src="/assets/images/profile3.png" alt=""></a></p>
+
+<h3>Optimizing result processing</h3>
+
+<p>The client side of the test method was written similar to how the original API method is written:</p>
+
+<div class="highlight"><pre><code class="language-python" data-lang="python"><span class="k">def</span> <span class="nf">test_get_users_thrift</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">sleep</span><span class="p">):</span>
+    <span class="n">rpc</span> <span class="o">=</span> <span class="n">ThriftRPC</span><span class="p">(</span><span class="n">UserDataService</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">service_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">service_name</span><span class="p">,</span> <span class="n">client_config</span><span class="o">=</span><span class="n">client_config</span><span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rpc</span><span class="o">.</span><span class="n">test_get_users</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">sleep</span><span class="p">)</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_row_to_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">user_factory</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span></code></pre></div>
+
+<p>It is clearly visible on the call graph that the 5499 call to <code>_row_to_model</code> takes 53% of the total time, which is ~1.7 seconds. There are two main branches of this call. The left hand side (<code>row_to_model</code>) seemed to be simple data conversion, and its slowest part is date-time deserialization.</p>
+
+<p>The other branch however looked like a real problem; why should we resolve HMAC host, or parse configuration for each row?</p>
+
+<p>It turned out to be a bug, <code>_row_to_model</code> created a new <em>model factory</em> in each call, which involves a lot of initialization, config parsing, and similar things.</p>
+
+<p>So the simple fix was to create a <code>_rows_to_model</code> helper function which does the same for multiple rows with a single factory.</p>
+
+<p>Running my test code once again showed that the optimization makes sense. Now it ran in <strong>2.448 seconds</strong>, with the following call graph:</p>
+
+<p><a href="/assets/images/profile4.png" class="zimg"><img width="600" src="/assets/images/profile4.png" alt=""></a></p>
+
+<h3>Further optimizations</h3>
+
+<p>I saw two possible ways to further optimize this case:</p>
+
+<ol>
+<li><p>Lazy conversion of raw thrift data to model data (per field). This would make sense because many times only a few fields (the id for example) are used, but it seemed to be a too complex change</p></li>
+<li><p>Checking the server side as well</p></li>
+</ol>
+
+<p>To profile the server side and only measure the thrift request processing I had to add profiling code to the django view class in the following way:</p>
+
+<div class="highlight"><pre><code class="language-python" data-lang="python"><span class="kn">import</span> <span class="nn">cProfile</span>
+
+<span class="n">cProfile</span><span class="o">.</span><span class="n">runctx</span><span class="p">(</span><span class="s">&#39;self._call_processor(op_data)&#39;</span><span class="p">,</span> <span class="nb">globals</span><span class="p">(),</span> <span class="nb">locals</span><span class="p">(),</span> <span class="s">&#39;callstats&#39;</span><span class="p">)</span>
+<span class="c"># self._call_processor(op_data)</span></code></pre></div>
+
+<p>The server-side call took <strong>1.691 seconds</strong> and looked like this:</p>
+
+<p><a href="/assets/images/profile5.png" class="zimg"><img width="600" src="/assets/images/profile5.png" alt=""></a></p>
+
+<p>As expected, 60% of this was the 1 second sleep. The rest of the calls are data conversion with no obvious point to improve.</p>
+
+<h2>Summary</h2>
+
+<p>These optimizations are decreasing the response time significantly, especially for calls returning multiple rows.</p>
+
+<p>The interesting was that the extremely slow performance was caused by both the slow perfomance of the python thrift serializer and a bug in our code.</p>
+]]></content:encoded>
+      <dc:date>2014-09-15T00:00:00+02:00</dc:date>
+    </item>
+    <item>
+      <title>Conditional blocks in Distributed Documentor</title>
+      <link>http://vigoo.github.io/2014/07/13/conditional-blocks-in-ddoc.html</link>
+      <description><![CDATA[I&#39;ve added a new feature to Distributed Documentor today, conditional blocks.
+]]></description>
+      <pubDate>Sun, 13 Jul 2014 00:00:00 +0200</pubDate>
+      <guid>http://vigoo.github.io/2014/07/13/conditional-blocks-in-ddoc.html</guid>
+      <content:encoded><![CDATA[<p>I&#39;ve added a new feature to <a href="https://github.com/vigoo/distributed-documentor">Distributed Documentor</a> today, <em>conditional blocks</em>.</p>
+
+<p>The idea is that parts of the documents can be enabled when a given <em>condition</em> is present. This is very similar to <a href="http://gcc.gnu.org/onlinedocs/cpp/Ifdef.html">C&#39;s ifdef blocks</a>. To use it with the <em>MediaWiki syntax</em>, put <code>[When:X]</code> and <code>[End]</code> commands in separate lines:</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">Unconditional
+
+[When:FIRST]
+First conditional
+
+[When:SECOND]
+First and second conditional
+[End]
+[End]
+
+[When:SECOND]
+Second conditional
+[End]
+</code></pre></div>
+<p><em>Snippets</em> can also have conditional blocks.</p>
+
+<p>There are two possibilities to set which conditionals are enabled:</p>
+
+<ol>
+<li><p>Specifying it with command line arguments, such as</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">java -jar DistributedDocumentor.jar -D FIRST -D SECOND
+</code></pre></div>
+<p>This is useful when exporting a documentation from command line, or to launch the documentation editor with a predefined set of enabled conditions.</p></li>
+<li><p>On the user interface, using <em>View</em> menu&#39;s <em>Enabled conditions...</em> menu item:</p></li>
+</ol>
+
+<p><img src="/assets/images/enabled-conditions-dialog.png" alt="unit-conversion-shot"></p>
+]]></content:encoded>
+      <dc:date>2014-07-13T00:00:00+02:00</dc:date>
+    </item>
+    <item>
+      <title>Introducing bari</title>
+      <link>http://vigoo.github.io/2014/05/16/introducing-bari.html</link>
+      <description><![CDATA[In the past two years I worked on a project called
+bari which now reached an usable
+state. bari is a build management system, trying to fix Visual
+Studio&#39;s bad parts while keeping the good ones.
+]]></description>
+      <pubDate>Fri, 16 May 2014 00:00:00 +0200</pubDate>
+      <guid>http://vigoo.github.io/2014/05/16/introducing-bari.html</guid>
+      <content:encoded><![CDATA[<p>In the past two years I worked on a project called
+<a href="https://github.com/vigoo/bari">bari</a> which now reached an usable
+state. <strong>bari</strong> is a <em>build management system</em>, trying to fix Visual
+Studio&#39;s bad parts while keeping the good ones.</p>
+
+<p>Basically it tries to make .NET development more convenient, when</p>
+
+<ul>
+<li>The application may consist of a <em>large number of projects</em></li>
+<li>There may be several different <em>subsets</em> of these projects defining
+valuable target <em>products</em></li>
+<li><em>Custom build steps</em> may be required</li>
+<li>It is important to be able to <em>reproduce</em> the build environment as
+easily as possible</li>
+<li>The developers want to use the full power of their <em>IDE</em></li>
+</ul>
+
+<p>The main idea is to generate Visual Studio solutions and projects <em>on
+the fly</em> as needed, from a concise <em>declarative</em>  build
+description. I tried to optimize this build description for human
+readability. Let&#39;s see an example, a short section from <strong>bari</strong>&#39;s own
+build definition:</p>
+
+<div class="highlight"><pre><code class="language-yaml" data-lang="yaml"><span class="p-Indicator">-</span> <span class="l-Scalar-Plain">name</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">bari</span>
+  <span class="l-Scalar-Plain">type</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">executable</span>
+  <span class="l-Scalar-Plain">references</span><span class="p-Indicator">:</span>
+    <span class="p-Indicator">-</span> <span class="l-Scalar-Plain">gac://System</span>
+    <span class="p-Indicator">-</span> <span class="l-Scalar-Plain">nuget://log4net</span>
+    <span class="p-Indicator">-</span> <span class="l-Scalar-Plain">nuget://Ninject/3.0.1.10</span>
+    <span class="p-Indicator">-</span> <span class="l-Scalar-Plain">nuget://QuickGraph</span>
+    <span class="p-Indicator">-</span> <span class="l-Scalar-Plain">module://Bari.Core</span>
+  <span class="l-Scalar-Plain">csharp</span><span class="p-Indicator">:</span>
+    <span class="l-Scalar-Plain">root-namespace</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">Bari.Console</span></code></pre></div>
+
+<p>The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring. </p>
+
+<p>To keep build definitions short and readable, <strong>bari</strong> prefers
+<em>convention</em> over <em>configuration</em>. For example the directory stucture
+in which the source code lays defines not only the name of the modules
+to build, but also the way it is built. For example, in a simple
+<em>hello world</em> example the C# source code would be put in the
+<code>src/TestModule/HelloWorld/cs</code> directory, and <strong>bari</strong> would build
+<code>target/TestModule/HelloWorld.exe</code>.</p>
+
+<p><strong>bari</strong> unifies the handling of <em>project references</em> in a way that referencing projects within a suite, from the GAC, using <a href="http://www.nuget.org">Nuget</a> or from a custom repository works exactly the same. It is also possible to write <em>custom builders</em> in Python. </p>
+
+<p>For more information check out <a href="https://github.com/vigoo/bari/wiki/GettingStarted">the getting started page</a>.</p>
+]]></content:encoded>
+      <dc:date>2014-05-16T00:00:00+02:00</dc:date>
+    </item>
+    <item>
+      <title>ScalaFX with FXML</title>
+      <link>http://vigoo.github.io/2014/01/12/scalafx-with-fxml.html</link>
+      <description><![CDATA[ScalaFX is a nice wrapper around JavaFX for Scala, but currently it lacks support for using FXML instead of Scala code for defining the user interfaces. This can be understood as ScalaFX is in fact a DSL for defining the UI in Scala instead of an XML file. Still I believe that using FXML instead may have its advantages; first of all it has a visual designer (JavaFX Scene Builder). For me, designing an UI without immediate visual feedback is hard, and involves a lot of iterations of tweaking the code, running it and checking the results. I also expect that in the future there will be more tools available which work on FXML data.
+]]></description>
+      <pubDate>Sun, 12 Jan 2014 00:00:00 +0100</pubDate>
+      <guid>http://vigoo.github.io/2014/01/12/scalafx-with-fxml.html</guid>
+      <content:encoded><![CDATA[<p><a href="https://code.google.com/p/scalafx/">ScalaFX</a> is a nice wrapper around JavaFX for Scala, but currently it lacks support for using <a href="http://docs.oracle.com/javafx/2/api/javafx/fxml/doc-files/introduction_to_fxml.html">FXML</a> instead of Scala code for defining the user interfaces. This can be understood as <em>ScalaFX</em> is in fact a DSL for defining the UI in Scala instead of an XML file. Still I believe that using FXML instead may have its advantages; first of all it has a visual designer (<a href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>). For me, designing an UI without immediate visual feedback is hard, and involves a lot of iterations of tweaking the code, running it and checking the results. I also expect that in the future there will be more tools available which work on FXML data.</p>
+
+<p>It is not impossible to use FXML user interfaces from Scala, but the ScalaFX wrappers does not help and the code for the controller classes is not clean enough. See <a href="https://github.com/jpsacha/ProScalaFX/blob/master/src/proscalafx/ch10/fxml/AdoptionFormController.scala">the following example</a> to get a feeling how it looks like.</p>
+
+<p>To make it better I wrote a small library called <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>. In this post I&#39;ll go through a small example to explain how it works.</p>
+
+<p>The following image shows how our sample application will look like:</p>
+
+<p><img src="/assets/images/unit-conversion-shot.png" alt="unit-conversion-shot"></p>
+
+<p>The <em>From</em> fiels is editable, and the result in the <em>To</em> field is filled as you type using <em>data binding</em>. The <em>Close</em> button&#39;s only purpose is to demonstrate event handlers.</p>
+
+<p>The conversion logic itself is implemented by <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/UnitConverter.scala">small classes</a> sharing the same trait:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">trait</span> <span class="nc">UnitConverter</span> <span class="o">{</span>
+  <span class="k">val</span> <span class="n">description</span><span class="k">:</span> <span class="kt">String</span>
+  <span class="k">def</span> <span class="n">run</span><span class="o">(</span><span class="n">input</span><span class="k">:</span> <span class="kt">String</span><span class="o">)</span><span class="k">:</span> <span class="kt">String</span>
+
+  <span class="k">override</span> <span class="k">def</span> <span class="n">toString</span> <span class="k">=</span> <span class="n">description</span>
+<span class="o">}</span>
+
+<span class="k">object</span> <span class="nc">MMtoInches</span> <span class="k">extends</span> <span class="nc">UnitConverter</span> <span class="o">{</span>
+  <span class="k">val</span> <span class="n">description</span><span class="k">:</span> <span class="kt">String</span> <span class="o">=</span> <span class="s">&quot;Millimeters to inches&quot;</span>
+  <span class="k">def</span> <span class="n">run</span><span class="o">(</span><span class="n">input</span><span class="k">:</span> <span class="kt">String</span><span class="o">)</span><span class="k">:</span> <span class="kt">String</span> <span class="o">=</span> 
+      <span class="k">try</span> <span class="o">{</span> 
+          <span class="o">(</span><span class="n">input</span><span class="o">.</span><span class="n">toDouble</span> <span class="o">/</span> <span class="mf">25.4</span><span class="o">).</span><span class="n">toString</span> 
+      <span class="o">}</span> <span class="k">catch</span> <span class="o">{</span> 
+          <span class="k">case</span> <span class="n">ex</span><span class="k">:</span> <span class="kt">Throwable</span> <span class="o">=&gt;</span> <span class="n">ex</span><span class="o">.</span><span class="n">toString</span> 
+      <span class="o">}</span>
+<span class="o">}</span>
+
+<span class="k">object</span> <span class="nc">InchesToMM</span> <span class="k">extends</span> <span class="nc">UnitConverter</span> <span class="o">{</span>
+  <span class="k">val</span> <span class="n">description</span><span class="k">:</span> <span class="kt">String</span> <span class="o">=</span> <span class="s">&quot;Inches to millimeters&quot;</span>
+  <span class="k">def</span> <span class="n">run</span><span class="o">(</span><span class="n">input</span><span class="k">:</span> <span class="kt">String</span><span class="o">)</span><span class="k">:</span> <span class="kt">String</span> <span class="o">=</span> 
+      <span class="k">try</span> <span class="o">{</span> 
+          <span class="o">(</span><span class="n">input</span><span class="o">.</span><span class="n">toDouble</span> <span class="o">*</span> <span class="mf">25.4</span><span class="o">).</span><span class="n">toString</span> 
+      <span class="o">}</span> <span class="k">catch</span> <span class="o">{</span> 
+          <span class="k">case</span> <span class="n">ex</span><span class="k">:</span> <span class="kt">Throwable</span> <span class="o">=&gt;</span> <span class="n">ex</span><span class="o">.</span><span class="n">toString</span> 
+      <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+
+<p>To describe the set of available <em>unit converters</em>, we define one more helper class:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">class</span> <span class="nc">UnitConverters</span><span class="o">(</span><span class="n">converters</span><span class="k">:</span> <span class="kt">UnitConverter*</span><span class="o">)</span> <span class="o">{</span>
+  <span class="k">val</span> <span class="n">available</span> <span class="k">=</span> <span class="nc">List</span><span class="o">(</span><span class="n">converters</span> <span class="k">:</span> <span class="k">_</span><span class="kt">*</span><span class="o">)</span>
+<span class="o">}</span></code></pre></div>
+
+<p>Now let&#39;s start with a <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/PureScalaFX.scala">pure ScalaFX solution</a>, where the user interface is defined in Scala. I&#39;ve implemented the view itself in a class called <code>PureScalaFXView</code>, which gets the set of available <em>unit converters</em> as a dependency through its constructor. This makes the main application object very simple:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">object</span> <span class="nc">PureScalaFX</span> <span class="k">extends</span> <span class="nc">JFXApp</span> <span class="o">{</span>
+  <span class="n">stage</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">PureScalaFXView</span><span class="o">(</span>
+      <span class="k">new</span> <span class="nc">UnitConverters</span><span class="o">(</span><span class="nc">InchesToMM</span><span class="o">,</span> <span class="nc">MMtoInches</span><span class="o">))</span>
+<span class="o">}</span></code></pre></div>
+
+<p>The <code>PureScalaFXView</code> class consists of two distinct parts. First we define the user interface using the <em>ScalaFX UI DSL</em>:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">class</span> <span class="nc">PureScalaFXView</span><span class="o">(</span><span class="n">converters</span><span class="k">:</span> <span class="kt">UnitConverters</span><span class="o">)</span> <span class="k">extends</span> <span class="nc">JFXApp</span><span class="o">.</span><span class="nc">PrimaryStage</span> <span class="o">{</span>
+
+  <span class="c1">// UI Definition</span>
+  <span class="n">title</span> <span class="k">=</span> <span class="s">&quot;Unit conversion&quot;</span>
+
+  <span class="k">private</span> <span class="k">val</span> <span class="n">types</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">ComboBox</span><span class="o">[</span><span class="kt">UnitConverter</span><span class="o">]()</span> <span class="o">{</span>
+    <span class="n">maxWidth</span> <span class="k">=</span> <span class="nc">Double</span><span class="o">.</span><span class="nc">MaxValue</span>
+    <span class="n">margin</span> <span class="k">=</span> <span class="nc">Insets</span><span class="o">(</span><span class="mi">3</span><span class="o">)</span>
+  <span class="o">}</span>
+
+  <span class="k">private</span> <span class="k">val</span> <span class="n">from</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">TextField</span> <span class="o">{</span>
+    <span class="n">margin</span> <span class="k">=</span> <span class="nc">Insets</span><span class="o">(</span><span class="mi">3</span><span class="o">)</span>
+    <span class="n">prefWidth</span> <span class="k">=</span> <span class="mf">200.0</span>
+  <span class="o">}</span>
+
+  <span class="k">private</span> <span class="k">val</span> <span class="n">to</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">TextField</span> <span class="o">{</span>
+    <span class="n">prefWidth</span> <span class="k">=</span> <span class="mf">200.0</span>
+    <span class="n">margin</span> <span class="k">=</span> <span class="nc">Insets</span><span class="o">(</span><span class="mi">3</span><span class="o">)</span>
+    <span class="n">editable</span> <span class="k">=</span> <span class="kc">false</span>
+  <span class="o">}</span>
+
+  <span class="n">scene</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">Scene</span> <span class="o">{</span>
+    <span class="n">content</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">GridPane</span> <span class="o">{</span>
+      <span class="n">padding</span> <span class="k">=</span> <span class="nc">Insets</span><span class="o">(</span><span class="mi">5</span><span class="o">)</span>
+
+      <span class="n">add</span><span class="o">(</span><span class="k">new</span> <span class="nc">Label</span><span class="o">(</span><span class="s">&quot;Conversion type:&quot;</span><span class="o">),</span> <span class="mi">0</span><span class="o">,</span> <span class="mi">0</span><span class="o">)</span>
+      <span class="n">add</span><span class="o">(</span><span class="k">new</span> <span class="nc">Label</span><span class="o">(</span><span class="s">&quot;From:&quot;</span><span class="o">),</span> <span class="mi">0</span><span class="o">,</span> <span class="mi">1</span><span class="o">)</span>
+      <span class="n">add</span><span class="o">(</span><span class="k">new</span> <span class="nc">Label</span><span class="o">(</span><span class="s">&quot;To:&quot;</span><span class="o">),</span> <span class="mi">0</span><span class="o">,</span> <span class="mi">2</span><span class="o">)</span>
+
+      <span class="n">add</span><span class="o">(</span><span class="n">types</span><span class="o">,</span> <span class="mi">1</span><span class="o">,</span> <span class="mi">0</span><span class="o">)</span>
+      <span class="n">add</span><span class="o">(</span><span class="n">from</span><span class="o">,</span> <span class="mi">1</span><span class="o">,</span> <span class="mi">1</span><span class="o">)</span>
+      <span class="n">add</span><span class="o">(</span><span class="n">to</span><span class="o">,</span> <span class="mi">1</span><span class="o">,</span> <span class="mi">2</span><span class="o">)</span>
+
+      <span class="n">add</span><span class="o">(</span><span class="k">new</span> <span class="nc">Button</span><span class="o">(</span><span class="s">&quot;Close&quot;</span><span class="o">)</span> <span class="o">{</span>
+        <span class="c1">// inline event handler binding</span>
+        <span class="n">onAction</span> <span class="k">=</span> <span class="o">(</span><span class="n">e</span><span class="k">:</span> <span class="kt">ActionEvent</span><span class="o">)</span> <span class="k">=&gt;</span> <span class="nc">Platform</span><span class="o">.</span><span class="n">exit</span><span class="o">()</span>
+      <span class="o">},</span> <span class="mi">1</span><span class="o">,</span> <span class="mi">3</span><span class="o">)</span>
+
+      <span class="n">columnConstraints</span> <span class="k">=</span> <span class="nc">List</span><span class="o">(</span>
+        <span class="k">new</span> <span class="nc">ColumnConstraints</span> <span class="o">{</span>
+          <span class="n">halignment</span> <span class="k">=</span> <span class="nc">HPos</span><span class="o">.</span><span class="nc">LEFT</span>
+          <span class="n">hgrow</span> <span class="k">=</span> <span class="nc">Priority</span><span class="o">.</span><span class="nc">SOMETIMES</span>
+          <span class="n">margin</span> <span class="k">=</span> <span class="nc">Insets</span><span class="o">(</span><span class="mi">5</span><span class="o">)</span>
+        <span class="o">},</span>
+        <span class="k">new</span> <span class="nc">ColumnConstraints</span> <span class="o">{</span>
+          <span class="n">halignment</span> <span class="k">=</span> <span class="nc">HPos</span><span class="o">.</span><span class="nc">RIGHT</span>
+          <span class="n">hgrow</span> <span class="k">=</span> <span class="nc">Priority</span><span class="o">.</span><span class="nc">ALWAYS</span>
+          <span class="n">margin</span> <span class="k">=</span> <span class="nc">Insets</span><span class="o">(</span><span class="mi">5</span><span class="o">)</span>
+        <span class="o">}</span>
+      <span class="o">)</span>
+    <span class="o">}</span>
+  <span class="o">}</span></code></pre></div>
+
+<p>This is not 100% pure UI definition, because it also contains an inline event handler definition for the <em>Close</em> button.</p>
+
+<p>The next part fills the <em>combo box</em> and defines the data binding. Filling the combo box is a simple procedural loop:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">for</span> <span class="o">(</span><span class="n">converter</span> <span class="k">&lt;-</span> <span class="n">converters</span><span class="o">.</span><span class="n">available</span><span class="o">)</span> <span class="o">{</span>
+    <span class="n">types</span> <span class="o">+=</span> <span class="n">converter</span>
+  <span class="o">}</span>
+  <span class="n">types</span><span class="o">.</span><span class="n">getSelectionModel</span><span class="o">.</span><span class="n">selectFirst</span><span class="o">()</span></code></pre></div>
+
+<p>For the data binding we define a <a href="http://docs.oracle.com/javafx/2/binding/jfxpub-binding.htm">low level data binding</a> which depends on the combo box&#39;s selected value and the <em>From</em> field&#39;s text, and produces the output for the <em>To</em> field:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="n">to</span><span class="o">.</span><span class="n">text</span> <span class="o">&lt;==</span> <span class="k">new</span> <span class="nc">StringBinding</span> <span class="o">{</span>
+    <span class="n">bind</span><span class="o">(</span><span class="n">from</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">delegate</span><span class="o">,</span> <span class="n">types</span><span class="o">.</span><span class="n">getSelectionModel</span><span class="o">.</span><span class="n">selectedItemProperty</span><span class="o">)</span>
+    <span class="k">def</span> <span class="n">computeValue</span><span class="o">()</span> <span class="k">=</span> <span class="n">types</span><span class="o">.</span><span class="n">getSelectionModel</span><span class="o">.</span><span class="n">getSelectedItem</span><span class="o">.</span><span class="n">run</span><span class="o">(</span><span class="n">from</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">value</span><span class="o">)</span>
+  <span class="o">}</span></code></pre></div>
+
+<p>That&#39;s all, the application is fully functional. The next thing is to split this class so the UI definition and the UI logic got separated. This <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/RefactoredPureScalaFX.scala">refactored ScalaFX solution</a> is very similar to the previous one, but the initialization of the combo box, the data binding and the event handler are all encapsulated by a new, separate class:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">class</span> <span class="nc">RawUnitConverterPresenter</span><span class="o">(</span>
+                              <span class="k">private</span> <span class="k">val</span> <span class="n">from</span><span class="k">:</span> <span class="kt">TextField</span><span class="o">,</span>
+                              <span class="k">private</span> <span class="k">val</span> <span class="n">to</span><span class="k">:</span> <span class="kt">TextField</span><span class="o">,</span>
+                              <span class="k">private</span> <span class="k">val</span> <span class="n">types</span><span class="k">:</span> <span class="kt">ComboBox</span><span class="o">[</span><span class="kt">UnitConverter</span><span class="o">],</span>
+                              <span class="k">private</span> <span class="k">val</span> <span class="n">converters</span><span class="k">:</span> <span class="kt">UnitConverters</span><span class="o">)</span> <span class="o">{</span>
+
+  <span class="c1">// Filling the combo box</span>
+  <span class="k">for</span> <span class="o">(</span><span class="n">converter</span> <span class="k">&lt;-</span> <span class="n">converters</span><span class="o">.</span><span class="n">available</span><span class="o">)</span> <span class="o">{</span>
+    <span class="n">types</span> <span class="o">+=</span> <span class="n">converter</span>
+  <span class="o">}</span>
+  <span class="n">types</span><span class="o">.</span><span class="n">getSelectionModel</span><span class="o">.</span><span class="n">selectFirst</span><span class="o">()</span>
+
+  <span class="c1">// Data binding</span>
+  <span class="n">to</span><span class="o">.</span><span class="n">text</span> <span class="o">&lt;==</span> <span class="k">new</span> <span class="nc">StringBinding</span> <span class="o">{</span>
+    <span class="n">bind</span><span class="o">(</span><span class="n">from</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">delegate</span><span class="o">,</span> <span class="n">types</span><span class="o">.</span><span class="n">getSelectionModel</span><span class="o">.</span><span class="n">selectedItemProperty</span><span class="o">)</span>
+    <span class="k">def</span> <span class="n">computeValue</span><span class="o">()</span> <span class="k">=</span> <span class="n">types</span><span class="o">.</span><span class="n">getSelectionModel</span><span class="o">.</span><span class="n">getSelectedItem</span><span class="o">.</span><span class="n">run</span><span class="o">(</span><span class="n">from</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">value</span><span class="o">)</span>
+  <span class="o">}</span>
+
+  <span class="c1">// Close button event handler</span>
+  <span class="k">def</span> <span class="n">onClose</span><span class="o">(</span><span class="n">event</span><span class="k">:</span> <span class="kt">ActionEvent</span><span class="o">)</span> <span class="o">{</span>
+    <span class="nc">Platform</span><span class="o">.</span><span class="n">exit</span><span class="o">()</span>
+  <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>What I wanted is to be able to define the controller class exactly like this while building the user interface from FXML. Without <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the controller class have some serious limitations:</p>
+
+<ul>
+<li>It must implement the <a href="http://docs.oracle.com/javafx/2/api/javafx/fxml/Initializable.html">Initializable</a> interface</li>
+<li>It cannot have any constructor arguments</li>
+<li>The user interface objects must be variable fields of the class</li>
+<li>And they have to have the type of the JavaFX controls, so to be able to use the ScalaFX wrappers, they have to be explicitly wrapped in the <code>initialize</code> method.</li>
+</ul>
+
+<p>With <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the process is really simple. First we create the FXML, for example with the <a href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>:</p>
+
+<p><img src="/assets/images/unit-conversion-scenebuilder.png" alt="unit-conversion-shot"></p>
+
+<p>In the FXML we give the <code>from</code>, <code>to</code>, and <code>types</code> identifiers to our controls using the <code>fx:id</code> attribute, for example:</p>
+
+<div class="highlight"><pre><code class="language-xml" data-lang="xml"><span class="nt">&lt;TextField</span> <span class="na">fx:id=</span><span class="s">&quot;from&quot;</span> <span class="na">prefWidth=</span><span class="s">&quot;200.0&quot;</span> 
+               <span class="na">GridPane.columnIndex=</span><span class="s">&quot;1&quot;</span> 
+               <span class="na">GridPane.margin=</span><span class="s">&quot;$x1&quot;</span> 
+               <span class="na">GridPane.rowIndex=</span><span class="s">&quot;1&quot;</span> <span class="nt">/&gt;</span></code></pre></div>
+
+<p>The event handlers can be specified simply by their name:</p>
+
+<div class="highlight"><pre><code class="language-xml" data-lang="xml"><span class="nt">&lt;Button</span> <span class="na">onAction=</span><span class="s">&quot;#onClose&quot;</span> <span class="na">text=</span><span class="s">&quot;Close&quot;</span> 
+        <span class="na">mnemonicParsing=</span><span class="s">&quot;false&quot;</span>
+        <span class="na">GridPane.columnIndex=</span><span class="s">&quot;1&quot;</span> 
+        <span class="na">GridPane.halignment=</span><span class="s">&quot;RIGHT&quot;</span> 
+        <span class="na">GridPane.rowIndex=</span><span class="s">&quot;3&quot;</span> <span class="nt">/&gt;</span></code></pre></div>
+
+<p>and the controller class must be referenced on the root node </p>
+
+<div class="highlight"><pre><code class="language-xml" data-lang="xml">fx:controller=&quot;scalafxml.demo.unitconverter.UnitConverterPresenter&quot;</code></pre></div>
+
+<p>The controller class <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/ScalaFXML.scala">can be exactly the same as the <code>RawUnitConverterPresenter</code></a>, adding an additional <code>@sfxml</code> annotation for it. Everything else is handled by the library, as we will see.</p>
+
+<p>The application object itself looks like this:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">object</span> <span class="nc">ScalaFXML</span> <span class="k">extends</span> <span class="nc">JFXApp</span> <span class="o">{</span>
+
+  <span class="k">val</span> <span class="n">root</span> <span class="k">=</span> <span class="nc">FXMLView</span><span class="o">(</span><span class="n">getClass</span><span class="o">.</span><span class="n">getResource</span><span class="o">(</span><span class="s">&quot;unitconverter.fxml&quot;</span><span class="o">),</span>
+    <span class="k">new</span> <span class="nc">DependenciesByType</span><span class="o">(</span><span class="nc">Map</span><span class="o">(</span>
+      <span class="n">typeOf</span><span class="o">[</span><span class="kt">UnitConverters</span><span class="o">]</span> <span class="o">-&gt;</span> <span class="k">new</span> <span class="nc">UnitConverters</span><span class="o">(</span><span class="nc">InchesToMM</span><span class="o">,</span> <span class="nc">MMtoInches</span><span class="o">))))</span>
+
+  <span class="n">stage</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">JFXApp</span><span class="o">.</span><span class="nc">PrimaryStage</span><span class="o">()</span> <span class="o">{</span>
+    <span class="n">title</span> <span class="k">=</span> <span class="s">&quot;Unit conversion&quot;</span>
+    <span class="n">scene</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">Scene</span><span class="o">(</span><span class="n">root</span><span class="o">)</span>
+
+  <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+
+<p>Beside giving the URI for the FXML file we also has to provide the <em>additional dependencies</em> of the controller class. This is an easily extensible part of the library, and it already has support for <a href="https://github.com/dickwall/subcut">SubCut</a> and <a href="https://code.google.com/p/google-guice/">Guice</a> as well. Here we are using a simple <em>type-&gt;value</em> mapping instead.</p>
+
+<p>How does this work? What happens behind the scenes?</p>
+
+<p>The <code>@sfxml</code> is a <a href="http://docs.scala-lang.org/overviews/macros/annotations.html">macro annotation</a>. In <em>compile-time</em>, the class definition itself is transformed by the <a href="https://github.com/vigoo/scalafxml/blob/master/core-macros/src/main/scala/scalafxml/core/macros/sfxmlMacro.scala"><code>sfxmlMacro.impl</code> function</a>. </p>
+
+<p>The transformation&#39;s result is a class definition with the source class&#39; name, but with a completely different content. The original class is added as an inner class, always called <code>Controller</code>. In our example, the generated class definition would look like something similar:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">class</span> <span class="nc">UnitConverterPresenter</span><span class="o">(</span><span class="k">private</span> <span class="k">val</span> <span class="n">dependencyResolver</span><span class="k">:</span> <span class="kt">ControllerDependencyResolver</span><span class="o">)</span>
+    <span class="k">extends</span> <span class="n">javafx</span><span class="o">.</span><span class="n">fxml</span><span class="o">.</span><span class="nc">Initializable</span> 
+    <span class="k">with</span> <span class="nc">FxmlProxyGenerator</span><span class="o">.</span><span class="nc">ProxyDependencyInjection</span> <span class="o">{</span>
+    
+    <span class="k">class</span> <span class="nc">Controller</span><span class="o">(</span>
+        <span class="k">private</span> <span class="k">val</span> <span class="n">from</span><span class="k">:</span> <span class="kt">TextField</span><span class="o">,</span>
+        <span class="k">private</span> <span class="k">val</span> <span class="n">to</span><span class="k">:</span> <span class="kt">TextField</span><span class="o">,</span>
+        <span class="k">private</span> <span class="k">val</span> <span class="n">types</span><span class="k">:</span> <span class="kt">ComboBox</span><span class="o">[</span><span class="kt">UnitConverter</span><span class="o">],</span>
+        <span class="k">private</span> <span class="k">val</span> <span class="n">converters</span><span class="k">:</span> <span class="kt">UnitConverters</span><span class="o">)</span> <span class="o">{</span>
+        <span class="c1">// …</span>
+    <span class="o">}</span>
+    
+    <span class="k">private</span> <span class="k">var</span> <span class="n">impl</span><span class="k">:</span> <span class="kt">Controller</span> <span class="o">=</span> <span class="kc">null</span>
+    
+    <span class="c1">// …</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>The class have four distinct parts:</p>
+
+<ol>
+<li>Getting the additional dependencies from the <em>dependency resolver</em></li>
+<li>Variable fields for binding the JavaFX controls defined in the FXML</li>
+<li>Event handler methods</li>
+<li>The <code>initializable</code> method&#39;s implementation</li>
+</ol>
+
+<p>The first one is simple - for each constructor argument of the controller class which is <em>not</em> a ScalaFX control, we query the <em>dependency resolver</em> to get a value for it. These are performed when the outer, generated class is instantiated and stored through the <code>ProxyDependencyInjection</code> trait.</p>
+
+<p>The variable fields are simple fields for all the ScalaFX constructor arguments of the controller class, but converted to their JavaFX counterpart. For example the generated field for the controller&#39;s <code>from</code> argument will look like this:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="nd">@javafx</span><span class="o">.</span><span class="n">fxml</span><span class="o">.</span><span class="nc">FXML</span>
+<span class="k">private</span> <span class="k">var</span> <span class="n">from</span><span class="k">:</span> <span class="kt">javafx.scene.control.TextField</span> <span class="o">=</span> <span class="kc">null</span></code></pre></div>
+
+<p>The <em>event handler</em>&#39;s are proxies for all the public methods of the controller, but the ScalaFX event argument types are replaced with JavaFX event argument types and they are wrapped automatically when forwarding the call to the real implementation. For the <code>onClose</code> event handler it would look like the following:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="nd">@javafx</span><span class="o">.</span><span class="n">fxml</span><span class="o">.</span><span class="nc">FXML</span> <span class="k">def</span> <span class="n">onClose</span><span class="o">(</span><span class="n">e</span><span class="k">:</span> <span class="kt">javafx.event.ActionEvent</span><span class="o">)</span> <span class="o">{</span>
+    <span class="n">impl</span><span class="o">.</span><span class="n">onClose</span><span class="o">(</span><span class="k">new</span> <span class="n">scalafx</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="nc">ActionEvent</span><span class="o">(</span><span class="n">e</span><span class="o">))</span>
+<span class="o">}</span></code></pre></div>
+
+<p>When JavaFX calls the generated controller&#39;s <code>initialize</code> method, the control fields are already set up, and the additional dependencies were already gathered from the dependency resolver so we have all the values required to instantiate the real controller class. For ScalaFX arguments we wrap the JavaFX controls, for the additional dependencies we use the <code>ProxyDependencyInjection</code> trait&#39;s <code>getDependency</code> method:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">def</span> <span class="n">initialize</span><span class="o">(</span><span class="n">url</span><span class="k">:</span> <span class="kt">java.net.URL</span><span class="o">,</span> <span class="n">rb</span><span class="k">:</span> <span class="kt">java.util.ResourceBundle</span><span class="o">)</span> <span class="o">{</span>
+    <span class="n">impl</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">Controller</span><span class="o">(</span>
+        <span class="k">new</span> <span class="n">scalafx</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">control</span><span class="o">.</span><span class="nc">TextField</span><span class="o">(</span><span class="n">from</span><span class="o">),</span>
+        <span class="k">new</span> <span class="n">scalafx</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">control</span><span class="o">.</span><span class="nc">TextField</span><span class="o">(</span><span class="n">to</span><span class="o">),</span>        
+        <span class="k">new</span> <span class="n">scalafx</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">control</span><span class="o">.</span><span class="nc">ComboBox</span><span class="o">[</span><span class="kt">UnitConverter</span><span class="o">](</span><span class="n">types</span><span class="o">),</span>
+        <span class="n">getDependencies</span><span class="o">[</span><span class="kt">UnitConverters</span><span class="o">](</span><span class="s">&quot;converters&quot;</span><span class="o">))</span>
+<span class="o">}</span></code></pre></div>
+
+<p>That&#39;s all. The final interesting bit is the <code>FXMLView</code> object, which overrides JavaFX&#39;s default controller factory. This is only necessary to be able to pass the given <code>ControllerDependencyResolver</code> to the generated controller&#39;s constructor:</p>
+
+<div class="highlight"><pre><code class="language-scala" data-lang="scala"><span class="k">def</span> <span class="n">apply</span><span class="o">(</span><span class="n">fxml</span><span class="k">:</span> <span class="kt">URL</span><span class="o">,</span> <span class="n">dependencies</span><span class="k">:</span> <span class="kt">ControllerDependencyResolver</span><span class="o">)</span><span class="k">:</span> <span class="kt">jfxs.Parent</span> <span class="o">=</span>
+    <span class="n">jfxf</span><span class="o">.</span><span class="nc">FXMLLoader</span><span class="o">.</span><span class="n">load</span><span class="o">(</span>
+      <span class="n">fxml</span><span class="o">,</span> 
+      <span class="kc">null</span><span class="o">,</span>
+      <span class="k">new</span> <span class="n">jfxf</span><span class="o">.</span><span class="nc">JavaFXBuilderFactory</span><span class="o">(),</span>
+      <span class="k">new</span> <span class="n">jfxu</span><span class="o">.</span><span class="nc">Callback</span><span class="o">[</span><span class="kt">Class</span><span class="o">[</span><span class="k">_</span><span class="o">]</span>, <span class="kt">Object</span><span class="o">]</span> <span class="o">{</span>
+        <span class="k">override</span> <span class="k">def</span> <span class="n">call</span><span class="o">(</span><span class="n">cls</span><span class="k">:</span> <span class="kt">Class</span><span class="o">[</span><span class="k">_</span><span class="o">])</span><span class="k">:</span> <span class="kt">Object</span> <span class="o">=</span> 
+            <span class="nc">FxmlProxyGenerator</span><span class="o">(</span><span class="n">cls</span><span class="o">,</span> <span class="n">dependencies</span><span class="o">)</span>
+      <span class="o">})</span></code></pre></div>
+
+<p><code>FxmlProxyGenerator</code> uses reflection to create a new instance of the generated controller, and pass the dependency resolver as its only constructor argument.</p>
+]]></content:encoded>
+      <dc:date>2014-01-12T00:00:00+01:00</dc:date>
+    </item>
+    <item>
+      <title>Trying out Ceylon - Part 1</title>
+      <link>http://vigoo.github.io/2013/11/17/trying-out-ceylon-part-1.html</link>
+      <description><![CDATA[Ceylon&#39;s first production release was announced on 12th of November. I decided to try it out after going through the quick introduction, as it looked quite promising. In a series of posts I&#39;d like to share my first attempts to use this interesting language.
+]]></description>
+      <pubDate>Sun, 17 Nov 2013 00:00:00 +0100</pubDate>
+      <guid>http://vigoo.github.io/2013/11/17/trying-out-ceylon-part-1.html</guid>
+      <content:encoded><![CDATA[<p>Ceylon&#39;s first production release was announced on 12th of November. I decided to try it out after going through the quick introduction, as it looked quite promising. In a series of posts I&#39;d like to share my first attempts to use this interesting language.</p>
+
+<p>This first release came with an eclipse plugin as well - after installing it I was immediately able to start working on my test project. In this few hours the plugin seemed to be stable enough, I did not experience any problems.</p>
+
+<p>I have a <code>JVLT</code> file which I created while attending a foreign language course about a year ago. I was using only a limited subset of this application, so basically what I have is a .jvlt file, which is in fact a ZIP archive, in which a <code>dict.xml</code> stores a set of words and for each word one or more translation and the lesson we have learnt it.</p>
+
+<p>See the following example:</p>
+
+<div class="highlight"><pre><code class="language-xml" data-lang="xml"><span class="nt">&lt;dictionary</span> <span class="na">language=</span><span class="s">&quot;french&quot;</span> <span class="na">version=</span><span class="s">&quot;1.4&quot;</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;entry</span> <span class="na">id=</span><span class="s">&quot;e275&quot;</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;orth&gt;</span>à côté de<span class="nt">&lt;/orth&gt;</span>
+    <span class="nt">&lt;sense</span> <span class="na">id=</span><span class="s">&quot;e275-s1&quot;</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;trans&gt;</span>mellett<span class="nt">&lt;/trans&gt;</span>
+    <span class="nt">&lt;/sense&gt;</span>
+    <span class="nt">&lt;sense</span> <span class="na">id=</span><span class="s">&quot;e275-s2&quot;</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;trans&gt;</span>mellé<span class="nt">&lt;/trans&gt;</span>
+    <span class="nt">&lt;/sense&gt;</span>
+    <span class="nt">&lt;lesson&gt;</span>8<span class="nt">&lt;/lesson&gt;</span>
+  <span class="nt">&lt;/entry&gt;</span>
+<span class="nt">&lt;/dictionary&gt;</span></code></pre></div>
+ 
+
+<p>My idea was to write an application that helps me learning and practicing these words.</p>
+
+<p>In this first post I&#39;m going to load the dictionary from the JVLT file.</p>
+
+<p>To get started, I created a new Ceylon module with the help of the IDE called jvlt. This immediately created three program units: <code>module.ceylon</code>, <code>package.ceylon</code> and <code>run.ceylon</code>. The <code>module.ceylon</code> contains the module definition, which also describes the module&#39;s dependencies. As I was trying to implement the dictionary reader, I ended up with the following module definition:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="n">module</span> <span class="n">jvlt</span> <span class="s">&quot;1.0.0&quot;</span> <span class="o">{</span>
+    <span class="nd">shared</span> <span class="kn">import</span> <span class="nn">ceylon.file</span> <span class="s">&quot;1.0.0&quot;</span><span class="o">;</span>
+    <span class="kn">import</span> <span class="nn">ceylon.collection</span> <span class="s">&quot;1.0.0&quot;</span><span class="o">;</span>
+    <span class="kn">import</span> <span class="nn">ceylon.interop.java</span> <span class="s">&quot;1.0.0&quot;</span><span class="o">;</span>
+ 
+    <span class="kn">import</span> <span class="nn">javax.xml</span> <span class="s">&quot;7&quot;</span><span class="o">;</span> 
+ 
+    <span class="kn">import</span> <span class="nn">ceylon.test</span> <span class="s">&quot;1.0.0&quot;</span><span class="o">;</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Let&#39;s start with the data model we want to build up! The dictionary consists of words:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Represents a foreign word with one or more senses&quot;</span>
+<span class="nd">shared</span> <span class="kd">class</span> <span class="nf">Word</span><span class="o">(</span><span class="nd">shared</span> <span class="n">String</span> <span class="n">word</span><span class="o">,</span> <span class="nd">shared</span> <span class="n">Set</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;</span> <span class="n">senses</span><span class="o">,</span> <span class="nd">shared</span> <span class="n">Integer</span> <span class="n">lesson</span><span class="o">){</span> 
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>The word, senses and lessons are all shared attributes of this class, accessible from the outside. To make it easy to access the word objects by their foreign word, I&#39;m currently storing them in a map:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Represents a dictionary of words in a given language&quot;</span>
+<span class="nd">shared</span> <span class="kd">class</span> <span class="nf">Dictionary</span><span class="o">(</span><span class="nd">shared</span> <span class="n">String</span> <span class="n">language</span><span class="o">,</span> <span class="nd">shared</span> <span class="n">Map</span><span class="o">&lt;</span><span class="n">string</span> <span class="n">word</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="o">&gt;</span> <span class="n">words</span><span class="o">)</span> <span class="o">{</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Basically that&#39;s the data model, but I wrapped the whole thing in an abstract JVLT class which looks like this:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Represents a JVLT file&quot;</span>
+<span class="nd">abstract</span> <span class="nd">shared</span> <span class="kd">class</span> <span class="nf">JVLT</span><span class="o">()</span> <span class="o">{</span>
+ 
+    <span class="s">&quot;The dictionary stored in this JVLT&quot;</span>
+    <span class="nd">formal</span> <span class="nd">shared</span> <span class="n">Dictionary</span> <span class="n">dictionary</span><span class="o">;</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>The idea is that you get a JVLT instance from one of the helper functions and then use it as a root of the data model.</p>
+
+<p>The next thing is to create this data model from the JVLT files. For this, I needed two things:</p>
+
+<ul>
+<li>Reading a ZIP archive</li>
+<li>Parsing XML</li>
+</ul>
+
+<p>It turned out that Ceylon&#39;s file module has ZIP support, with the <code>createZipFileSystem</code> function as an entry point. I made two module-level functions beside the JVLT class for creating instances deriving from the abstract JVLT class:</p>
+
+<ul>
+<li><code>loadJVLT</code> which loads a JVLT ZIP archive from the file system</li>
+<li><code>loadJVLTFromDictionaryString</code> oads directly a dict.xml-like XML passed as a simple string. I&#39;m using this for unit testing the XML parser.</li>
+</ul>
+
+<p>Let&#39;s see the ZIP handling first:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Loads a JVLT file from a `.jvlt` ZIP archive, if possible.&quot;</span>
+<span class="nd">shared</span> <span class="n">JVLT</span><span class="o">?</span> <span class="n">loadJVLT</span><span class="o">(</span><span class="n">File</span> <span class="n">file</span><span class="o">)</span> <span class="o">{</span>
+    <span class="kt">value</span> <span class="n">zip</span> <span class="o">=</span> <span class="n">createZipFileSystem</span><span class="o">(</span><span class="n">file</span><span class="o">);</span>
+    <span class="kt">value</span> <span class="n">dictPath</span> <span class="o">=</span> <span class="n">zip</span><span class="o">.</span><span class="na">parsePath</span><span class="o">(</span><span class="s">&quot;/dict.xml&quot;</span><span class="o">);</span>
+    <span class="k">if</span> <span class="o">(</span><span class="k">is</span> <span class="n">File</span> <span class="n">dictFile</span> <span class="o">=</span> <span class="n">dictPath</span><span class="o">.</span><span class="na">resource</span><span class="o">)</span> <span class="o">{</span>  
+        <span class="k">try</span> <span class="o">(</span><span class="n">reader</span> <span class="o">=</span> <span class="n">dictFile</span><span class="o">.</span><span class="n">Reader</span><span class="o">())</span> <span class="o">{</span>
+   
+            <span class="k">return</span> <span class="nf">loadJVLTFromDictionaryString</span><span class="o">(</span><span class="n">readAll</span><span class="o">(</span><span class="n">reader</span><span class="o">));</span>
+        <span class="o">}</span>
+    <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="kc">null</span><span class="o">;</span>
+    <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Well, the error handling is not too sophisticated in this case, it either returns a JVLT or returns <code>null</code> if the given file did not have a <code>dict.xml</code> in it. Other error conditions such as a <code>dict.xml</code> with a wrong format, etc., are not handled currently. As you can see, I&#39;m reusing my other load function here, once the <code>dict.xml</code> is read.</p>
+
+<p>There are two interesting things here. First, the if statement where we check if the resource is an instance of <code>File</code> and immediately store it in the value called <code>dictFile</code>. The <code>dictPath.resource</code> attribute has the type <code>Resource</code> which is a Ceylon interface. It is either an <code>ExistingResource</code>: <code>Directory</code>, <code>File</code> or <code>Link</code>, or <code>Nil</code>. In any case if it is not a <code>File</code> instance, we just return <code>null</code>.</p>
+
+<p>For simplicity, I&#39;m reading the full <code>dict.xml</code> into a string before parsing it. For this purpose I wrote a small helper function <code>readAll</code>:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Reads all lines from a file reader and returns the concatenated string&quot;</span>
+<span class="n">String</span> <span class="nf">readAll</span><span class="o">(</span><span class="n">File</span><span class="o">.</span><span class="n">Reader</span> <span class="n">reader</span><span class="o">)</span> <span class="o">{</span> 
+    <span class="nd">variable</span> <span class="n">String</span> <span class="n">result</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">;</span>
+ 
+    <span class="k">while</span> <span class="o">(</span><span class="k">exists</span> <span class="n">line</span> <span class="o">=</span> <span class="n">reader</span><span class="o">.</span><span class="na">readLine</span><span class="o">())</span> <span class="o">{</span>
+        <span class="n">result</span> <span class="o">+=</span> <span class="n">line</span><span class="o">;</span> 
+    <span class="o">}</span>
+ 
+    <span class="k">return</span> <span class="n">result</span><span class="o">;</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Probably it&#39;s not an optimal solution, but works :)</p>
+
+<p>Now that we have our data model and have a way to build it up from XML, we can write some unit tests to see how it works. The Ceylon SDK has a test module and the Ceylon IDE supports running the tests. There is a <a href="http://ceylon-lang.org/documentation/1.0/ide/test-plugin/">separate page in the documentation</a> describing how. It is really simple, I had to add the test module as a dependency, and I created a separate file to hold my test definitions. The class groups the tests together and optionally supports running extra code before/after each test case, as in other test frameworks:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="kd">class</span> <span class="nf">DictionaryParserTests</span><span class="o">()</span> <span class="o">{</span>
+
+    <span class="nd">shared</span> <span class="n">test</span> <span class="kt">void</span> <span class="nf">emptyDictionary</span><span class="o">()</span> <span class="o">{</span>
+        <span class="kt">value</span> <span class="n">dic</span> <span class="o">=</span> <span class="n">loadJVLTFromDictionaryString</span><span class="o">(</span><span class="s">&quot;&lt;dictionary&gt;&quot;</span><span class="o">);</span>
+      
+        <span class="k">assert</span> <span class="o">(</span><span class="n">dic</span><span class="o">.</span><span class="na">dictionary</span><span class="o">.</span><span class="na">words</span><span class="o">.</span><span class="na">empty</span><span class="o">);</span>
+        <span class="k">assert</span> <span class="o">(</span><span class="n">dic</span><span class="o">.</span><span class="na">dictionary</span><span class="o">.</span><span class="na">language</span> <span class="o">==</span> <span class="s">&quot;unknown&quot;</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="nd">shared</span> <span class="n">test</span> <span class="kt">void</span> <span class="nf">languageAttributeRead</span><span class="o">()</span> <span class="o">{</span>
+        <span class="kt">value</span> <span class="n">dic</span> <span class="o">=</span> <span class="n">loadJVLTFromDictionaryString</span><span class="o">(</span><span class="s">&quot;&lt;dictionary language=&quot;</span><span class="n">testlang</span><span class="s">&quot;&gt;&quot;</span><span class="o">);</span>
+        <span class="k">assert</span> <span class="o">(</span><span class="n">dic</span><span class="o">.</span><span class="na">dictionary</span><span class="o">.</span><span class="na">language</span> <span class="o">==</span> <span class="s">&quot;testlang&quot;</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="c1">// ...</span></code></pre></div>
+ 
+
+<p>I won&#39;t paste here all the test code, only a few samples to get the feeling how the Ceylon code looks like. To test whether a given word&#39;s translations are loaded correctly, I wrote a helper function:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="kt">void</span> <span class="nf">assertSenses</span><span class="o">(</span><span class="n">JVLT</span> <span class="n">jvlt</span><span class="o">,</span> <span class="n">String</span> <span class="n">w</span><span class="o">,</span> <span class="o">[</span><span class="n">String</span><span class="o">+]</span> <span class="n">expectedSenses</span><span class="o">)</span> <span class="o">{</span>
+  
+    <span class="n">Word</span><span class="o">?</span> <span class="n">word</span> <span class="o">=</span> <span class="n">jvlt</span><span class="o">.</span><span class="na">dictionary</span><span class="o">.</span><span class="na">words</span><span class="o">[</span><span class="n">w</span><span class="o">];</span>
+    <span class="k">if</span> <span class="o">(</span><span class="k">exists</span> <span class="n">word</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">assert</span> <span class="o">(</span><span class="n">word</span><span class="o">.</span><span class="na">senses</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">HashSet</span><span class="o">(</span><span class="n">expectedSenses</span><span class="o">)));</span>  
+    <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+        <span class="n">fail</span><span class="o">(</span><span class="s">&quot;Word does not exists&quot;</span><span class="o">);</span>
+    <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>This helper function can be used to assert that a word has been loaded correctly:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="nd">shared</span> <span class="n">test</span> <span class="kt">void</span> <span class="nf">wordWithMultipleSenses</span><span class="o">()</span> <span class="o">{</span>
+    <span class="kt">value</span> <span class="n">dic</span> <span class="o">=</span> <span class="n">loadJVLTFromDictionaryString</span><span class="o">(</span>
+        <span class="s">&quot;&lt;dictionary&gt;</span>
+<span class="s">            &lt;entry id=&quot;</span><span class="n">e1</span><span class="s">&quot;&gt;</span>
+<span class="s">                &lt;orth&gt;src1&lt;/orth&gt;</span>
+<span class="s">                &lt;sense id=&quot;</span><span class="n">e1</span><span class="o">-</span><span class="n">s1</span><span class="s">&quot;&gt;</span>
+<span class="s">                    &lt;trans&gt;dst1&lt;/trans&gt;</span>
+<span class="s">                &lt;/sense&gt;</span>
+<span class="s">                &lt;sense id=&quot;</span><span class="n">e1</span><span class="o">-</span><span class="n">s2</span><span class="s">&quot;&gt;</span>
+<span class="s">                    &lt;trans&gt;dst2&lt;/trans&gt;</span>
+<span class="s">                &lt;/sense&gt;    </span>
+<span class="s">            &lt;/entry&gt;  </span>
+<span class="s">        &lt;/dictionary&gt;&quot;</span><span class="o">);</span>
+ 
+    <span class="n">assertSenses</span><span class="o">(</span><span class="n">dic</span><span class="o">,</span> <span class="s">&quot;src1&quot;</span><span class="o">,</span> <span class="o">[</span><span class="s">&quot;dst1&quot;</span><span class="o">,</span> <span class="s">&quot;dst2&quot;</span><span class="o">]);</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Now the only problem is that there is no XML parsing support in the Ceylon SDK currently, so it has to be done using Java interop. As I wrote the code to build up the data model from the XML, I wrote several helper functions to make it easier to fit into the language. So let&#39;s see first how the dictionary loading is defined, and then I&#39;ll show the helper functions.</p>
+
+<p>The XML parsing is done by two module level functions which are not shared - only used by the JVLT constructor functions I shown before. The first one creates a map entry for a single word:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Creates a word entry for the dictionary&quot;</span>
+<span class="n">String</span><span class="o">-&gt;</span><span class="n">Word</span> <span class="n">loadEntry</span><span class="o">(</span><span class="n">Element</span> <span class="n">elem</span><span class="o">)</span> <span class="o">{</span>
+ 
+    <span class="kt">value</span> <span class="n">w</span> <span class="o">=</span> <span class="n">Word</span> <span class="o">{</span>
+        <span class="n">word</span> <span class="o">=</span> <span class="n">selectNodeText</span><span class="o">(</span><span class="n">elem</span><span class="o">,</span> <span class="s">&quot;orth&quot;</span><span class="o">)</span> <span class="k">else</span> <span class="s">&quot;???&quot;</span><span class="o">;</span>
+        <span class="n">lesson</span> <span class="o">=</span> <span class="n">selectNodeInteger</span><span class="o">(</span><span class="n">elem</span><span class="o">,</span> <span class="s">&quot;lesson&quot;</span><span class="o">)</span> <span class="k">else</span> <span class="mi">0</span><span class="o">;</span>
+        <span class="n">senses</span> <span class="o">=</span> <span class="n">HashSet</span><span class="o">(</span><span class="n">selectNodes</span><span class="o">(</span><span class="n">elem</span><span class="o">,</span> <span class="s">&quot;sense/trans&quot;</span><span class="o">)</span>
+                    <span class="o">.</span><span class="na">map</span><span class="o">((</span><span class="n">Node</span> <span class="n">n</span><span class="o">)</span> <span class="o">=&gt;</span> <span class="n">n</span><span class="o">.</span><span class="na">textContent</span><span class="o">));</span>
+    <span class="o">};</span>
+    <span class="k">return</span> <span class="n">w</span><span class="o">.</span><span class="na">word</span><span class="o">-&gt;</span><span class="n">w</span><span class="o">;</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>and the second one loads all the words from the XML document:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Loads a dictionary from JVLT&#39;s `dict.xml` format.&quot;</span>
+<span class="n">Dictionary</span> <span class="nf">loadDictionaryFromXML</span><span class="o">(</span><span class="n">Document</span> <span class="nd">doc</span><span class="o">)</span> <span class="o">{</span> 
+
+    <span class="nd">doc</span><span class="o">.</span><span class="na">documentElement</span><span class="o">.</span><span class="na">normalize</span><span class="o">();</span>
+
+    <span class="k">return</span> <span class="n">Dictionary</span> <span class="o">{</span> 
+        <span class="n">language</span> <span class="o">=</span> <span class="n">getAttribute</span><span class="o">(</span><span class="nd">doc</span><span class="o">.</span><span class="na">documentElement</span><span class="o">,</span> <span class="s">&quot;language&quot;</span><span class="o">)</span> <span class="k">else</span> <span class="s">&quot;unknown&quot;</span><span class="o">;</span>
+        <span class="n">words</span> <span class="o">=</span> <span class="n">HashMap</span><span class="o">({</span> 
+            <span class="k">for</span> <span class="o">(</span><span class="n">node</span> <span class="k">in</span> <span class="n">selectNodes</span><span class="o">(</span><span class="nd">doc</span><span class="o">,</span> <span class="s">&quot;dictionary/entry&quot;</span><span class="o">))</span>
+                <span class="k">if</span> <span class="o">(</span><span class="k">is</span> <span class="n">Element</span> <span class="n">elem</span> <span class="o">=</span> <span class="n">node</span><span class="o">)</span>
+                    <span class="n">loadEntry</span><span class="o">(</span><span class="n">elem</span><span class="o">)</span> <span class="o">});</span>   
+    <span class="o">};</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>The function which returns the JVLT instance uses this function and Java interop to read the dictionary:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="s">&quot;Loads a JVLT file by the parsing the dictionary XML directly from a string&quot;</span>
+<span class="nd">shared</span> <span class="n">JVLT</span> <span class="nf">loadJVLTFromDictionaryString</span><span class="o">(</span><span class="n">String</span> <span class="n">dictXML</span><span class="o">)</span> <span class="o">{</span>
+    <span class="kt">value</span> <span class="nd">doc</span><span class="n">BuilderFactory</span> <span class="o">=</span> <span class="n">DocumentBuilderFactory</span><span class="o">.</span><span class="na">newInstance</span><span class="o">();</span>
+    <span class="kt">value</span> <span class="n">builder</span> <span class="o">=</span> <span class="nd">doc</span><span class="n">BuilderFactory</span><span class="o">.</span><span class="na">newDocumentBuilder</span><span class="o">();</span>
+    <span class="kt">value</span> <span class="nd">doc</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="na">parse</span><span class="o">(</span><span class="n">ByteArrayInputStream</span><span class="o">(</span><span class="n">javaString</span><span class="o">(</span><span class="n">dictXML</span><span class="o">).</span><span class="na">bytes</span><span class="o">));</span>
+ 
+    <span class="kd">object</span> <span class="nc">result</span> <span class="kd">extends</span> <span class="nf">JVLT</span><span class="o">()</span> <span class="o">{</span> 
+        <span class="n">dictionary</span> <span class="o">=</span> <span class="n">loadDictionaryFromXML</span><span class="o">(</span><span class="nd">doc</span><span class="o">);</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">;</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>There are two things to notice here: we had to convert from Ceylon&#39;s string to Java string. This is not done automatically and we need the <code>ceylon.interop.java</code> module to do it. In the last lines we define an anonymous class extending from JVLT and overwriting it&#39;s abstract dictionary attribute. Then this anonymous class instance is returned as the loaded JVLT.</p>
+
+<p>To make the XML parsing less painful, I defined a few helper functions in a separate compilation unit (<code>XmlHelper.ceylon</code>). I won&#39;t show here the full file but there are some interesting parts. First, from Ceylon you cannot call static methods, but you can import them. I&#39;m using the following two import statements: </p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="kn">import</span> <span class="nn">org.w3c.dom</span> <span class="o">{</span> <span class="n">Node</span><span class="o">,</span> <span class="n">NodeList</span><span class="o">,</span> <span class="n">Element</span> <span class="o">}</span>
+<span class="kn">import</span> <span class="nn">javax.xml.xpath</span> <span class="o">{</span> <span class="n">XPathFactory</span> <span class="o">{</span> <span class="n">newXPathFactory</span> <span class="o">=</span> <span class="n">newInstance</span> <span class="o">},</span>
+       <span class="n">XPathConstants</span> <span class="o">{</span> <span class="n">nodeSet</span> <span class="o">=</span> <span class="err">\</span><span class="n">iNODESET</span> <span class="o">}}</span></code></pre></div>
+ 
+
+<p>The first one is straightforward. It imports three DOM interfaces. The second one first imports the <code>XPathFactory.newInstance</code> static method and also renames it, as newInstance is a too generic name without its class name as a prefix. The third line imports a constant value and gives it a Ceylon-compatible name. Because in Ceylon only the types can start with an uppercase character, we have to use a special and ugly syntax which helps the interoperability - prefixing it with <code>\i</code>.</p>
+
+<p>The <code>ceylon.interop.java</code> module has helper classes to make Java Iterable objects iterable in Ceylon, but unfortunately the <code>NodeList</code> interface is not iterable in Java either. So I wrote a simple wrapper that iterates through a node list:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="kd">class</span> <span class="nf">NodeListIterator</span><span class="o">(</span><span class="n">NodeList</span> <span class="n">nodes</span><span class="o">)</span> <span class="kd">satisfies</span> <span class="n">Iterable</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">&gt;</span> <span class="o">{</span>
+    <span class="nd">shared</span> <span class="nd">actual</span> <span class="k">default</span> <span class="n">Iterator</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">&gt;</span> <span class="n">iterator</span><span class="o">()</span> <span class="o">{</span>
+        <span class="kd">object</span> <span class="nc">it</span> <span class="kd">satisfies</span> <span class="n">Iterator</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">&gt;</span> <span class="o">{</span>   
+            <span class="nd">variable</span> <span class="n">Integer</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="o">;</span>
+   
+            <span class="nd">shared</span> <span class="nd">actual</span> <span class="n">Node</span><span class="o">|</span><span class="n">Finished</span> <span class="n">next</span><span class="o">()</span> <span class="o">{</span>
+                <span class="k">if</span> <span class="o">(</span><span class="n">i</span> <span class="o">&lt;</span> <span class="n">nodes</span><span class="o">.</span><span class="na">length</span><span class="o">)</span> <span class="o">{</span>
+                    <span class="k">return</span> <span class="n">nodes</span><span class="o">.</span><span class="na">item</span><span class="o">(</span><span class="n">i</span><span class="o">++);</span>
+                <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+                    <span class="k">return</span> <span class="n">finished</span><span class="o">;</span>
+                <span class="o">}</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+        <span class="k">return</span> <span class="n">it</span><span class="o">;</span>
+    <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Using this iterator and the imports I wrote a <code>selectNodes</code> function to run XPath expressions and return the result as a Ceylon iterable:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="o">{</span><span class="n">Node</span><span class="o">*}</span> <span class="n">selectNodes</span><span class="o">(</span><span class="n">Node</span> <span class="n">root</span><span class="o">,</span> <span class="n">String</span> <span class="n">xpath</span><span class="o">)</span> <span class="o">{</span> 
+    <span class="kt">value</span> <span class="n">factory</span> <span class="o">=</span> <span class="n">newXPathFactory</span><span class="o">();</span>
+    <span class="kt">value</span> <span class="n">xpathCompiler</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="na">newXPath</span><span class="o">();</span>
+    <span class="kt">value</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">xpathCompiler</span><span class="o">.</span><span class="na">compile</span><span class="o">(</span><span class="n">xpath</span><span class="o">);</span>
+    <span class="kt">value</span> <span class="n">nodeList</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="na">evaluate</span><span class="o">(</span><span class="n">root</span><span class="o">,</span> <span class="n">nodeSet</span><span class="o">);</span> 
+    <span class="k">if</span> <span class="o">(</span><span class="k">is</span> <span class="n">NodeList</span> <span class="n">nodeList</span><span class="o">)</span> <span class="o">{</span>  
+        <span class="k">return</span> <span class="nf">NodeListIterator</span><span class="o">(</span><span class="n">nodeList</span><span class="o">);</span>
+    <span class="o">}</span>
+    <span class="k">else</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="o">[];</span>
+    <span class="o">}</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>Using this function it is very easy to write a variant that selects a single node:</p>
+
+<div class="highlight"><pre><code class="language-ceylon" data-lang="ceylon"><span class="n">Node</span><span class="o">?</span> <span class="n">selectNode</span><span class="o">(</span><span class="n">Node</span> <span class="n">root</span><span class="o">,</span> <span class="n">String</span> <span class="n">xpath</span><span class="o">)</span> <span class="o">{</span> 
+    <span class="k">return</span> <span class="nf">selectNodes</span><span class="o">(</span><span class="n">root</span><span class="o">,</span> <span class="n">xpath</span><span class="o">).</span><span class="na">first</span><span class="o">;</span>
+<span class="o">}</span></code></pre></div>
+ 
+
+<p>There are some other helper functions returning the node&#39;s text, converting it to integer, etc. but I think they are not that interesting. Now that I have my data model which is built from my JVLT file, the next thing is to make a user interface somehow where the vocabulary can be shown an the user&#39;s knowledge can be tested/improved. This will be the topic of some future posts, as soon as I have time to experiment more with this new language.</p>
+]]></content:encoded>
+      <dc:date>2013-11-17T00:00:00+01:00</dc:date>
+    </item>
+    <item>
+      <title>Cloning WPF flow document fragments</title>
+      <link>http://vigoo.github.io/2013/10/25/cloning-wpf-flow-document-fragments.html</link>
+      <description><![CDATA[Today I had to write such an ugly hack to fix a bug that I decided to start writing a blog where I can show it to the world :)
+]]></description>
+      <pubDate>Fri, 25 Oct 2013 00:00:00 +0200</pubDate>
+      <guid>http://vigoo.github.io/2013/10/25/cloning-wpf-flow-document-fragments.html</guid>
+      <content:encoded><![CDATA[<p>Today I had to write such an ugly hack to fix a bug that I decided to start writing a blog where I can show it to the world :)</p>
+
+<p>The software I&#39;m working on has some sort of context sensitive help panel, which is implemented using dynamically generated <a href="http://msdn.microsoft.com/en-us/library/aa970909.aspx">flow documents</a>. The software loads a large set of flow document sections from a XAML file runtime, and later builds documents from a subset of them.</p>
+
+<p>For some reason (which belong to a separate post), it is not possible to reuse these flow document elements in multiple flow documents, not even if there is only one at a time. To work around this, I was cloning these sections before adding them to the document.</p>
+
+<p>As WPF elements are not <em>cloneable</em>, I was using the method recommended many places, for example <a href="http://stackoverflow.com/questions/32541/how-can-you-clone-a-wpf-object">in this StackOverflow post</a>: saving the object tree to an in-memory XAML stream, and loading it back.</p>
+
+<p>This worked quite well.. until we discovered a bug, which I still cannot explain. In some cases which were easily reproducible for any developer, but the code running in those cases being exactly the same as in other, working cases, the clone method simply stopped working.</p>
+
+<p>Stopped working here means that the following code:</p>
+
+<div class="highlight"><pre><code class="language-c#" data-lang="c#"><span class="kt">var</span> <span class="n">xaml</span> <span class="p">=</span> <span class="n">XamlWriter</span><span class="p">.</span><span class="n">Save</span><span class="p">(</span><span class="n">block</span><span class="p">);</span></code></pre></div>
+
+<p>would write out the correct object hierarchy, but without any properties (no attributes, no content properties, nothing but the element names)! In the same time the objects in the memory were untouched and still had all the relevant properties set.</p>
+
+<p>I also tried to write my own XAML serializer based on the code found <a href="http://go4answers.webhost4life.com/Example/xaml-serialization-replacement-75133.aspx">at this site</a>, but this was only good to find out that the problem lies deep within the <code>MarkupWriter</code> class, which is the same what the <code>XamlWriter</code> uses internally. When the <code>XamlWriter</code> failed, my own code could not find any properties using the returned <a href="http://msdn.microsoft.com/en-us/library/system.windows.markup.primitives.markupobject.aspx">MarkupObject</a>:</p>
+
+<div class="highlight"><pre><code class="language-c#" data-lang="c#"><span class="n">MarkupObject</span> <span class="n">markupObj</span> <span class="p">=</span> <span class="n">MarkupWriter</span><span class="p">.</span><span class="n">GetMarkupObjectFor</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span></code></pre></div>
+
+<p>For the same object, in the working scenarios it returned a markup object with a working <code>Properties</code> collection.</p>
+
+<p>So here is the final <em>&quot;solution&quot;</em> which I&#39;m not really proud of, but solved the problem. Maybe with some modifications it is useful for someone struggling with the framework:</p>
+
+<div class="highlight"><pre><code class="language-c#" data-lang="c#"><span class="c1">/// &lt;summary&gt;</span>
+<span class="c1">/// Horrible ugly clone hack to issues where XamlWriter/XamlReader based</span>
+<span class="c1">/// clone method did not work.</span>
+<span class="c1">/// &lt;/summary&gt;</span>
+<span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">CloneHelper</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Block</span> <span class="n">Clone</span><span class="p">&lt;</span><span class="n">t</span><span class="p">&gt;(</span><span class="k">this</span> <span class="n">T</span> <span class="n">block</span><span class="p">)</span>
+        <span class="k">where</span> <span class="n">T</span> <span class="p">:</span> <span class="n">Block</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="p">(</span><span class="n">T</span><span class="p">)</span><span class="n">DeepClone</span><span class="p">(</span><span class="n">block</span><span class="p">);</span>
+
+        <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">private</span> <span class="k">static</span> <span class="kt">object</span> <span class="nf">DeepClone</span><span class="p">(</span><span class="kt">object</span> <span class="n">obj</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">obj</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="c1">// Replacing ResourceDictionary and Style values with null. </span>
+            <span class="c1">// In this particular use case it is correct to do</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">obj</span><span class="p">.</span><span class="n">GetType</span><span class="p">()</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">ResourceDictionary</span><span class="p">)</span> <span class="p">||</span>
+                <span class="n">obj</span><span class="p">.</span><span class="n">GetType</span><span class="p">()</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Style</span><span class="p">))</span>
+            <span class="p">{</span>
+                <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+            <span class="p">}</span>
+            <span class="k">else</span>
+            <span class="p">{</span>
+                <span class="c1">// Value types and some special cases where we don&#39;t want to clone</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">obj</span><span class="p">.</span><span class="n">GetType</span><span class="p">().</span><span class="n">IsValueType</span> <span class="p">||</span>
+                    <span class="n">obj</span><span class="p">.</span><span class="n">GetType</span><span class="p">()</span> <span class="p">==</span> <span class="k">typeof</span> <span class="p">(</span><span class="n">Cursor</span><span class="p">)</span> <span class="p">||</span>
+                    <span class="n">obj</span><span class="p">.</span><span class="n">GetType</span><span class="p">()</span> <span class="p">==</span> <span class="k">typeof</span> <span class="p">(</span><span class="n">XmlLanguage</span><span class="p">))</span>
+                <span class="p">{</span>
+                    <span class="k">return</span> <span class="n">obj</span><span class="p">;</span>
+                <span class="p">}</span>
+                <span class="k">else</span>
+                <span class="p">{</span>
+                    <span class="c1">// If it is cloneable, use it</span>
+                    <span class="kt">var</span> <span class="n">cloneable</span> <span class="p">=</span> <span class="n">obj</span> <span class="k">as</span> <span class="n">ICloneable</span><span class="p">;</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">cloneable</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+                    <span class="p">{</span>
+                        <span class="k">return</span> <span class="n">cloneable</span><span class="p">.</span><span class="n">Clone</span><span class="p">();</span>
+                    <span class="p">}</span>
+                    <span class="k">else</span>
+                    <span class="p">{</span>
+                        <span class="c1">// Creating the clone with reflection</span>
+                        <span class="kt">var</span> <span class="n">typ</span> <span class="p">=</span> <span class="n">obj</span><span class="p">.</span><span class="n">GetType</span><span class="p">();</span>
+                        <span class="kt">var</span> <span class="n">clone</span> <span class="p">=</span> <span class="n">Activator</span><span class="p">.</span><span class="n">CreateInstance</span><span class="p">(</span><span class="n">typ</span><span class="p">);</span>                     
+
+                        <span class="c1">// Property names which are known locally set </span>
+                        <span class="c1">// dependency properties</span>
+                        <span class="kt">var</span> <span class="n">usedNames</span> <span class="p">=</span> <span class="k">new</span> <span class="n">HashSet</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;();</span>                        
+
+                        <span class="c1">// Copying locally set dependency properties from the </span>
+                        <span class="c1">// source to the target</span>
+                        <span class="kt">var</span> <span class="n">dobjSource</span> <span class="p">=</span> <span class="n">obj</span> <span class="k">as</span> <span class="n">DependencyObject</span><span class="p">;</span>
+                        <span class="kt">var</span> <span class="n">dobjTarget</span> <span class="p">=</span> <span class="n">clone</span> <span class="k">as</span> <span class="n">DependencyObject</span><span class="p">;</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">dobjSource</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="n">dobjTarget</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+                        <span class="p">{</span>
+                            <span class="kt">var</span> <span class="n">locallySetProperties</span> <span class="p">=</span> 
+                                <span class="n">dobjSource</span><span class="p">.</span><span class="n">GetLocalValueEnumerator</span><span class="p">();</span>
+                            <span class="k">while</span> <span class="p">(</span><span class="n">locallySetProperties</span><span class="p">.</span><span class="n">MoveNext</span><span class="p">())</span>
+                            <span class="p">{</span>
+                                <span class="n">DependencyProperty</span> <span class="n">dp</span> <span class="p">=</span> 
+                                    <span class="n">locallySetProperties</span><span class="p">.</span><span class="n">Current</span><span class="p">.</span><span class="n">Property</span><span class="p">;</span>
+                                <span class="k">if</span> <span class="p">(!</span><span class="n">dp</span><span class="p">.</span><span class="n">ReadOnly</span><span class="p">)</span>
+                                <span class="p">{</span>
+                                    <span class="n">dobjTarget</span><span class="p">.</span><span class="n">SetValue</span><span class="p">(</span><span class="n">dp</span><span class="p">,</span> <span class="n">dobjSource</span><span class="p">.</span><span class="n">GetValue</span><span class="p">(</span><span class="n">dp</span><span class="p">));</span>
+                                    <span class="n">usedNames</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">dp</span><span class="p">.</span><span class="n">Name</span><span class="p">);</span>
+                                <span class="p">}</span>
+                            <span class="p">}</span>
+                        <span class="p">}</span>                        
+
+                        <span class="c1">// Getting all the public, non-static properties of the source</span>
+                        <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">pi</span> <span class="k">in</span> <span class="n">typ</span><span class="p">.</span><span class="n">GetProperties</span><span class="p">(</span>
+                                            <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Instance</span> <span class="p">|</span> 
+                                            <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Public</span> <span class="p">|</span> 
+                                            <span class="n">BindingFlags</span><span class="p">.</span><span class="n">FlattenHierarchy</span><span class="p">))</span>
+                        <span class="p">{</span>
+                            <span class="c1">// If it is not a dependency property </span>
+                            <span class="c1">// and not the default property...</span>
+                            <span class="k">if</span> <span class="p">(</span><span class="n">pi</span><span class="p">.</span><span class="n">CanRead</span> <span class="p">&amp;&amp;</span>
+                                <span class="p">!</span><span class="n">usedNames</span><span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="n">pi</span><span class="p">.</span><span class="n">Name</span><span class="p">)</span> <span class="p">&amp;&amp;</span>
+                                <span class="p">!</span><span class="n">IsDependencyProperty</span><span class="p">(</span><span class="n">dobjSource</span><span class="p">,</span> <span class="n">pi</span><span class="p">)</span> <span class="p">&amp;&amp;</span>
+                                <span class="n">pi</span><span class="p">.</span><span class="n">Name</span> <span class="p">!=</span> <span class="s">&quot;Item&quot;</span><span class="p">)</span>
+                            <span class="p">{</span>                                    
+                                <span class="kt">var</span> <span class="n">val</span> <span class="p">=</span> <span class="n">pi</span><span class="p">.</span><span class="n">GetValue</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="k">null</span><span class="p">);</span>
+
+                                <span class="c1">// ..and it is writeable, then we recursively clone </span>
+                                <span class="c1">// the value and set the property:</span>
+                                <span class="k">if</span> <span class="p">(</span><span class="n">pi</span><span class="p">.</span><span class="n">CanWrite</span><span class="p">)</span>
+                                <span class="p">{</span>                                        
+                                    <span class="n">pi</span><span class="p">.</span><span class="n">SetValue</span><span class="p">(</span><span class="n">clone</span><span class="p">,</span> <span class="n">DeepClone</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="k">null</span><span class="p">);</span>
+                                <span class="p">}</span>
+                                <span class="k">else</span>
+                                <span class="p">{</span>
+                                    <span class="c1">// ..otherwise if it is a readonly list property, </span>
+                                    <span class="c1">// go through each item,  clone it and add to </span>
+                                    <span class="c1">// the clone&#39;s list property</span>
+                                    <span class="k">if</span> <span class="p">(</span><span class="n">pi</span><span class="p">.</span><span class="n">PropertyType</span>
+                                          <span class="p">.</span><span class="n">GetInterfaces</span><span class="p">()</span>
+                                          <span class="p">.</span><span class="n">Contains</span><span class="p">(</span><span class="k">typeof</span> <span class="p">(</span><span class="n">IList</span><span class="p">)))</span>
+                                    <span class="p">{</span>
+                                        <span class="kt">var</span> <span class="n">source</span> <span class="p">=</span> <span class="n">val</span> <span class="k">as</span> <span class="n">IList</span><span class="p">;</span>
+                                        <span class="kt">var</span> <span class="n">target</span> <span class="p">=</span> <span class="n">pi</span><span class="p">.</span><span class="n">GetValue</span><span class="p">(</span><span class="n">clone</span><span class="p">,</span> <span class="k">null</span><span class="p">)</span> <span class="k">as</span> <span class="n">IList</span><span class="p">;</span>
+
+                                        <span class="k">if</span> <span class="p">(</span><span class="n">source</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="n">target</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+                                        <span class="p">{</span>
+                                            <span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">item</span> <span class="k">in</span> <span class="n">source</span><span class="p">)</span>
+                                                <span class="n">target</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="n">DeepClone</span><span class="p">(</span><span class="n">item</span><span class="p">));</span>
+                                        <span class="p">}</span>
+                                    <span class="p">}</span>
+                                <span class="p">}</span>
+                            <span class="p">}</span>
+                        <span class="p">}</span>                        
+
+                        <span class="k">return</span> <span class="n">clone</span><span class="p">;</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="k">else</span>
+        <span class="p">{</span>
+            <span class="k">return</span> <span class="k">null</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>    
+
+    <span class="c1">/// &lt;summary&gt;</span>
+    <span class="c1">/// Tries to determine if a property is a dependency property, by reflection and </span>
+    <span class="c1">/// naming convention</span>
+    <span class="c1">/// &lt;/summary&gt;</span>
+    <span class="c1">/// &lt;param name=&quot;dobj&quot;&gt;Dependency object</span>
+    <span class="c1">/// &lt;param name=&quot;pi&quot;&gt;Property info</span>
+    <span class="c1">/// &lt;returns&gt;Returns &lt;c&gt;true&lt;/c&gt; if the given property seems to be a </span>
+    <span class="c1">///          CLR access property for a dependency property.&lt;/returns&gt;</span>
+    <span class="k">private</span> <span class="k">static</span> <span class="kt">bool</span> <span class="nf">IsDependencyProperty</span><span class="p">(</span><span class="n">DependencyObject</span> <span class="n">dobj</span><span class="p">,</span> <span class="n">PropertyInfo</span> <span class="n">pi</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dobj</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="kt">var</span> <span class="n">dpProp</span> <span class="p">=</span> <span class="n">dobj</span><span class="p">.</span><span class="n">GetType</span><span class="p">().</span><span class="n">GetProperty</span><span class="p">(</span><span class="n">pi</span><span class="p">.</span><span class="n">Name</span> <span class="p">+</span> <span class="s">&quot;Property&quot;</span><span class="p">,</span> 
+                                                    <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Static</span> <span class="p">|</span>
+                                                    <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Public</span> <span class="p">|</span>
+                                                    <span class="n">BindingFlags</span><span class="p">.</span><span class="n">FlattenHierarchy</span><span class="p">);</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dpProp</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> <span class="n">dpProp</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span> <span class="p">(</span><span class="n">DependencyProperty</span><span class="p">))</span>
+                <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+            <span class="k">else</span>
+            <span class="p">{</span>
+                <span class="kt">var</span> <span class="n">dpField</span> <span class="p">=</span> <span class="n">dobj</span><span class="p">.</span><span class="n">GetType</span><span class="p">().</span><span class="n">GetField</span><span class="p">(</span><span class="n">pi</span><span class="p">.</span><span class="n">Name</span> <span class="p">+</span> <span class="s">&quot;Property&quot;</span><span class="p">,</span> 
+                                                      <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Static</span> <span class="p">|</span> 
+                                                      <span class="n">BindingFlags</span><span class="p">.</span><span class="n">Public</span> <span class="p">|</span> 
+                                                      <span class="n">BindingFlags</span><span class="p">.</span><span class="n">FlattenHierarchy</span><span class="p">);</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">dpField</span> <span class="p">!=</span> <span class="k">null</span> <span class="p">&amp;&amp;</span> 
+                    <span class="n">dpField</span><span class="p">.</span><span class="n">FieldType</span> <span class="p">==</span> <span class="k">typeof</span> <span class="p">(</span><span class="n">DependencyProperty</span><span class="p">)</span> <span class="p">&amp;&amp;</span> 
+                    <span class="n">dpField</span><span class="p">.</span><span class="n">IsInitOnly</span> <span class="p">&amp;&amp;</span> <span class="n">dpField</span><span class="p">.</span><span class="n">IsStatic</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="k">true</span><span class="p">;</span>
+            <span class="p">}</span>
+        <span class="p">}</span>        
+
+        <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span></code></pre></div>
+]]></content:encoded>
+      <dc:date>2013-10-25T00:00:00+02:00</dc:date>
+    </item>
+    <dc:date>2014-09-15T00:00:00+02:00</dc:date>
+  </channel>
+</rss>
