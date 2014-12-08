@@ -8,7 +8,28 @@
     <title>vigoo's software development blog</title>
     <link>http://vigoo.github.io</link>
     <description>RSS feed for vigoo's software development blog</description>
-    <pubDate>Wed, 22 Oct 2014 00:00:00 +0200</pubDate>
+    <pubDate>Mon, 08 Dec 2014 00:00:00 +0100</pubDate>
+    <item>
+      <title>bari 1.0 released</title>
+      <link>http://vigoo.github.io/2014/12/08/bari-1-0.html</link>
+      <description><![CDATA[I already wrote about bari in May.
+]]></description>
+      <pubDate>Mon, 08 Dec 2014 00:00:00 +0100</pubDate>
+      <guid>http://vigoo.github.io/2014/12/08/bari-1-0.html</guid>
+      <content:encoded><![CDATA[<p>I already wrote about <a href="http://vigoo.github.io/bari">bari</a> in <a href="http://vigoo.github.io/2014/05/16/introducing-bari.html">May</a>.</p>
+
+<p>As a reminder, <a href="http://vigoo.github.io/bari">bari</a> is a <em>build management system</em> primarily for .NET, trying to fix Visual Studio&#39;s bad parts while keeping the good ones.</p>
+
+<p>After more than two years of development, and being in production at <a href="http://www.kotem.com/">KOTEM</a> for almost half year, bari reached a state when it can be considered as a <em>stable</em> and <em>usable</em> first version.</p>
+
+<p>To indicate this today I released <strong>bari 1.0</strong>.</p>
+
+<p>Try it out and feel free to give any kind of feedback or ask any question!</p>
+
+<p><img src="http://vigoo.github.io/bari/img/barilogo-small.png" alt=""></p>
+]]></content:encoded>
+      <dc:date>2014-12-08T00:00:00+01:00</dc:date>
+    </item>
     <item>
       <title>ScalaFXML 0.2.2 available</title>
       <link>http://vigoo.github.io/2014/10/22/scalafxml-0-2-2.html</link>
@@ -1055,6 +1076,6 @@ to build, but also the way it is built. For example, in a simple
 ]]></content:encoded>
       <dc:date>2013-10-25T00:00:00+02:00</dc:date>
     </item>
-    <dc:date>2014-10-22T00:00:00+02:00</dc:date>
+    <dc:date>2014-12-08T00:00:00+01:00</dc:date>
   </channel>
 </rss>
