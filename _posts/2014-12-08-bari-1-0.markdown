@@ -7,10 +7,10 @@ I already wrote about [bari](http://vigoo.github.io/bari) in [May](http://vigoo.
 
 As a reminder, [bari](http://vigoo.github.io/bari) is a *build management system* primarily for .NET, trying to fix Visual Studio's bad parts while keeping the good ones.
 
-After more than two years of development, and being in production at [KOTEM](http://www.kotem.com/) for almost half year, bari reached a state when it can be considered as a *stable* and *usable* first version.
+After more than two years of development, and being in production at [KOTEM](http://www.kotem.com/) for almost half a year, bari reached a state when it can be considered as a *stable* and *usable* first version.
 
 To indicate this today I released **bari 1.0**.
 
-Try it out and feel free to give any kind of feedback or ask any question!
+Try it out and feel free to give any kind of feedback or ask any questions!
 
 ![](http://vigoo.github.io/bari/img/barilogo-small.png)
