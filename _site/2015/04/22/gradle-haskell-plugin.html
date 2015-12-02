@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Haskell plugin for Gradle</title>
+        <meta name="viewport" content="width=device-width">
+
+        <!-- syntax highlighting CSS -->
+        <link rel="stylesheet" href="/css/syntax.css">
+
+        <!-- Custom CSS -->
+        <link rel="stylesheet" href="/css/main.css">
+
+        <!-- zoomingbox -->
+        <script src="/assets/js/jquery-1.11.0.min.js"></script>
+        <script src="/assets/js/jquery.zoomingbox.min.js"></script>
+        <link href="/assets/css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+
+        <div class="site">
+          <div class="header">
+            <h1 class="title"><a href="/">vigoo's software development blog</a></h1>
+            <a class="extra" href="/">home</a>
+          </div>
+
+          <h2>Haskell plugin for Gradle</h2>
+<p class="meta">22 Apr 2015</p>
+
+<div class="post">
+<p>My team at <a href="https://prezi.com">Prezi</a> uses <strong>Haskell</strong> for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As <a href="https://gradle.org/">Gradle</a> is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.</p>
+
+<p>The result is <a href="https://github.com/prezi/gradle-haskell-plugin">Gradle Haskell Plugin</a>, which we were using succesfully in the last 2 months in our daily work, and we have <em>open-sourced</em> recently.</p>
+
+<p>What makes this solution interesting is that it not just simply wraps <em>cabal</em> within Gradle tasks, but implements a way to define <strong>dependencies</strong> between Haskell projects and to upload the binary Haskell artifacts to a <em>repository</em> such as <a href="http://www.jfrog.com/open-source/">artifactory</a>. </p>
+
+<p>This makes it easy to modularize our projects, publish them,
+and also works perfectly with <a href="https://github.com/prezi/pride">pride</a>, an other <em>open-source</em> Prezi project.
+This means that we can work on a subset of our Haskell projects while the other
+dependencies are built on Jenkins, and it also integrates well with our
+non-Haskell projects.</p>
+
+<h2>How does it work?</h2>
+
+<p>The main idea is that we let <em>cabal</em> manage the Haskell packages, and handle
+whole Haskell <em>sandboxes</em> on Gradle level. So if you have a single Haskell project,
+it will be built using <em>cabal</em> and the result sandbox (the built project together with all the
+dependent cabal packages which are not installed in the <em>global package database</em>)
+will be packed/published as a Gradle <em>artifact</em>.</p>
+
+<p>This is not very interesting so far, but when you introduce dependencies on
+Gradle level, the plugin does something which (as far as I know) is not really done by
+anyone else, which I call <em>sandbox chaining</em>. This basically means that to compile
+the haskell project, the plugin will pass all the dependent sandboxes&#39; package database
+to cabal and GHC, so for the actual sandbox only the packages which are <strong>not</strong> in any
+of the dependent sandboxes will be installed.</p>
+
+<h2>Example</h2>
+
+<p>Let&#39;s see an example scenario with <em>4 gradle-haskell projects</em>.</p>
+
+<p><a href="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" class="zimg"><img width="600" src="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" alt=""></a></p>
+
+<p>The project called <em>Haskell project</em> depends on two other projects, which taking into accound the transitive dependencies means it depends on <em>three other haskell projects</em>. Each project has its own haskell source and <em>cabal file</em>. Building this suite consists of the following steps:</p>
+
+<ul>
+<li><strong>dependency 1</strong> is built using only the <em>global package database</em>, everything <strong>not</strong> in that database, together with the compiled project goes into its <code>build/sandbox</code> directory, which is a combination of a <em>GHC package database</em> and the project&#39;s build output. This is packed as <strong>dependency 1</strong>&#39;s build artifact.</li>
+<li>For <strong>dependency 2</strong>, Gradle first downloads the build artifact of <em>dependency 1</em> and extracts it to <code>build/deps/dependency1</code>. </li>
+<li>Then it runs <a href="https://github.com/exFalso/sandfix">SandFix</a> on it</li>
+<li>And compiles the second project, now passing <strong>both</strong> the <em>global package database</em> and <strong>dependency 1</strong>&#39;s sandbox to cabal/ghc. The result is that only the packages which are <strong>not</strong> in any of these two package databases will be installed in the project&#39;s own sandbox, which becomes the build artifact of <strong>dependency 2</strong>.</li>
+<li>For <strong>dependency 3</strong>, Gradle extracts both the direct dependency and the transitive dependency&#39;s sandbox, to <code>build/deps/dependency2</code> and <code>build/deps/dependency3</code>.</li>
+<li>Then it runs <a href="https://github.com/exFalso/sandfix">SandFix</a> on both the dependencies</li>
+<li>And finally passes three package databases to cabal/ghc to compile the project. Only those cabal dependencies will be installed into this sandbox which are not in global, neither in any of the dependent sandboxes.</li>
+<li>Finally, for <strong>Haskell project</strong> it goes the same way, but here we have three sandboxes, all chained together to make sure only the built sandbox only contains what is not in the dependent sandboxes yet.</li>
+</ul>
+
+<p>For more information, check out <a href="https://github.com/prezi/gradle-haskell-plugin">the documentation</a>.</p>
+
+</div>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+
+
+          <div class="footer">
+            <div class="contact">
+              <p>
+                Daniel Vigovszky<br />
+              </p>
+            </div>
+            <div class="contact">
+              <p>
+                <a href="https://github.com/vigoo">github.com/vigoo</a><br />
+              </p>
+            </div>
+          </div>
+        </div>
+
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>

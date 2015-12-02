@@ -8,7 +8,85 @@
     <title>vigoo's software development blog</title>
     <link>http://vigoo.github.io</link>
     <description>RSS feed for vigoo's software development blog</description>
-    <pubDate>Wed, 22 Oct 2014 00:00:00 +0200</pubDate>
+    <pubDate>Wed, 22 Apr 2015 00:00:00 +0200</pubDate>
+    <item>
+      <title>Haskell plugin for Gradle</title>
+      <link>http://vigoo.github.io/2015/04/22/gradle-haskell-plugin.html</link>
+      <description><![CDATA[My team at Prezi uses Haskell for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As Gradle is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.
+]]></description>
+      <pubDate>Wed, 22 Apr 2015 00:00:00 +0200</pubDate>
+      <guid>http://vigoo.github.io/2015/04/22/gradle-haskell-plugin.html</guid>
+      <content:encoded><![CDATA[<p>My team at <a href="https://prezi.com">Prezi</a> uses <strong>Haskell</strong> for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As <a href="https://gradle.org/">Gradle</a> is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.</p>
+
+<p>The result is <a href="https://github.com/prezi/gradle-haskell-plugin">Gradle Haskell Plugin</a>, which we were using succesfully in the last 2 months in our daily work, and we have <em>open-sourced</em> recently.</p>
+
+<p>What makes this solution interesting is that it not just simply wraps <em>cabal</em> within Gradle tasks, but implements a way to define <strong>dependencies</strong> between Haskell projects and to upload the binary Haskell artifacts to a <em>repository</em> such as <a href="http://www.jfrog.com/open-source/">artifactory</a>. </p>
+
+<p>This makes it easy to modularize our projects, publish them,
+and also works perfectly with <a href="https://github.com/prezi/pride">pride</a>, an other <em>open-source</em> Prezi project.
+This means that we can work on a subset of our Haskell projects while the other
+dependencies are built on Jenkins, and it also integrates well with our
+non-Haskell projects.</p>
+
+<h2>How does it work?</h2>
+
+<p>The main idea is that we let <em>cabal</em> manage the Haskell packages, and handle
+whole Haskell <em>sandboxes</em> on Gradle level. So if you have a single Haskell project,
+it will be built using <em>cabal</em> and the result sandbox (the built project together with all the
+dependent cabal packages which are not installed in the <em>global package database</em>)
+will be packed/published as a Gradle <em>artifact</em>.</p>
+
+<p>This is not very interesting so far, but when you introduce dependencies on
+Gradle level, the plugin does something which (as far as I know) is not really done by
+anyone else, which I call <em>sandbox chaining</em>. This basically means that to compile
+the haskell project, the plugin will pass all the dependent sandboxes&#39; package database
+to cabal and GHC, so for the actual sandbox only the packages which are <strong>not</strong> in any
+of the dependent sandboxes will be installed.</p>
+
+<h2>Example</h2>
+
+<p>Let&#39;s see an example scenario with <em>4 gradle-haskell projects</em>.</p>
+
+<p><a href="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" class="zimg"><img width="600" src="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" alt=""></a></p>
+
+<p>The project called <em>Haskell project</em> depends on two other projects, which taking into accound the transitive dependencies means it depends on <em>three other haskell projects</em>. Each project has its own haskell source and <em>cabal file</em>. Building this suite consists of the following steps:</p>
+
+<ul>
+<li><strong>dependency 1</strong> is built using only the <em>global package database</em>, everything <strong>not</strong> in that database, together with the compiled project goes into its <code>build/sandbox</code> directory, which is a combination of a <em>GHC package database</em> and the project&#39;s build output. This is packed as <strong>dependency 1</strong>&#39;s build artifact.</li>
+<li>For <strong>dependency 2</strong>, Gradle first downloads the build artifact of <em>dependency 1</em> and extracts it to <code>build/deps/dependency1</code>. </li>
+<li>Then it runs <a href="https://github.com/exFalso/sandfix">SandFix</a> on it</li>
+<li>And compiles the second project, now passing <strong>both</strong> the <em>global package database</em> and <strong>dependency 1</strong>&#39;s sandbox to cabal/ghc. The result is that only the packages which are <strong>not</strong> in any of these two package databases will be installed in the project&#39;s own sandbox, which becomes the build artifact of <strong>dependency 2</strong>.</li>
+<li>For <strong>dependency 3</strong>, Gradle extracts both the direct dependency and the transitive dependency&#39;s sandbox, to <code>build/deps/dependency2</code> and <code>build/deps/dependency3</code>.</li>
+<li>Then it runs <a href="https://github.com/exFalso/sandfix">SandFix</a> on both the dependencies</li>
+<li>And finally passes three package databases to cabal/ghc to compile the project. Only those cabal dependencies will be installed into this sandbox which are not in global, neither in any of the dependent sandboxes.</li>
+<li>Finally, for <strong>Haskell project</strong> it goes the same way, but here we have three sandboxes, all chained together to make sure only the built sandbox only contains what is not in the dependent sandboxes yet.</li>
+</ul>
+
+<p>For more information, check out <a href="https://github.com/prezi/gradle-haskell-plugin">the documentation</a>.</p>
+]]></content:encoded>
+      <dc:date>2015-04-22T00:00:00+02:00</dc:date>
+    </item>
+    <item>
+      <title>bari 1.0 released</title>
+      <link>http://vigoo.github.io/2014/12/08/bari-1-0.html</link>
+      <description><![CDATA[I already wrote about bari in May.
+]]></description>
+      <pubDate>Mon, 08 Dec 2014 00:00:00 +0100</pubDate>
+      <guid>http://vigoo.github.io/2014/12/08/bari-1-0.html</guid>
+      <content:encoded><![CDATA[<p>I already wrote about <a href="http://vigoo.github.io/bari">bari</a> in <a href="http://vigoo.github.io/2014/05/16/introducing-bari.html">May</a>.</p>
+
+<p>As a reminder, <a href="http://vigoo.github.io/bari">bari</a> is a <em>build management system</em> primarily for .NET, trying to fix Visual Studio&#39;s bad parts while keeping the good ones.</p>
+
+<p>After more than two years of development, and being in production at <a href="http://www.kotem.com/">KOTEM</a> for almost half a year, bari reached a state when it can be considered as a <em>stable</em> and <em>usable</em> first version.</p>
+
+<p>To indicate this today I released <strong>bari 1.0</strong>.</p>
+
+<p>Try it out and feel free to give any kind of feedback or ask any questions!</p>
+
+<p><img src="http://vigoo.github.io/bari/img/barilogo-small.png" alt=""></p>
+]]></content:encoded>
+      <dc:date>2014-12-08T00:00:00+01:00</dc:date>
+    </item>
     <item>
       <title>ScalaFXML 0.2.2 available</title>
       <link>http://vigoo.github.io/2014/10/22/scalafxml-0-2-2.html</link>
@@ -1055,6 +1133,6 @@ to build, but also the way it is built. For example, in a simple
 ]]></content:encoded>
       <dc:date>2013-10-25T00:00:00+02:00</dc:date>
     </item>
-    <dc:date>2014-10-22T00:00:00+02:00</dc:date>
+    <dc:date>2015-04-22T00:00:00+02:00</dc:date>
   </channel>
 </rss>
