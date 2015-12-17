@@ -1,0 +1,951 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <title>vigoo's software development blog</title>
+    <link href="http://vigoo.github.io/atom.xml" rel="self" />
+    <link href="http://vigoo.github.io" />
+    <id>http://vigoo.github.io/atom.xml</id>
+    <author>
+        <name>Daniel Vigovszky</name>
+        <email>daniel.vigovszky@gmail.com</email>
+    </author>
+    <updated>2015-04-22T00:00:00Z</updated>
+    <entry>
+    <title>Haskell plugin for Gradle</title>
+    <link href="http://vigoo.github.io/posts/2015-04-22-gradle-haskell-plugin.html" />
+    <id>http://vigoo.github.io/posts/2015-04-22-gradle-haskell-plugin.html</id>
+    <published>2015-04-22T00:00:00Z</published>
+    <updated>2015-04-22T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on April 22, 2015
+    
+</div>
+
+<p>My team at <a href="https://prezi.com">Prezi</a> uses <strong>Haskell</strong> for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As <a href="https://gradle.org/">Gradle</a> is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.</p>
+<p>The result is <a href="https://github.com/prezi/gradle-haskell-plugin">Gradle Haskell Plugin</a>, which we were using succesfully in the last 2 months in our daily work, and we have <em>open-sourced</em> recently.</p>
+<p>What makes this solution interesting is that it not just simply wraps <em>cabal</em> within Gradle tasks, but implements a way to define <strong>dependencies</strong> between Haskell projects and to upload the binary Haskell artifacts to a <em>repository</em> such as <a href="http://www.jfrog.com/open-source/">artifactory</a>.</p>
+<p>This makes it easy to modularize our projects, publish them,<br />
+and also works perfectly with <a href="https://github.com/prezi/pride">pride</a>, an other <em>open-source</em> Prezi project.<br />
+This means that we can work on a subset of our Haskell projects while the other<br />
+dependencies are built on Jenkins, and it also integrates well with our<br />
+non-Haskell projects.</p>
+<h2 id="how-does-it-work">How does it work?</h2>
+<p>The main idea is that we let <em>cabal</em> manage the Haskell packages, and handle<br />
+whole Haskell <em>sandboxes</em> on Gradle level. So if you have a single Haskell project,<br />
+it will be built using <em>cabal</em> and the result sandbox (the built project together with all the<br />
+dependent cabal packages which are not installed in the <em>global package database</em>)<br />
+will be packed/published as a Gradle <em>artifact</em>.</p>
+<p>This is not very interesting so far, but when you introduce dependencies on<br />
+Gradle level, the plugin does something which (as far as I know) is not really done by<br />
+anyone else, which I call <em>sandbox chaining</em>. This basically means that to compile<br />
+the haskell project, the plugin will pass all the dependent sandboxes’ package database<br />
+to cabal and GHC, so for the actual sandbox only the packages which are <strong>not</strong> in any<br />
+of the dependent sandboxes will be installed.</p>
+<h2 id="example">Example</h2>
+<p>Let’s see an example scenario with <em>4 gradle-haskell projects</em>.</p>
+<p><a href="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" class="zimg"><img width="600" src="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" alt="gradle-haskell-plugin"></a></p>
+<p>The project called <em>Haskell project</em> depends on two other projects, which taking into accound the transitive dependencies means it depends on <em>three other haskell projects</em>. Each project has its own haskell source and <em>cabal file</em>. Building this suite consists of the following steps:</p>
+<ul>
+<li><strong>dependency 1</strong> is built using only the <em>global package database</em>, everything <strong>not</strong> in that database, together with the compiled project goes into its <code>build/sandbox</code> directory, which is a combination of a <em>GHC package database</em> and the project’s build output. This is packed as <strong>dependency 1</strong>’s build artifact.</li>
+<li>For <strong>dependency 2</strong>, Gradle first downloads the build artifact of <em>dependency 1</em> and extracts it to <code>build/deps/dependency1</code>.</li>
+<li>Then it runs <a href="https://github.com/exFalso/sandfix">SandFix</a> on it</li>
+<li>And compiles the second project, now passing <strong>both</strong> the <em>global package database</em> and <strong>dependency 1</strong>’s sandbox to cabal/ghc. The result is that only the packages which are <strong>not</strong> in any of these two package databases will be installed in the project’s own sandbox, which becomes the build artifact of <strong>dependency 2</strong>.</li>
+<li>For <strong>dependency 3</strong>, Gradle extracts both the direct dependency and the transitive dependency’s sandbox, to <code>build/deps/dependency2</code> and <code>build/deps/dependency3</code>.</li>
+<li>Then it runs <a href="https://github.com/exFalso/sandfix">SandFix</a> on both the dependencies</li>
+<li>And finally passes three package databases to cabal/ghc to compile the project. Only those cabal dependencies will be installed into this sandbox which are not in global, neither in any of the dependent sandboxes.</li>
+<li>Finally, for <strong>Haskell project</strong> it goes the same way, but here we have three sandboxes, all chained together to make sure only the built sandbox only contains what is not in the dependent sandboxes yet.</li>
+</ul>
+<p>For more information, check out <a href="https://github.com/prezi/gradle-haskell-plugin">the documentation</a>.</p>
+]]></summary>
+</entry>
+<entry>
+    <title>bari 1.0 released</title>
+    <link href="http://vigoo.github.io/posts/2014-12-08-bari-1-0.html" />
+    <id>http://vigoo.github.io/posts/2014-12-08-bari-1-0.html</id>
+    <published>2014-12-08T00:00:00Z</published>
+    <updated>2014-12-08T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on December  8, 2014
+    
+</div>
+
+<p>I already wrote about <a href="http://vigoo.github.io/bari">bari</a> in <a href="http://vigoo.github.io/2014/05/16/introducing-bari.html">May</a>.</p>
+<p>As a reminder, <a href="http://vigoo.github.io/bari">bari</a> is a <em>build management system</em> primarily for .NET, trying to fix Visual Studio’s bad parts while keeping the good ones.</p>
+<p>After more than two years of development, and being in production at <a href="http://www.kotem.com/">KOTEM</a> for almost half a year, bari reached a state when it can be considered as a <em>stable</em> and <em>usable</em> first version.</p>
+<p>To indicate this today I released <strong>bari 1.0</strong>.</p>
+<p>Try it out and feel free to give any kind of feedback or ask any questions!</p>
+<div class="figure">
+<img src="http://vigoo.github.io/bari/img/barilogo-small.png" alt="" />
+
+</div>
+]]></summary>
+</entry>
+<entry>
+    <title>ScalaFXML 0.2.2 available</title>
+    <link href="http://vigoo.github.io/posts/2014-10-22-scalafxml-0-2-2.html" />
+    <id>http://vigoo.github.io/posts/2014-10-22-scalafxml-0-2-2.html</id>
+    <published>2014-10-22T00:00:00Z</published>
+    <updated>2014-10-22T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on October 22, 2014
+    
+</div>
+
+<p>I’ve released a new version of <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>, which now supports <em>both</em> <a href="https://github.com/scalafx/scalafx">ScalaFX 8</a> with <em>JavaFX 8</em> on Java 8, and <a href="https://github.com/scalafx/scalafx">ScalaFX 2.2</a> with <em>JavaFX 2.x</em> on Java 7.</p>
+<p>The two branches are separated by the <code>sfx2</code> and <code>sfx8</code> postfixes, and both are available for <em>Scala</em> <code>2.10.x</code> and <code>2.11.x</code>.</p>
+<p>To use it with <a href="http://www.scala-sbt.org/">sbt</a> on Java 7:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;2.2.67-R10&quot;</span>
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx2&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></code></pre></div>
+<p>And on Java 8:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;8.0.20-R6&quot;</span>
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx8&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></code></pre></div>
+]]></summary>
+</entry>
+<entry>
+    <title>A python/thrift profiling story</title>
+    <link href="http://vigoo.github.io/posts/2014-09-15-thrift-profiling.html" />
+    <id>http://vigoo.github.io/posts/2014-09-15-thrift-profiling.html</id>
+    <published>2014-09-15T00:00:00Z</published>
+    <updated>2014-09-15T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on September 15, 2014
+    
+</div>
+
+<p>A few weeks ago I met a problem where a script, running once every night sending out some emails did not run correctly because a remote thrift call timed out in it. As I started investigating it, turned out that it’s a <em>search</em> call:</p>
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">staff_users <span class="op">=</span> RemoteUserFactory().search(is_staff<span class="op">=</span><span class="va">True</span>)</code></pre></div>
+<p>The details here are not really important, what this call does is that it asks a service to return a <em>set of users</em>, and the communication is going on <a href="https://thrift.apache.org/">thrift</a>.</p>
+<p>Executing it manually on the server revealed that it should return <em>5649</em> users. Checking out the logs I could see that the call took extremely long time, between 8 to 12 seconds. Even when the cron job was moved from 3:00 AM to a less busy time (several other jobs were executing at the same time), it took more than 6 seconds!</p>
+<p>This was suspicious so I also checked the log of a <em>proxy</em> which runs on the same host as the script itself and provides client side load balancing, circuit breaking, retry logic etc. for thrift connections. This log showed that the service replied in <em>2.5 seconds</em>, but it took almost 4 seconds to get this response from the proxy to the client on localhost! This seemed to be completely unacceptable, and also the 2.5 second response time from the service seemed to be too big (I ran the query on one of the server nodes and it returned the users from the database almost instantly). I also had similar experience (but without measurements) before.</p>
+<p>So I decided to find out what’s going on. And I found the process interesting enough to write this post about it :)</p>
+<h2 id="test-environment">Test environment</h2>
+<p>I started by adding a test method to the service’s thrift API called <code>test_get_users(count, sleep)</code> which returns <code>count</code> fake users after waiting <code>sleep</code> seconds. Then in the following experiments I called it with <code>(5499, 1)</code>. The 1 second sleep was intended to simulate the network latency and database query; there was no advantage from having it at the end, but as it is visible everywhere in the results, I had to mention.</p>
+<p>For finding out what’s going on I used <a href="https://docs.python.org/2/library/profile.html">cProfile</a> with <a href="https://code.google.com/p/jrfonseca/">gprof2dot</a>, calling the remote test method from a django shell, while everything is running on localhost.</p>
+<h3 id="first-measurement">First measurement</h3>
+<p>Without touching anything, returning 5499 dummy users on localhost took <strong>5.272 seconds</strong>!</p>
+<p>The client side of the call looked like this:</p>
+<p><a href="/images/profile1.png" class="zimg"><img width="600" src="/images/profile1.png" alt="profile1"></a></p>
+<p>Here we can see that the call has two major phases:</p>
+<ul>
+<li>The thrift call itself (65%)</li>
+<li>Converting the raw results to model objects with <code>_row_to_model</code> (35%)</li>
+</ul>
+<p>Let’s see first the thrift call (the green branch on the picture). Once again it has two, nearly equivalent branches:</p>
+<ul>
+<li><code>send_test_get_users</code> which sends the request and waits for the response. This includes the 1 second sleep as well.</li>
+<li><code>recv_test_get_users</code> processes the response</li>
+</ul>
+<p>What’s interesting here is that <code>recv_test_get_users</code> took ~32% of the overall time which is around ~1.6 seconds for simple data deserialization.</p>
+<h3 id="optimizing-thrift-deserialization">Optimizing thrift deserialization</h3>
+<p>I did not want to believe that the python thrift deserialization is that slow, so I did a search and found that the <code>TBinaryProtocol</code> which we are using is really that slow.</p>
+<p>But the thrift library contains a class called <code>TBinaryProtocolAccelerated</code> which is about 10x faster (according to a stackoverflow post).</p>
+<p>First I simply changed the used protocol to this, but nothing happened. Digging deeper I found that this is not a real protocol implementation, but a lower level hack.</p>
+<p>The documentation of the protocol class says:</p>
+<pre><code>  C-Accelerated version of TBinaryProtocol.
+
+  This class does not override any of TBinaryProtocol&#39;s methods,
+  but the generated code recognizes it directly and will call into
+  our C module to do the encoding, bypassing this object entirely.
+  We inherit from TBinaryProtocol so that the normal TBinaryProtocol
+  encoding can happen if the fastbinary module doesn&#39;t work for some
+  reason.  (TODO(dreiss): Make this happen sanely in more cases.)
+
+  In order to take advantage of the C module, just use
+  TBinaryProtocolAccelerated instead of TBinaryProtocol.</code></pre>
+<p>So why didn’t it work? The answer is in <a href="https://github.com/apache/thrift/blob/master/lib/py/src/protocol/TBase.py#L52-L58">TBase.py</a>.</p>
+<p>The following conditions have to met in order to use the fast deserializer:</p>
+<ul>
+<li>Protocol must be <code>TBinaryProtocolAccelerated</code> (I changed that)</li>
+<li>Protocol’s transport implementation must implement the <code>TTransport.CReadableTransport</code> interface</li>
+<li><code>thrift_spec</code> must be available (this was true in this case)</li>
+<li><code>fastbinary</code> must be available (also true)</li>
+</ul>
+<p>The problem was that we were replacing the <code>TTransport</code> implementation with a custom class called <code>ThriftifyTransport</code> in order to do thrift logging, HMAC authentication, etc.</p>
+<p>Fortunately all the default transport implementations implement the <code>CReadableTransport</code> interface, and one of them, <code>TBufferedTransport</code> can be used to wrap another transport to add buffering around it. That’s what I did, and it immediately started using the fast deserialization code.</p>
+<p>The test call now ran in <strong>3.624 seconds</strong>.</p>
+<p>And the new profiling results with this change:</p>
+<p><a href="/images/profile2.png" class="zimg"><img width="600" src="/images/profile2.png" alt="profile2"></a></p>
+<p>The left-hand side of the call graph remained the same, but <code>recv_test_get_users</code> is now only 2.35% of the overall time which is ~0.08 seconds (to be compared with the 1.6 seconds with the original deserializer!)</p>
+<h3 id="optimizing-thrift-serialization">Optimizing thrift serialization</h3>
+<p>The obvious next step was to apply this change on the server side as well, so our service can use the fast binary protocol for serialization too. For this I simply copied the change and remeasured everything.</p>
+<p>The test call now ran in <strong>3.328 seconds</strong>!</p>
+<p>Let’s see the call graph of this stage:</p>
+<p><a href="/images/profile3.png" class="zimg"><img width="600" src="/images/profile3.png" alt="profile3"></a></p>
+<h3 id="optimizing-result-processing">Optimizing result processing</h3>
+<p>The client side of the test method was written similar to how the original API method is written:</p>
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="kw">def</span> test_get_users_thrift(<span class="va">self</span>, count, sleep):
+    rpc <span class="op">=</span> ThriftRPC(UserDataService, <span class="va">self</span>.name, service_name<span class="op">=</span><span class="va">self</span>.service_name, client_config<span class="op">=</span>client_config)
+
+    result <span class="op">=</span> []
+    <span class="cf">for</span> row <span class="op">in</span> rpc.test_get_users(count, sleep).iteritems():
+        user <span class="op">=</span> <span class="va">self</span>._row_to_model(<span class="va">self</span>.user_factory, row)
+        result.append(user)
+
+    <span class="cf">return</span> result</code></pre></div>
+<p>It is clearly visible on the call graph that the 5499 call to <code>_row_to_model</code> takes 53% of the total time, which is ~1.7 seconds. There are two main branches of this call. The left hand side (<code>row_to_model</code>) seemed to be simple data conversion, and its slowest part is date-time deserialization.</p>
+<p>The other branch however looked like a real problem; why should we resolve HMAC host, or parse configuration for each row?</p>
+<p>It turned out to be a bug, <code>_row_to_model</code> created a new <em>model factory</em> in each call, which involves a lot of initialization, config parsing, and similar things.</p>
+<p>So the simple fix was to create a <code>_rows_to_model</code> helper function which does the same for multiple rows with a single factory.</p>
+<p>Running my test code once again showed that the optimization makes sense. Now it ran in <strong>2.448 seconds</strong>, with the following call graph:</p>
+<p><a href="/images/profile4.png" class="zimg"><img width="600" src="/images/profile4.png" alt="profile4"></a></p>
+<h3 id="further-optimizations">Further optimizations</h3>
+<p>I saw two possible ways to further optimize this case:</p>
+<ol style="list-style-type: decimal">
+<li><p>Lazy conversion of raw thrift data to model data (per field). This would make sense because many times only a few fields (the id for example) are used, but it seemed to be a too complex change</p></li>
+<li><p>Checking the server side as well</p></li>
+</ol>
+<p>To profile the server side and only measure the thrift request processing I had to add profiling code to the django view class in the following way:</p>
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="im">import</span> cProfile
+
+cProfile.runctx(<span class="st">&#39;self._call_processor(op_data)&#39;</span>, <span class="bu">globals</span>(), <span class="bu">locals</span>(), <span class="st">&#39;callstats&#39;</span>)
+<span class="co"># self._call_processor(op_data)</span></code></pre></div>
+<p>The server-side call took <strong>1.691 seconds</strong> and looked like this:</p>
+<p><a href="/images/profile5.png" class="zimg"><img width="600" src="/images/profile5.png" alt="profile5"></a></p>
+<p>As expected, 60% of this was the 1 second sleep. The rest of the calls are data conversion with no obvious point to improve.</p>
+<h2 id="summary">Summary</h2>
+<p>These optimizations are decreasing the response time significantly, especially for calls returning multiple rows.</p>
+<p>The interesting was that the extremely slow performance was caused by both the slow perfomance of the python thrift serializer and a bug in our code.</p>
+]]></summary>
+</entry>
+<entry>
+    <title>Conditional blocks in Distributed Documentor</title>
+    <link href="http://vigoo.github.io/posts/2014-07-13-conditional-blocks-in-ddoc.html" />
+    <id>http://vigoo.github.io/posts/2014-07-13-conditional-blocks-in-ddoc.html</id>
+    <published>2014-07-13T00:00:00Z</published>
+    <updated>2014-07-13T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on July 13, 2014
+    
+</div>
+
+<p>I’ve added a new feature to <a href="https://github.com/vigoo/distributed-documentor">Distributed Documentor</a> today, <em>conditional blocks</em>.</p>
+<p>The idea is that parts of the documents can be enabled when a given <em>condition</em> is present. This is very similar to <a href="http://gcc.gnu.org/onlinedocs/cpp/Ifdef.html">C’s ifdef blocks</a>. To use it with the <em>MediaWiki syntax</em>, put <code>[When:X]</code> and <code>[End]</code> commands in separate lines:</p>
+<pre><code>Unconditional
+
+[When:FIRST]
+First conditional
+
+[When:SECOND]
+First and second conditional
+[End]
+[End]
+
+[When:SECOND]
+Second conditional
+[End]</code></pre>
+<p><em>Snippets</em> can also have conditional blocks.</p>
+<p>There are two possibilities to set which conditionals are enabled:</p>
+<ol style="list-style-type: decimal">
+<li><p>Specifying it with command line arguments, such as</p>
+<pre><code>java -jar DistributedDocumentor.jar -D FIRST -D SECOND</code></pre>
+<p>This is useful when exporting a documentation from command line, or to launch the documentation editor with a predefined set of enabled conditions.</p></li>
+<li><p>On the user interface, using <em>View</em> menu’s <em>Enabled conditions…</em> menu item:</p></li>
+</ol>
+<div class="figure">
+<img src="/images/enabled-conditions-dialog.png" alt="" />
+
+</div>
+]]></summary>
+</entry>
+<entry>
+    <title>Introducing bari</title>
+    <link href="http://vigoo.github.io/posts/2014-05-16-introducing-bari.html" />
+    <id>http://vigoo.github.io/posts/2014-05-16-introducing-bari.html</id>
+    <published>2014-05-16T00:00:00Z</published>
+    <updated>2014-05-16T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on May 16, 2014
+    
+</div>
+
+<p>In the past two years I worked on a project called<br />
+<a href="https://github.com/vigoo/bari">bari</a> which now reached an usable<br />
+state. <strong>bari</strong> is a <em>build management system</em>, trying to fix Visual<br />
+Studio’s bad parts while keeping the good ones.</p>
+<p>Basically it tries to make .NET development more convenient, when</p>
+<ul>
+<li>The application may consist of a <em>large number of projects</em></li>
+<li>There may be several different <em>subsets</em> of these projects defining<br />
+ valuable target <em>products</em></li>
+<li><em>Custom build steps</em> may be required</li>
+<li>It is important to be able to <em>reproduce</em> the build environment as<br />
+easily as possible</li>
+<li>The developers want to use the full power of their <em>IDE</em></li>
+</ul>
+<p>The main idea is to generate Visual Studio solutions and projects <em>on<br />
+the fly</em> as needed, from a concise <em>declarative</em> build<br />
+description. I tried to optimize this build description for human<br />
+readability. Let’s see an example, a short section from <strong>bari</strong>’s own<br />
+build definition:</p>
+<div class="sourceCode"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span class="kw">-</span> <span class="fu">name:</span> bari
+  <span class="fu">type:</span> executable
+  <span class="fu">references:</span>
+    <span class="kw">-</span> <span class="fu">gac:</span>//System
+    <span class="kw">-</span> <span class="fu">nuget:</span>//log4net
+    <span class="kw">-</span> <span class="fu">nuget:</span>//Ninject/3.0.1.10
+    <span class="kw">-</span> <span class="fu">nuget:</span>//QuickGraph
+    <span class="kw">-</span> <span class="fu">module:</span>//Bari.Core
+  <span class="fu">csharp:</span>
+    <span class="fu">root-namespace:</span> Bari.Console</code></pre></div>
+<p>The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.</p>
+<p>To keep build definitions short and readable, <strong>bari</strong> prefers<br />
+<em>convention</em> over <em>configuration</em>. For example the directory stucture<br />
+in which the source code lays defines not only the name of the modules<br />
+to build, but also the way it is built. For example, in a simple<br />
+<em>hello world</em> example the C# source code would be put in the<br />
+<code>src/TestModule/HelloWorld/cs</code> directory, and <strong>bari</strong> would build<br />
+<code>target/TestModule/HelloWorld.exe</code>.</p>
+<p><strong>bari</strong> unifies the handling of <em>project references</em> in a way that referencing projects within a suite, from the GAC, using <a href="http://www.nuget.org">Nuget</a> or from a custom repository works exactly the same. It is also possible to write <em>custom builders</em> in Python.</p>
+<p>For more information check out <a href="https://github.com/vigoo/bari/wiki/GettingStarted">the getting started page</a>.</p>
+]]></summary>
+</entry>
+<entry>
+    <title>ScalaFX with FXML</title>
+    <link href="http://vigoo.github.io/posts/2014-01-12-scalafx-with-fxml.html" />
+    <id>http://vigoo.github.io/posts/2014-01-12-scalafx-with-fxml.html</id>
+    <published>2014-01-12T00:00:00Z</published>
+    <updated>2014-01-12T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on January 12, 2014
+    
+</div>
+
+<p><a href="https://code.google.com/p/scalafx/">ScalaFX</a> is a nice wrapper around JavaFX for Scala, but currently it lacks support for using <a href="http://docs.oracle.com/javafx/2/api/javafx/fxml/doc-files/introduction_to_fxml.html">FXML</a> instead of Scala code for defining the user interfaces. This can be understood as <em>ScalaFX</em> is in fact a DSL for defining the UI in Scala instead of an XML file. Still I believe that using FXML instead may have its advantages; first of all it has a visual designer (<a href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>). For me, designing an UI without immediate visual feedback is hard, and involves a lot of iterations of tweaking the code, running it and checking the results. I also expect that in the future there will be more tools available which work on FXML data.</p>
+<p>It is not impossible to use FXML user interfaces from Scala, but the ScalaFX wrappers does not help and the code for the controller classes is not clean enough. See <a href="https://github.com/jpsacha/ProScalaFX/blob/master/src/proscalafx/ch10/fxml/AdoptionFormController.scala">the following example</a> to get a feeling how it looks like.</p>
+<p>To make it better I wrote a small library called <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>. In this post I’ll go through a small example to explain how it works.</p>
+<p>The following image shows how our sample application will look like:</p>
+<div class="figure">
+<img src="/images/unit-conversion-shot.png" alt="" />
+
+</div>
+<p>The <em>From</em> fiels is editable, and the result in the <em>To</em> field is filled as you type using <em>data binding</em>. The <em>Close</em> button’s only purpose is to demonstrate event handlers.</p>
+<p>The conversion logic itself is implemented by <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/UnitConverter.scala">small classes</a> sharing the same trait:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">trait</span> UnitConverter {
+  <span class="kw">val</span> description: String
+  <span class="kw">def</span> <span class="fu">run</span>(input: String): String
+
+  <span class="kw">override</span> <span class="kw">def</span> toString = description
+}
+
+<span class="kw">object</span> MMtoInches <span class="kw">extends</span> UnitConverter {
+  <span class="kw">val</span> description: String = <span class="st">&quot;Millimeters to inches&quot;</span>
+  <span class="kw">def</span> <span class="fu">run</span>(input: String): String = 
+      <span class="kw">try</span> { 
+          (input.<span class="fu">toDouble</span> / <span class="fl">25.4</span>).<span class="fu">toString</span> 
+      } <span class="kw">catch</span> { 
+          <span class="kw">case</span> ex: Throwable =&gt; ex.<span class="fu">toString</span> 
+      }
+}
+
+<span class="kw">object</span> InchesToMM <span class="kw">extends</span> UnitConverter {
+  <span class="kw">val</span> description: String = <span class="st">&quot;Inches to millimeters&quot;</span>
+  <span class="kw">def</span> <span class="fu">run</span>(input: String): String = 
+      <span class="kw">try</span> { 
+          (input.<span class="fu">toDouble</span> * <span class="fl">25.4</span>).<span class="fu">toString</span> 
+      } <span class="kw">catch</span> { 
+          <span class="kw">case</span> ex: Throwable =&gt; ex.<span class="fu">toString</span> 
+      }
+}</code></pre></div>
+<p>To describe the set of available <em>unit converters</em>, we define one more helper class:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">UnitConverters</span>(converters: UnitConverter*) {
+  <span class="kw">val</span> available = List(converters : _*)
+}</code></pre></div>
+<p>Now let’s start with a <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/PureScalaFX.scala">pure ScalaFX solution</a>, where the user interface is defined in Scala. I’ve implemented the view itself in a class called <code>PureScalaFXView</code>, which gets the set of available <em>unit converters</em> as a dependency through its constructor. This makes the main application object very simple:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">object</span> PureScalaFX <span class="kw">extends</span> JFXApp {
+  stage = <span class="kw">new</span> <span class="fu">PureScalaFXView</span>(
+      <span class="kw">new</span> <span class="fu">UnitConverters</span>(InchesToMM, MMtoInches))
+}</code></pre></div>
+<p>The <code>PureScalaFXView</code> class consists of two distinct parts. First we define the user interface using the <em>ScalaFX UI DSL</em>:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">PureScalaFXView</span>(converters: UnitConverters) <span class="kw">extends</span> JFXApp.<span class="fu">PrimaryStage</span> {
+
+  <span class="co">// UI Definition</span>
+  title = <span class="st">&quot;Unit conversion&quot;</span>
+
+  <span class="kw">private</span> <span class="kw">val</span> types = <span class="kw">new</span> ComboBox[UnitConverter]() {
+    maxWidth = Double.<span class="fu">MaxValue</span>
+    margin = Insets(<span class="dv">3</span>)
+  }
+
+  <span class="kw">private</span> <span class="kw">val</span> from = <span class="kw">new</span> TextField {
+    margin = Insets(<span class="dv">3</span>)
+    prefWidth = <span class="fl">200.0</span>
+  }
+
+  <span class="kw">private</span> <span class="kw">val</span> to = <span class="kw">new</span> TextField {
+    prefWidth = <span class="fl">200.0</span>
+    margin = Insets(<span class="dv">3</span>)
+    editable = <span class="kw">false</span>
+  }
+
+  scene = <span class="kw">new</span> Scene {
+    content = <span class="kw">new</span> GridPane {
+      padding = Insets(<span class="dv">5</span>)
+
+      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;Conversion type:&quot;</span>), <span class="dv">0</span>, <span class="dv">0</span>)
+      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;From:&quot;</span>), <span class="dv">0</span>, <span class="dv">1</span>)
+      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;To:&quot;</span>), <span class="dv">0</span>, <span class="dv">2</span>)
+
+      <span class="fu">add</span>(types, <span class="dv">1</span>, <span class="dv">0</span>)
+      <span class="fu">add</span>(from, <span class="dv">1</span>, <span class="dv">1</span>)
+      <span class="fu">add</span>(to, <span class="dv">1</span>, <span class="dv">2</span>)
+
+      <span class="fu">add</span>(<span class="kw">new</span> Button(<span class="st">&quot;Close&quot;</span>) {
+        <span class="co">// inline event handler binding</span>
+        onAction = (e: ActionEvent) =&gt; Platform.<span class="fu">exit</span>()
+      }, <span class="dv">1</span>, <span class="dv">3</span>)
+
+      columnConstraints = List(
+        <span class="kw">new</span> ColumnConstraints {
+          halignment = HPos.<span class="fu">LEFT</span>
+          hgrow = Priority.<span class="fu">SOMETIMES</span>
+          margin = Insets(<span class="dv">5</span>)
+        },
+        <span class="kw">new</span> ColumnConstraints {
+          halignment = HPos.<span class="fu">RIGHT</span>
+          hgrow = Priority.<span class="fu">ALWAYS</span>
+          margin = Insets(<span class="dv">5</span>)
+        }
+      )
+    }
+  }</code></pre></div>
+<p>This is not 100% pure UI definition, because it also contains an inline event handler definition for the <em>Close</em> button.</p>
+<p>The next part fills the <em>combo box</em> and defines the data binding. Filling the combo box is a simple procedural loop:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">  <span class="kw">for</span> (converter &lt;- converters.<span class="fu">available</span>) {
+    types += converter
+  }
+  types.<span class="fu">getSelectionModel</span>.<span class="fu">selectFirst</span>()</code></pre></div>
+<p>For the data binding we define a <a href="http://docs.oracle.com/javafx/2/binding/jfxpub-binding.htm">low level data binding</a> which depends on the combo box’s selected value and the <em>From</em> field’s text, and produces the output for the <em>To</em> field:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">  to.<span class="fu">text</span> &lt;== <span class="kw">new</span> StringBinding {
+    <span class="fu">bind</span>(from.<span class="fu">text</span>.<span class="fu">delegate</span>, types.<span class="fu">getSelectionModel</span>.<span class="fu">selectedItemProperty</span>)
+    <span class="kw">def</span> <span class="fu">computeValue</span>() = types.<span class="fu">getSelectionModel</span>.<span class="fu">getSelectedItem</span>.<span class="fu">run</span>(from.<span class="fu">text</span>.<span class="fu">value</span>)
+  }</code></pre></div>
+<p>That’s all, the application is fully functional. The next thing is to split this class so the UI definition and the UI logic got separated. This <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/RefactoredPureScalaFX.scala">refactored ScalaFX solution</a> is very similar to the previous one, but the initialization of the combo box, the data binding and the event handler are all encapsulated by a new, separate class:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">RawUnitConverterPresenter</span>(
+                              <span class="kw">private</span> <span class="kw">val</span> from: TextField,
+                              <span class="kw">private</span> <span class="kw">val</span> to: TextField,
+                              <span class="kw">private</span> <span class="kw">val</span> types: ComboBox[UnitConverter],
+                              <span class="kw">private</span> <span class="kw">val</span> converters: UnitConverters) {
+
+  <span class="co">// Filling the combo box</span>
+  <span class="kw">for</span> (converter &lt;- converters.<span class="fu">available</span>) {
+    types += converter
+  }
+  types.<span class="fu">getSelectionModel</span>.<span class="fu">selectFirst</span>()
+
+  <span class="co">// Data binding</span>
+  to.<span class="fu">text</span> &lt;== <span class="kw">new</span> StringBinding {
+    <span class="fu">bind</span>(from.<span class="fu">text</span>.<span class="fu">delegate</span>, types.<span class="fu">getSelectionModel</span>.<span class="fu">selectedItemProperty</span>)
+    <span class="kw">def</span> <span class="fu">computeValue</span>() = types.<span class="fu">getSelectionModel</span>.<span class="fu">getSelectedItem</span>.<span class="fu">run</span>(from.<span class="fu">text</span>.<span class="fu">value</span>)
+  }
+
+  <span class="co">// Close button event handler</span>
+  <span class="kw">def</span> <span class="fu">onClose</span>(event: ActionEvent) {
+    Platform.<span class="fu">exit</span>()
+  }
+}</code></pre></div>
+<p>What I wanted is to be able to define the controller class exactly like this while building the user interface from FXML. Without <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the controller class have some serious limitations:</p>
+<ul>
+<li>It must implement the <a href="http://docs.oracle.com/javafx/2/api/javafx/fxml/Initializable.html">Initializable</a> interface</li>
+<li>It cannot have any constructor arguments</li>
+<li>The user interface objects must be variable fields of the class</li>
+<li>And they have to have the type of the JavaFX controls, so to be able to use the ScalaFX wrappers, they have to be explicitly wrapped in the <code>initialize</code> method.</li>
+</ul>
+<p>With <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the process is really simple. First we create the FXML, for example with the <a href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>:</p>
+<div class="figure">
+<img src="/images/unit-conversion-scenebuilder.png" alt="" />
+
+</div>
+<p>In the FXML we give the <code>from</code>, <code>to</code>, and <code>types</code> identifiers to our controls using the <code>fx:id</code> attribute, for example:</p>
+<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml">    <span class="kw">&lt;TextField</span><span class="ot"> fx:id=</span><span class="st">&quot;from&quot;</span><span class="ot"> prefWidth=</span><span class="st">&quot;200.0&quot;</span> 
+<span class="ot">               GridPane.columnIndex=</span><span class="st">&quot;1&quot;</span> 
+<span class="ot">               GridPane.margin=</span><span class="st">&quot;$x1&quot;</span> 
+<span class="ot">               GridPane.rowIndex=</span><span class="st">&quot;1&quot;</span> <span class="kw">/&gt;</span></code></pre></div>
+<p>The event handlers can be specified simply by their name:</p>
+<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml"><span class="kw">&lt;Button</span><span class="ot"> onAction=</span><span class="st">&quot;#onClose&quot;</span><span class="ot"> text=</span><span class="st">&quot;Close&quot;</span> 
+<span class="ot">        mnemonicParsing=</span><span class="st">&quot;false&quot;</span>
+<span class="ot">        GridPane.columnIndex=</span><span class="st">&quot;1&quot;</span> 
+<span class="ot">        GridPane.halignment=</span><span class="st">&quot;RIGHT&quot;</span> 
+<span class="ot">        GridPane.rowIndex=</span><span class="st">&quot;3&quot;</span> <span class="kw">/&gt;</span></code></pre></div>
+<p>and the controller class must be referenced on the root node</p>
+<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml">fx:controller=&quot;scalafxml.demo.unitconverter.UnitConverterPresenter&quot;</code></pre></div>
+<p>The controller class <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/ScalaFXML.scala">can be exactly the same as the <code>RawUnitConverterPresenter</code></a>, adding an additional <code>@sfxml</code> annotation for it. Everything else is handled by the library, as we will see.</p>
+<p>The application object itself looks like this:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">object</span> ScalaFXML <span class="kw">extends</span> JFXApp {
+
+  <span class="kw">val</span> root = <span class="fu">FXMLView</span>(getClass.<span class="fu">getResource</span>(<span class="st">&quot;unitconverter.fxml&quot;</span>),
+    <span class="kw">new</span> <span class="fu">DependenciesByType</span>(Map(
+      typeOf[UnitConverters] -&gt; <span class="kw">new</span> <span class="fu">UnitConverters</span>(InchesToMM, MMtoInches))))
+
+  stage = <span class="kw">new</span> JFXApp.<span class="fu">PrimaryStage</span>() {
+    title = <span class="st">&quot;Unit conversion&quot;</span>
+    scene = <span class="kw">new</span> <span class="fu">Scene</span>(root)
+
+  }
+}</code></pre></div>
+<p>Beside giving the URI for the FXML file we also has to provide the <em>additional dependencies</em> of the controller class. This is an easily extensible part of the library, and it already has support for <a href="https://github.com/dickwall/subcut">SubCut</a> and <a href="https://code.google.com/p/google-guice/">Guice</a> as well. Here we are using a simple <em>type-&gt;value</em> mapping instead.</p>
+<p>How does this work? What happens behind the scenes?</p>
+<p>The <code>@sfxml</code> is a <a href="http://docs.scala-lang.org/overviews/macros/annotations.html">macro annotation</a>. In <em>compile-time</em>, the class definition itself is transformed by the <a href="https://github.com/vigoo/scalafxml/blob/master/core-macros/src/main/scala/scalafxml/core/macros/sfxmlMacro.scala"><code>sfxmlMacro.impl</code> function</a>.</p>
+<p>The transformation’s result is a class definition with the source class’ name, but with a completely different content. The original class is added as an inner class, always called <code>Controller</code>. In our example, the generated class definition would look like something similar:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">UnitConverterPresenter</span>(<span class="kw">private</span> <span class="kw">val</span> dependencyResolver: ControllerDependencyResolver)
+    <span class="kw">extends</span> javafx.<span class="fu">fxml</span>.<span class="fu">Initializable</span> 
+    <span class="kw">with</span> FxmlProxyGenerator.<span class="fu">ProxyDependencyInjection</span> {
+    
+    <span class="kw">class</span> <span class="fu">Controller</span>(
+        <span class="kw">private</span> <span class="kw">val</span> from: TextField,
+        <span class="kw">private</span> <span class="kw">val</span> to: TextField,
+        <span class="kw">private</span> <span class="kw">val</span> types: ComboBox[UnitConverter],
+        <span class="kw">private</span> <span class="kw">val</span> converters: UnitConverters) {
+        <span class="co">// …</span>
+    }
+    
+    <span class="kw">private</span> <span class="kw">var</span> impl: Controller = <span class="kw">null</span>
+    
+    <span class="co">// …</span>
+}   </code></pre></div>
+<p>The class have four distinct parts:</p>
+<ol style="list-style-type: decimal">
+<li>Getting the additional dependencies from the <em>dependency resolver</em></li>
+<li>Variable fields for binding the JavaFX controls defined in the FXML</li>
+<li>Event handler methods</li>
+<li>The <code>initializable</code> method’s implementation</li>
+</ol>
+<p>The first one is simple - for each constructor argument of the controller class which is <em>not</em> a ScalaFX control, we query the <em>dependency resolver</em> to get a value for it. These are performed when the outer, generated class is instantiated and stored through the <code>ProxyDependencyInjection</code> trait.</p>
+<p>The variable fields are simple fields for all the ScalaFX constructor arguments of the controller class, but converted to their JavaFX counterpart. For example the generated field for the controller’s <code>from</code> argument will look like this:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">@javafx.<span class="fu">fxml</span>.<span class="fu">FXML</span>
+<span class="kw">private</span> <span class="kw">var</span> from: javafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span> = <span class="kw">null</span></code></pre></div>
+<p>The <em>event handler</em>’s are proxies for all the public methods of the controller, but the ScalaFX event argument types are replaced with JavaFX event argument types and they are wrapped automatically when forwarding the call to the real implementation. For the <code>onClose</code> event handler it would look like the following:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">@javafx.<span class="fu">fxml</span>.<span class="fu">FXML</span> <span class="kw">def</span> <span class="fu">onClose</span>(e: javafx.<span class="fu">event</span>.<span class="fu">ActionEvent</span>) {
+    impl.<span class="fu">onClose</span>(<span class="kw">new</span> scalafx.<span class="fu">event</span>.<span class="fu">ActionEvent</span>(e))
+}</code></pre></div>
+<p>When JavaFX calls the generated controller’s <code>initialize</code> method, the control fields are already set up, and the additional dependencies were already gathered from the dependency resolver so we have all the values required to instantiate the real controller class. For ScalaFX arguments we wrap the JavaFX controls, for the additional dependencies we use the <code>ProxyDependencyInjection</code> trait’s <code>getDependency</code> method:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">def</span> <span class="fu">initialize</span>(url: java.<span class="fu">net</span>.<span class="fu">URL</span>, rb: java.<span class="fu">util</span>.<span class="fu">ResourceBundle</span>) {
+    impl = <span class="kw">new</span> <span class="fu">Controller</span>(
+        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span>(from),
+        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span>(to),        
+        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">ComboBox</span>[UnitConverter](types),
+        getDependencies[UnitConverters](<span class="st">&quot;converters&quot;</span>))
+}</code></pre></div>
+<p>That’s all. The final interesting bit is the <code>FXMLView</code> object, which overrides JavaFX’s default controller factory. This is only necessary to be able to pass the given <code>ControllerDependencyResolver</code> to the generated controller’s constructor:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">  <span class="kw">def</span> <span class="fu">apply</span>(fxml: URL, dependencies: ControllerDependencyResolver): jfxs.<span class="fu">Parent</span> =
+    jfxf.<span class="fu">FXMLLoader</span>.<span class="fu">load</span>(
+      fxml, 
+      <span class="kw">null</span>,
+      <span class="kw">new</span> jfxf.<span class="fu">JavaFXBuilderFactory</span>(),
+      <span class="kw">new</span> jfxu.<span class="fu">Callback</span>[Class[_], Object] {
+        <span class="kw">override</span> <span class="kw">def</span> <span class="fu">call</span>(cls: Class[_]): Object = 
+            <span class="fu">FxmlProxyGenerator</span>(cls, dependencies)
+      })</code></pre></div>
+<p><code>FxmlProxyGenerator</code> uses reflection to create a new instance of the generated controller, and pass the dependency resolver as its only constructor argument.</p>
+]]></summary>
+</entry>
+<entry>
+    <title>Trying out Ceylon - Part 1</title>
+    <link href="http://vigoo.github.io/posts/2013-11-17-trying-out-ceylon-part-1.html" />
+    <id>http://vigoo.github.io/posts/2013-11-17-trying-out-ceylon-part-1.html</id>
+    <published>2013-11-17T00:00:00Z</published>
+    <updated>2013-11-17T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on November 17, 2013
+    
+</div>
+
+<p>Ceylon’s first production release was announced on 12th of November. I decided to try it out after going through the quick introduction, as it looked quite promising. In a series of posts I’d like to share my first attempts to use this interesting language.</p>
+<p>This first release came with an eclipse plugin as well - after installing it I was immediately able to start working on my test project. In this few hours the plugin seemed to be stable enough, I did not experience any problems.</p>
+<p>I have a <code>JVLT</code> file which I created while attending a foreign language course about a year ago. I was using only a limited subset of this application, so basically what I have is a .jvlt file, which is in fact a ZIP archive, in which a <code>dict.xml</code> stores a set of words and for each word one or more translation and the lesson we have learnt it.</p>
+<p>See the following example:</p>
+<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml"><span class="kw">&lt;dictionary</span><span class="ot"> language=</span><span class="st">&quot;french&quot;</span><span class="ot"> version=</span><span class="st">&quot;1.4&quot;</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;entry</span><span class="ot"> id=</span><span class="st">&quot;e275&quot;</span><span class="kw">&gt;</span>
+    <span class="kw">&lt;orth&gt;</span>à côté de<span class="kw">&lt;/orth&gt;</span>
+    <span class="kw">&lt;sense</span><span class="ot"> id=</span><span class="st">&quot;e275-s1&quot;</span><span class="kw">&gt;</span>
+      <span class="kw">&lt;trans&gt;</span>mellett<span class="kw">&lt;/trans&gt;</span>
+    <span class="kw">&lt;/sense&gt;</span>
+    <span class="kw">&lt;sense</span><span class="ot"> id=</span><span class="st">&quot;e275-s2&quot;</span><span class="kw">&gt;</span>
+      <span class="kw">&lt;trans&gt;</span>mellé<span class="kw">&lt;/trans&gt;</span>
+    <span class="kw">&lt;/sense&gt;</span>
+    <span class="kw">&lt;lesson&gt;</span>8<span class="kw">&lt;/lesson&gt;</span>
+  <span class="kw">&lt;/entry&gt;</span>
+<span class="kw">&lt;/dictionary&gt;</span></code></pre></div>
+<p>My idea was to write an application that helps me learning and practicing these words.</p>
+<p>In this first post I’m going to load the dictionary from the JVLT file.</p>
+<p>To get started, I created a new Ceylon module with the help of the IDE called jvlt. This immediately created three program units: <code>module.ceylon</code>, <code>package.ceylon</code> and <code>run.ceylon</code>. The <code>module.ceylon</code> contains the module definition, which also describes the module’s dependencies. As I was trying to implement the dictionary reader, I ended up with the following module definition:</p>
+<pre class="ceylon"><code>module jvlt &quot;1.0.0&quot; {
+    shared import ceylon.file &quot;1.0.0&quot;;
+	import ceylon.collection &quot;1.0.0&quot;;
+    import ceylon.interop.java &quot;1.0.0&quot;;
+ 
+    import javax.xml &quot;7&quot;; 
+ 
+    import ceylon.test &quot;1.0.0&quot;;
+}</code></pre>
+<p>Let’s start with the data model we want to build up! The dictionary consists of words:</p>
+<pre class="ceylon"><code>&quot;Represents a foreign word with one or more senses&quot;
+shared class Word(shared String word, shared Set&lt;string&gt; senses, shared Integer lesson){ 
+}</code></pre>
+<p>The word, senses and lessons are all shared attributes of this class, accessible from the outside. To make it easy to access the word objects by their foreign word, I’m currently storing them in a map:</p>
+<pre class="ceylon"><code>&quot;Represents a dictionary of words in a given language&quot;
+shared class Dictionary(shared String language, shared Map&lt;string word=&quot;&quot;&gt; words) {
+}</code></pre>
+<p>Basically that’s the data model, but I wrapped the whole thing in an abstract JVLT class which looks like this:</p>
+<pre class="ceylon"><code>&quot;Represents a JVLT file&quot;
+abstract shared class JVLT() {
+ 
+	&quot;The dictionary stored in this JVLT&quot;
+ 	formal shared Dictionary dictionary;
+}</code></pre>
+<p>The idea is that you get a JVLT instance from one of the helper functions and then use it as a root of the data model.</p>
+<p>The next thing is to create this data model from the JVLT files. For this, I needed two things:</p>
+<ul>
+<li>Reading a ZIP archive</li>
+<li>Parsing XML</li>
+</ul>
+<p>It turned out that Ceylon’s file module has ZIP support, with the <code>createZipFileSystem</code> function as an entry point. I made two module-level functions beside the JVLT class for creating instances deriving from the abstract JVLT class:</p>
+<ul>
+<li><code>loadJVLT</code> which loads a JVLT ZIP archive from the file system</li>
+<li><code>loadJVLTFromDictionaryString</code> oads directly a dict.xml-like XML passed as a simple string. I’m using this for unit testing the XML parser.</li>
+</ul>
+<p>Let’s see the ZIP handling first:</p>
+<pre class="ceylon"><code>&quot;Loads a JVLT file from a `.jvlt` ZIP archive, if possible.&quot;
+shared JVLT? loadJVLT(File file) {
+	value zip = createZipFileSystem(file);
+ 	value dictPath = zip.parsePath(&quot;/dict.xml&quot;);
+ 	if (is File dictFile = dictPath.resource) {  
+  		try (reader = dictFile.Reader()) {
+   
+   			return loadJVLTFromDictionaryString(readAll(reader));
+  		}
+ 	} else {
+  		return null;
+ 	}
+}</code></pre>
+<p>Well, the error handling is not too sophisticated in this case, it either returns a JVLT or returns <code>null</code> if the given file did not have a <code>dict.xml</code> in it. Other error conditions such as a <code>dict.xml</code> with a wrong format, etc., are not handled currently. As you can see, I’m reusing my other load function here, once the <code>dict.xml</code> is read.</p>
+<p>There are two interesting things here. First, the if statement where we check if the resource is an instance of <code>File</code> and immediately store it in the value called <code>dictFile</code>. The <code>dictPath.resource</code> attribute has the type <code>Resource</code> which is a Ceylon interface. It is either an <code>ExistingResource</code>: <code>Directory</code>, <code>File</code> or <code>Link</code>, or <code>Nil</code>. In any case if it is not a <code>File</code> instance, we just return <code>null</code>.</p>
+<p>For simplicity, I’m reading the full <code>dict.xml</code> into a string before parsing it. For this purpose I wrote a small helper function <code>readAll</code>:</p>
+<pre class="ceylon"><code>&quot;Reads all lines from a file reader and returns the concatenated string&quot;
+String readAll(File.Reader reader) { 
+	variable String result = &quot;&quot;;
+ 
+ 	while (exists line = reader.readLine()) {
+  		result += line; 
+ 	}
+ 
+ 	return result;
+}</code></pre>
+<p>Probably it’s not an optimal solution, but works :)</p>
+<p>Now that we have our data model and have a way to build it up from XML, we can write some unit tests to see how it works. The Ceylon SDK has a test module and the Ceylon IDE supports running the tests. There is a <a href="http://ceylon-lang.org/documentation/1.0/ide/test-plugin/">separate page in the documentation</a> describing how. It is really simple, I had to add the test module as a dependency, and I created a separate file to hold my test definitions. The class groups the tests together and optionally supports running extra code before/after each test case, as in other test frameworks:</p>
+<pre class="ceylon"><code>class DictionaryParserTests() {
+
+	shared test void emptyDictionary() {
+	  	value dic = loadJVLTFromDictionaryString(&quot;&lt;dictionary&gt;&quot;);
+	  
+	  	assert (dic.dictionary.words.empty);
+	  	assert (dic.dictionary.language == &quot;unknown&quot;);
+	}
+
+ 	shared test void languageAttributeRead() {
+  		value dic = loadJVLTFromDictionaryString(&quot;&lt;dictionary language=&quot;testlang&quot;&gt;&quot;);
+  		assert (dic.dictionary.language == &quot;testlang&quot;);
+ 	}
+
+	// ...
+</code></pre>
+<p>I won’t paste here all the test code, only a few samples to get the feeling how the Ceylon code looks like. To test whether a given word’s translations are loaded correctly, I wrote a helper function:</p>
+<pre class="ceylon"><code>void assertSenses(JVLT jvlt, String w, [String+] expectedSenses) {
+  
+    Word? word = jvlt.dictionary.words[w];
+    if (exists word) {
+    	assert (word.senses.equals(HashSet(expectedSenses)));  
+    } else {
+     	fail(&quot;Word does not exists&quot;);
+    }
+}</code></pre>
+<p>This helper function can be used to assert that a word has been loaded correctly:</p>
+<pre class="ceylon"><code>shared test void wordWithMultipleSenses() {
+	value dic = loadJVLTFromDictionaryString(
+  		&quot;&lt;dictionary&gt;
+   			&lt;entry id=&quot;e1&quot;&gt;
+    			&lt;orth&gt;src1&lt;/orth&gt;
+    			&lt;sense id=&quot;e1-s1&quot;&gt;
+     				&lt;trans&gt;dst1&lt;/trans&gt;
+    			&lt;/sense&gt;
+    			&lt;sense id=&quot;e1-s2&quot;&gt;
+     				&lt;trans&gt;dst2&lt;/trans&gt;
+    			&lt;/sense&gt;    
+   			&lt;/entry&gt;  
+   		&lt;/dictionary&gt;&quot;);
+ 
+ 	assertSenses(dic, &quot;src1&quot;, [&quot;dst1&quot;, &quot;dst2&quot;]);
+}</code></pre>
+<p>Now the only problem is that there is no XML parsing support in the Ceylon SDK currently, so it has to be done using Java interop. As I wrote the code to build up the data model from the XML, I wrote several helper functions to make it easier to fit into the language. So let’s see first how the dictionary loading is defined, and then I’ll show the helper functions.</p>
+<p>The XML parsing is done by two module level functions which are not shared - only used by the JVLT constructor functions I shown before. The first one creates a map entry for a single word:</p>
+<pre class="ceylon"><code>&quot;Creates a word entry for the dictionary&quot;
+String-&gt;Word loadEntry(Element elem) {
+ 
+ 	value w = Word {
+  		word = selectNodeText(elem, &quot;orth&quot;) else &quot;???&quot;;
+  		lesson = selectNodeInteger(elem, &quot;lesson&quot;) else 0;
+  		senses = HashSet(selectNodes(elem, &quot;sense/trans&quot;)
+  					.map((Node n) =&gt; n.textContent));
+ 	};
+ 	return w.word-&gt;w;
+}</code></pre>
+<p>and the second one loads all the words from the XML document:</p>
+<pre class="ceylon"><code>&quot;Loads a dictionary from JVLT&#39;s `dict.xml` format.&quot;
+Dictionary loadDictionaryFromXML(Document doc) { 
+
+	doc.documentElement.normalize();
+
+ 	return Dictionary { 
+  		language = getAttribute(doc.documentElement, &quot;language&quot;) else &quot;unknown&quot;;
+  		words = HashMap({ 
+     		for (node in selectNodes(doc, &quot;dictionary/entry&quot;))
+       			if (is Element elem = node)
+             		loadEntry(elem) });   
+ 	};
+}</code></pre>
+<p>The function which returns the JVLT instance uses this function and Java interop to read the dictionary:</p>
+<pre class="ceylon"><code>&quot;Loads a JVLT file by the parsing the dictionary XML directly from a string&quot;
+shared JVLT loadJVLTFromDictionaryString(String dictXML) {
+	value docBuilderFactory = DocumentBuilderFactory.newInstance();
+ 	value builder = docBuilderFactory.newDocumentBuilder();
+ 	value doc = builder.parse(ByteArrayInputStream(javaString(dictXML).bytes));
+ 
+ 	object result extends JVLT() { 
+  		dictionary = loadDictionaryFromXML(doc);
+ 	}
+ 	return result;
+}</code></pre>
+<p>There are two things to notice here: we had to convert from Ceylon’s string to Java string. This is not done automatically and we need the <code>ceylon.interop.java</code> module to do it. In the last lines we define an anonymous class extending from JVLT and overwriting it’s abstract dictionary attribute. Then this anonymous class instance is returned as the loaded JVLT.</p>
+<p>To make the XML parsing less painful, I defined a few helper functions in a separate compilation unit (<code>XmlHelper.ceylon</code>). I won’t show here the full file but there are some interesting parts. First, from Ceylon you cannot call static methods, but you can import them. I’m using the following two import statements:</p>
+<pre class="ceylon"><code>import org.w3c.dom { Node, NodeList, Element }
+import javax.xml.xpath { XPathFactory { newXPathFactory = newInstance },
+       XPathConstants { nodeSet = \iNODESET }}</code></pre>
+<p>The first one is straightforward. It imports three DOM interfaces. The second one first imports the <code>XPathFactory.newInstance</code> static method and also renames it, as newInstance is a too generic name without its class name as a prefix. The third line imports a constant value and gives it a Ceylon-compatible name. Because in Ceylon only the types can start with an uppercase character, we have to use a special and ugly syntax which helps the interoperability - prefixing it with <code>\i</code>.</p>
+<p>The <code>ceylon.interop.java</code> module has helper classes to make Java Iterable objects iterable in Ceylon, but unfortunately the <code>NodeList</code> interface is not iterable in Java either. So I wrote a simple wrapper that iterates through a node list:</p>
+<pre class="ceylon"><code>class NodeListIterator(NodeList nodes) satisfies Iterable&lt;Node&gt; {
+	shared actual default Iterator&lt;Node&gt; iterator() {
+  		object it satisfies Iterator&lt;Node&gt; {   
+   			variable Integer i = 0;
+   
+   			shared actual Node|Finished next() {
+    			if (i &lt; nodes.length) {
+     				return nodes.item(i++);
+    			} else {
+     				return finished;
+    			}
+   			}
+  		}
+  		return it;
+ 	}
+}</code></pre>
+<p>Using this iterator and the imports I wrote a <code>selectNodes</code> function to run XPath expressions and return the result as a Ceylon iterable:</p>
+<pre class="ceylon"><code>{Node*} selectNodes(Node root, String xpath) { 
+	value factory = newXPathFactory();
+ 	value xpathCompiler = factory.newXPath();
+ 	value expr = xpathCompiler.compile(xpath);
+ 	value nodeList = expr.evaluate(root, nodeSet); 
+ 	if (is NodeList nodeList) {  
+  		return NodeListIterator(nodeList);
+ 	}
+ 	else {
+  		return [];
+ 	}
+}</code></pre>
+<p>Using this function it is very easy to write a variant that selects a single node:</p>
+<pre class="ceylon"><code>Node? selectNode(Node root, String xpath) { 
+	return selectNodes(root, xpath).first;
+}</code></pre>
+<p>There are some other helper functions returning the node’s text, converting it to integer, etc. but I think they are not that interesting. Now that I have my data model which is built from my JVLT file, the next thing is to make a user interface somehow where the vocabulary can be shown an the user’s knowledge can be tested/improved. This will be the topic of some future posts, as soon as I have time to experiment more with this new language.</p>
+]]></summary>
+</entry>
+<entry>
+    <title>Cloning WPF flow document fragments</title>
+    <link href="http://vigoo.github.io/posts/2013-10-25-cloning-wpf-flow-document-fragments.html" />
+    <id>http://vigoo.github.io/posts/2013-10-25-cloning-wpf-flow-document-fragments.html</id>
+    <published>2013-10-25T00:00:00Z</published>
+    <updated>2013-10-25T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on October 25, 2013
+    
+</div>
+
+<p>Today I had to write such an ugly hack to fix a bug that I decided to start writing a blog where I can show it to the world :)</p>
+<p>The software I’m working on has some sort of context sensitive help panel, which is implemented using dynamically generated <a href="http://msdn.microsoft.com/en-us/library/aa970909.aspx">flow documents</a>. The software loads a large set of flow document sections from a XAML file runtime, and later builds documents from a subset of them.</p>
+<p>For some reason (which belong to a separate post), it is not possible to reuse these flow document elements in multiple flow documents, not even if there is only one at a time. To work around this, I was cloning these sections before adding them to the document.</p>
+<p>As WPF elements are not <em>cloneable</em>, I was using the method recommended many places, for example <a href="http://stackoverflow.com/questions/32541/how-can-you-clone-a-wpf-object">in this StackOverflow post</a>: saving the object tree to an in-memory XAML stream, and loading it back.</p>
+<p>This worked quite well.. until we discovered a bug, which I still cannot explain. In some cases which were easily reproducible for any developer, but the code running in those cases being exactly the same as in other, working cases, the clone method simply stopped working.</p>
+<p>Stopped working here means that the following code:</p>
+<div class="sourceCode"><pre class="sourceCode cs"><code class="sourceCode cs"><span class="dt">var</span> xaml = XamlWriter.<span class="fu">Save</span>(block);</code></pre></div>
+<p>would write out the correct object hierarchy, but without any properties (no attributes, no content properties, nothing but the element names)! In the same time the objects in the memory were untouched and still had all the relevant properties set.</p>
+<p>I also tried to write my own XAML serializer based on the code found <a href="http://go4answers.webhost4life.com/Example/xaml-serialization-replacement-75133.aspx">at this site</a>, but this was only good to find out that the problem lies deep within the <code>MarkupWriter</code> class, which is the same what the <code>XamlWriter</code> uses internally. When the <code>XamlWriter</code> failed, my own code could not find any properties using the returned <a href="http://msdn.microsoft.com/en-us/library/system.windows.markup.primitives.markupobject.aspx">MarkupObject</a>:</p>
+<div class="sourceCode"><pre class="sourceCode cs"><code class="sourceCode cs">MarkupObject markupObj = MarkupWriter.<span class="fu">GetMarkupObjectFor</span>(obj);</code></pre></div>
+<p>For the same object, in the working scenarios it returned a markup object with a working <code>Properties</code> collection.</p>
+<p>So here is the final <em>“solution”</em> which I’m not really proud of, but solved the problem. Maybe with some modifications it is useful for someone struggling with the framework:</p>
+<div class="sourceCode"><pre class="sourceCode cs"><code class="sourceCode cs"><span class="co">/// </span><span class="kw">&lt;summary&gt;</span>
+<span class="co">/// Horrible ugly clone hack to issues where XamlWriter/XamlReader based</span>
+<span class="co">/// clone method did not work.</span>
+<span class="co">/// </span><span class="kw">&lt;/summary&gt;</span>
+<span class="kw">public</span> <span class="kw">static</span> <span class="kw">class</span> CloneHelper
+{
+    <span class="kw">public</span> <span class="kw">static</span> Block Clone&lt;t&gt;(<span class="kw">this</span> T block)
+        where T : Block
+    {
+        var result = (T)<span class="fu">DeepClone</span>(block);
+
+        <span class="kw">return</span> result;
+    }
+
+    <span class="kw">private</span> <span class="kw">static</span> <span class="dt">object</span> <span class="fu">DeepClone</span>(<span class="dt">object</span> obj)
+    {
+        <span class="kw">if</span> (obj != <span class="kw">null</span>)
+        {
+            <span class="co">// Replacing ResourceDictionary and Style values with null. </span>
+            <span class="co">// In this particular use case it is correct to do</span>
+            <span class="kw">if</span> (obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span>(ResourceDictionary) ||
+                obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span>(Style))
+            {
+                <span class="kw">return</span> <span class="kw">null</span>;
+            }
+            <span class="kw">else</span>
+            {
+                <span class="co">// Value types and some special cases where we don&#39;t want to clone</span>
+                <span class="kw">if</span> (obj.<span class="fu">GetType</span>().<span class="fu">IsValueType</span> ||
+                    obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span> (Cursor) ||
+                    obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span> (XmlLanguage))
+                {
+                    <span class="kw">return</span> obj;
+                }
+                <span class="kw">else</span>
+                {
+                    <span class="co">// If it is cloneable, use it</span>
+                    <span class="dt">var</span> cloneable = obj <span class="kw">as</span> ICloneable;
+                    <span class="kw">if</span> (cloneable != <span class="kw">null</span>)
+                    {
+                        <span class="kw">return</span> cloneable.<span class="fu">Clone</span>();
+                    }
+                    <span class="kw">else</span>
+                    {
+                        <span class="co">// Creating the clone with reflection</span>
+                        <span class="dt">var</span> typ = obj.<span class="fu">GetType</span>();
+                        <span class="dt">var</span> clone = Activator.<span class="fu">CreateInstance</span>(typ);                     
+
+                        <span class="co">// Property names which are known locally set </span>
+                        <span class="co">// dependency properties</span>
+                        <span class="dt">var</span> usedNames = <span class="kw">new</span> HashSet&lt;<span class="dt">string</span>&gt;();                        
+
+                        <span class="co">// Copying locally set dependency properties from the </span>
+                        <span class="co">// source to the target</span>
+                        <span class="dt">var</span> dobjSource = obj <span class="kw">as</span> DependencyObject;
+                        <span class="dt">var</span> dobjTarget = clone <span class="kw">as</span> DependencyObject;
+                        <span class="kw">if</span> (dobjSource != <span class="kw">null</span> &amp;&amp; dobjTarget != <span class="kw">null</span>)
+                        {
+                            var locallySetProperties = 
+                                dobjSource.<span class="fu">GetLocalValueEnumerator</span>();
+                            <span class="kw">while</span> (locallySetProperties.<span class="fu">MoveNext</span>())
+                            {
+                                DependencyProperty dp = 
+                                    locallySetProperties.<span class="fu">Current</span>.<span class="fu">Property</span>;
+                                <span class="kw">if</span> (!dp.<span class="fu">ReadOnly</span>)
+                                {
+                                    dobjTarget.<span class="fu">SetValue</span>(dp, dobjSource.<span class="fu">GetValue</span>(dp));
+                                    usedNames.<span class="fu">Add</span>(dp.<span class="fu">Name</span>);
+                                }
+                            }
+                        }                        
+
+                        <span class="co">// Getting all the public, non-static properties of the source</span>
+                        <span class="kw">foreach</span> (var pi <span class="kw">in</span> typ.<span class="fu">GetProperties</span>(
+                                            BindingFlags.<span class="fu">Instance</span> | 
+                                            BindingFlags.<span class="fu">Public</span> | 
+                                            BindingFlags.<span class="fu">FlattenHierarchy</span>))
+                        {
+                            <span class="co">// If it is not a dependency property </span>
+                            <span class="co">// and not the default property...</span>
+                            <span class="kw">if</span> (pi.<span class="fu">CanRead</span> &amp;&amp;
+                                !usedNames.<span class="fu">Contains</span>(pi.<span class="fu">Name</span>) &amp;&amp;
+                                !<span class="fu">IsDependencyProperty</span>(dobjSource, pi) &amp;&amp;
+                                pi.<span class="fu">Name</span> != <span class="st">&quot;Item&quot;</span>)
+                            {                                    
+                                <span class="dt">var</span> val = pi.<span class="fu">GetValue</span>(obj, <span class="kw">null</span>);
+
+                                <span class="co">// ..and it is writeable, then we recursively clone </span>
+                                <span class="co">// the value and set the property:</span>
+                                <span class="kw">if</span> (pi.<span class="fu">CanWrite</span>)
+                                {                                        
+                                    pi.<span class="fu">SetValue</span>(clone, <span class="fu">DeepClone</span>(val), <span class="kw">null</span>);
+                                }
+                                <span class="kw">else</span>
+                                {
+                                    <span class="co">// ..otherwise if it is a readonly list property, </span>
+                                    <span class="co">// go through each item,  clone it and add to </span>
+                                    <span class="co">// the clone&#39;s list property</span>
+                                    <span class="kw">if</span> (pi.<span class="fu">PropertyType</span>
+                                          .<span class="fu">GetInterfaces</span>()
+                                          .<span class="fu">Contains</span>(<span class="kw">typeof</span> (IList)))
+                                    {
+                                        <span class="dt">var</span> source = val <span class="kw">as</span> IList;
+                                        <span class="dt">var</span> target = pi.<span class="fu">GetValue</span>(clone, <span class="kw">null</span>) <span class="kw">as</span> IList;
+
+                                        <span class="kw">if</span> (source != <span class="kw">null</span> &amp;&amp; target != <span class="kw">null</span>)
+                                        {
+                                            <span class="kw">foreach</span> (var item <span class="kw">in</span> source)
+                                                target.<span class="fu">Add</span>(<span class="fu">DeepClone</span>(item));
+                                        }
+                                    }
+                                }
+                            }
+                        }                        
+
+                        <span class="kw">return</span> clone;
+                    }
+                }
+            }
+        }
+        <span class="kw">else</span>
+        {
+            <span class="kw">return</span> <span class="kw">null</span>;
+        }
+    }    
+
+    <span class="co">/// </span><span class="kw">&lt;summary&gt;</span>
+    <span class="co">/// Tries to determine if a property is a dependency property, by reflection and </span>
+    <span class="co">/// naming convention</span>
+    <span class="co">/// </span><span class="kw">&lt;/summary&gt;</span>
+    <span class="co">/// </span><span class="kw">&lt;param</span><span class="ot"> name=</span><span class="dt">&quot;dobj&quot;</span><span class="kw">&gt;</span><span class="co">Dependency object</span>
+    <span class="co">/// </span><span class="kw">&lt;param</span><span class="ot"> name=</span><span class="dt">&quot;pi&quot;</span><span class="kw">&gt;</span><span class="co">Property info</span>
+    <span class="co">/// </span><span class="kw">&lt;returns&gt;</span><span class="co">Returns </span><span class="kw">&lt;c&gt;</span><span class="co">true</span><span class="kw">&lt;/c&gt;</span><span class="co"> if the given property seems to be a </span>
+    <span class="co">///          CLR access property for a dependency property.</span><span class="kw">&lt;/returns&gt;</span>
+    <span class="kw">private</span> <span class="kw">static</span> <span class="dt">bool</span> <span class="fu">IsDependencyProperty</span>(DependencyObject dobj, PropertyInfo pi)
+    {
+        <span class="kw">if</span> (dobj != <span class="kw">null</span>)
+        {
+            <span class="dt">var</span> dpProp = dobj.<span class="fu">GetType</span>().<span class="fu">GetProperty</span>(pi.<span class="fu">Name</span> + <span class="st">&quot;Property&quot;</span>, 
+                                                    BindingFlags.<span class="fu">Static</span> |
+                                                    BindingFlags.<span class="fu">Public</span> |
+                                                    BindingFlags.<span class="fu">FlattenHierarchy</span>);
+            <span class="kw">if</span> (dpProp != <span class="kw">null</span> &amp;&amp; dpProp.<span class="fu">PropertyType</span> == <span class="kw">typeof</span> (DependencyProperty))
+                <span class="kw">return</span> <span class="kw">true</span>;
+            <span class="kw">else</span>
+            {
+                <span class="dt">var</span> dpField = dobj.<span class="fu">GetType</span>().<span class="fu">GetField</span>(pi.<span class="fu">Name</span> + <span class="st">&quot;Property&quot;</span>, 
+                                                      BindingFlags.<span class="fu">Static</span> | 
+                                                      BindingFlags.<span class="fu">Public</span> | 
+                                                      BindingFlags.<span class="fu">FlattenHierarchy</span>);
+                <span class="kw">if</span> (dpField != <span class="kw">null</span> &amp;&amp; 
+                    dpField.<span class="fu">FieldType</span> == <span class="kw">typeof</span> (DependencyProperty) &amp;&amp; 
+                    dpField.<span class="fu">IsInitOnly</span> &amp;&amp; dpField.<span class="fu">IsStatic</span>)
+                    <span class="kw">return</span> <span class="kw">true</span>;
+            }
+        }        
+
+        <span class="kw">return</span> <span class="kw">false</span>;
+    }
+}</code></pre></div>
+]]></summary>
+</entry>
+
+</feed>

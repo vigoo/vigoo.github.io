@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>Introducing bari</title>
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>Introducing bari</h1>
+
+            <div class="info">
+    Posted on May 16, 2014
+    
+</div>
+
+<p>In the past two years I worked on a project called<br />
+<a href="https://github.com/vigoo/bari">bari</a> which now reached an usable<br />
+state. <strong>bari</strong> is a <em>build management system</em>, trying to fix Visual<br />
+Studio’s bad parts while keeping the good ones.</p>
+<p>Basically it tries to make .NET development more convenient, when</p>
+<ul>
+<li>The application may consist of a <em>large number of projects</em></li>
+<li>There may be several different <em>subsets</em> of these projects defining<br />
+ valuable target <em>products</em></li>
+<li><em>Custom build steps</em> may be required</li>
+<li>It is important to be able to <em>reproduce</em> the build environment as<br />
+easily as possible</li>
+<li>The developers want to use the full power of their <em>IDE</em></li>
+</ul>
+<p>The main idea is to generate Visual Studio solutions and projects <em>on<br />
+the fly</em> as needed, from a concise <em>declarative</em> build<br />
+description. I tried to optimize this build description for human<br />
+readability. Let’s see an example, a short section from <strong>bari</strong>’s own<br />
+build definition:</p>
+<div class="sourceCode"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span class="kw">-</span> <span class="fu">name:</span> bari
+  <span class="fu">type:</span> executable
+  <span class="fu">references:</span>
+    <span class="kw">-</span> <span class="fu">gac:</span>//System
+    <span class="kw">-</span> <span class="fu">nuget:</span>//log4net
+    <span class="kw">-</span> <span class="fu">nuget:</span>//Ninject/3.0.1.10
+    <span class="kw">-</span> <span class="fu">nuget:</span>//QuickGraph
+    <span class="kw">-</span> <span class="fu">module:</span>//Bari.Core
+  <span class="fu">csharp:</span>
+    <span class="fu">root-namespace:</span> Bari.Console</code></pre></div>
+<p>The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.</p>
+<p>To keep build definitions short and readable, <strong>bari</strong> prefers<br />
+<em>convention</em> over <em>configuration</em>. For example the directory stucture<br />
+in which the source code lays defines not only the name of the modules<br />
+to build, but also the way it is built. For example, in a simple<br />
+<em>hello world</em> example the C# source code would be put in the<br />
+<code>src/TestModule/HelloWorld/cs</code> directory, and <strong>bari</strong> would build<br />
+<code>target/TestModule/HelloWorld.exe</code>.</p>
+<p><strong>bari</strong> unifies the handling of <em>project references</em> in a way that referencing projects within a suite, from the GAC, using <a href="http://www.nuget.org">Nuget</a> or from a custom repository works exactly the same. It is also possible to write <em>custom builders</em> in Python.</p>
+<p>For more information check out <a href="https://github.com/vigoo/bari/wiki/GettingStarted">the getting started page</a>.</p>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>

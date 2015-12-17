@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>ScalaFXML 0.2.2 available</title>
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>ScalaFXML 0.2.2 available</h1>
+
+            <div class="info">
+    Posted on October 22, 2014
+    
+</div>
+
+<p>I’ve released a new version of <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>, which now supports <em>both</em> <a href="https://github.com/scalafx/scalafx">ScalaFX 8</a> with <em>JavaFX 8</em> on Java 8, and <a href="https://github.com/scalafx/scalafx">ScalaFX 2.2</a> with <em>JavaFX 2.x</em> on Java 7.</p>
+<p>The two branches are separated by the <code>sfx2</code> and <code>sfx8</code> postfixes, and both are available for <em>Scala</em> <code>2.10.x</code> and <code>2.11.x</code>.</p>
+<p>To use it with <a href="http://www.scala-sbt.org/">sbt</a> on Java 7:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;2.2.67-R10&quot;</span>
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx2&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></code></pre></div>
+<p>And on Java 8:</p>
+<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;8.0.20-R6&quot;</span>
+
+libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx8&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></code></pre></div>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>
