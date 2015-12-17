@@ -35,6 +35,8 @@ main = hakyll $ do
                 }
         compile $ pandocCompilerWith readerOpts writerOpts
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
+            >>= saveSnapshot "content"
+            >>= loadAndApplyTemplate "templates/disqus.html"  postCtx
             >>= loadAndApplyTemplate "templates/default.html" postCtx
             >>= relativizeUrls
 
@@ -68,7 +70,24 @@ main = hakyll $ do
                 >>= relativizeUrls
 
     match "templates/*" $ compile templateCompiler
+    
+    create ["atom.xml"] $ do
+        route idRoute
+        compile $ do
+            let feedCtx = postCtx `mappend` bodyField "description"
+            posts <- fmap (take 50) . recentFirst =<<
+                loadAllSnapshots "posts/*" "content"
+            renderAtom feedConfig feedCtx posts
 
+
+feedConfig :: FeedConfiguration
+feedConfig = FeedConfiguration
+    { feedTitle       = "vigoo's software development blog"
+    , feedDescription = "vigoo's software development blog"
+    , feedAuthorName  = "Daniel Vigovszky"
+    , feedAuthorEmail = "daniel.vigovszky@gmail.com"
+    , feedRoot        = "http://vigoo.github.io"
+    }
 
 --------------------------------------------------------------------------------
 postCtx :: Context String
