@@ -2,10 +2,7 @@
 title: Introducing bari
 tags: dotnet bari build tools
 ---
-In the past two years I worked on a project called
-[bari](https://github.com/vigoo/bari) which now reached an usable
-state. **bari** is a *build management system*, trying to fix Visual
-Studio's bad parts while keeping the good ones.
+In the past two years I worked on a project called [bari](https://github.com/vigoo/bari) which now reached an usable state. **bari** is a *build management system*, trying to fix Visual Studio's bad parts while keeping the good ones.
 
 Basically it tries to make .NET development more convenient, when
 
@@ -17,11 +14,7 @@ Basically it tries to make .NET development more convenient, when
     easily as possible
 * The developers want to use the full power of their *IDE*
 
-The main idea is to generate Visual Studio solutions and projects *on
-the fly* as needed, from a concise *declarative*  build
-description. I tried to optimize this build description for human
-readability. Let's see an example, a short section from **bari**'s own
-build definition:
+The main idea is to generate Visual Studio solutions and projects *on the fly* as needed, from a concise *declarative*  build description. I tried to optimize this build description for human readability. Let's see an example, a short section from **bari**'s own build definition:
 
 ```yaml
 - name: bari
@@ -38,13 +31,7 @@ build definition:
 
 The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring. 
 
-To keep build definitions short and readable, **bari** prefers
-*convention* over *configuration*. For example the directory stucture
-in which the source code lays defines not only the name of the modules
-to build, but also the way it is built. For example, in a simple
-_hello world_ example the C# source code would be put in the
-`src/TestModule/HelloWorld/cs` directory, and **bari** would build
-`target/TestModule/HelloWorld.exe`.
+To keep build definitions short and readable, **bari** prefers *convention* over *configuration*. For example the directory stucture in which the source code lays defines not only the name of the modules to build, but also the way it is built. For example, in a simple _hello world_ example the C# source code would be put in the `src/TestModule/HelloWorld/cs` directory, and **bari** would build `target/TestModule/HelloWorld.exe`.
 
 **bari** unifies the handling of *project references* in a way that referencing projects within a suite, from the GAC, using [Nuget](http://www.nuget.org) or from a custom repository works exactly the same. It is also possible to write *custom builders* in Python. 
 

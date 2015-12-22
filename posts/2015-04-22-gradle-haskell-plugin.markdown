@@ -9,26 +9,14 @@ The result is [Gradle Haskell Plugin](https://github.com/prezi/gradle-haskell-pl
 
 What makes this solution interesting is that it not just simply wraps *cabal* within Gradle tasks, but implements a way to define **dependencies** between Haskell projects and to upload the binary Haskell artifacts to a *repository* such as [artifactory](http://www.jfrog.com/open-source/). 
 
-This makes it easy to modularize our projects, publish them,
-and also works perfectly with [pride](https://github.com/prezi/pride), an other *open-source* Prezi project.
-This means that we can work on a subset of our Haskell projects while the other
-dependencies are built on Jenkins, and it also integrates well with our
-non-Haskell projects.
+This makes it easy to modularize our projects, publish them, and also works perfectly with [pride](https://github.com/prezi/pride), an other *open-source* Prezi project. This means that we can work on a subset of our Haskell projects while the other
+dependencies are built on Jenkins, and it also integrates well with our non-Haskell projects.
 
 ## How does it work?
 
-The main idea is that we let _cabal_ manage the Haskell packages, and handle
-whole Haskell _sandboxes_ on Gradle level. So if you have a single Haskell project,
-it will be built using _cabal_ and the result sandbox (the built project together with all the
-dependent cabal packages which are not installed in the _global package database_)
-will be packed/published as a Gradle _artifact_.
+The main idea is that we let _cabal_ manage the Haskell packages, and handle whole Haskell _sandboxes_ on Gradle level. So if you have a single Haskell project, it will be built using _cabal_ and the result sandbox (the built project together with all the dependent cabal packages which are not installed in the _global package database_) will be packed/published as a Gradle _artifact_.
 
-This is not very interesting so far, but when you introduce dependencies on
-Gradle level, the plugin does something which (as far as I know) is not really done by
-anyone else, which I call _sandbox chaining_. This basically means that to compile
-the haskell project, the plugin will pass all the dependent sandboxes' package database
-to cabal and GHC, so for the actual sandbox only the packages which are **not** in any
-of the dependent sandboxes will be installed.
+This is not very interesting so far, but when you introduce dependencies on Gradle level, the plugin does something which (as far as I know) is not really done by anyone else, which I call _sandbox chaining_. This basically means that to compile the haskell project, the plugin will pass all the dependent sandboxes' package database to cabal and GHC, so for the actual sandbox only the packages which are **not** in any of the dependent sandboxes will be installed.
 
 ## Example
 
