@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>Gradle-Haskell-plugin with experimental Stack support</title>
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>Gradle-Haskell-plugin with experimental Stack support</h1>
+
+            <div class="info">
+    Posted on December 22, 2015
+    
+</div>
+
+<p>I’ve released a <strong>new version (0.4)</strong> of <a href="https://github.com/prezi/gradle-haskell-plugin">gradle-haskell-plugin</a> today, with <strong>experimental stack support</strong>.<br />
+It is not enabled by default, but I used it exclusively for months and it seems to get quite stable. To use it you need <a href="https://haskellstack.com">stack</a>,<br />
+have it enabled with <code>-Puse-stack</code> and have to keep some rules in your <code>.cabal</code> file, as explained <a href="https://github.com/prezi/gradle-haskell-plugin#explanation-stack-mode">in the README</a>.</p>
+<h2 id="how-does-it-work">How does it work?</h2>
+<p>The core idea did not change <a href="http://vigoo.github.io/posts/2015-04-22-gradle-haskell-plugin.html">compared to the original, cabal based solution</a>.</p>
+<p>To support chaining the binary artifacts, I had to add a new option to <em>stack</em> called <a href="https://github.com/commercialhaskell/stack/pull/990">extra package databases</a>. The databases listed in this section are passed <em>after the global</em> but <strong>before</strong> the snapshot and the local databases, which means that the snapshot database cannot be used (the packages in the binary artifacts are not “seeing” them). This sounds bad, but <em>gradle-haskell-plugin</em> does a workaround; it <strong>generates</strong> the <code>stack.yaml</code> automatically, and in a way that:</p>
+<ul>
+<li>it disables snapshots on stack level (uses a resolver like <code>ghc-7.10.2</code>)</li>
+<li>lists all the dependencies explicitly in <code>extra-deps</code></li>
+<li>but it still figures out the <em>versions</em> of the dependencies (to be listed in <code>extra-deps</code>) based on a given <em>stackage snapshot</em>!</li>
+</ul>
+<p>With this approach we get the same behavior that was already proven in cabal mode, but with the advantage that the generated <code>stack.yaml</code> completely defines the project for any tool that knows stack. So after gradle extracted the dependencies and generated the <code>stack.yaml</code>, it is no longer needed to succesfully compile/run/test the project, which means that tools like IDE integration will work much better than with the more hacky cabal mode of the plugin.</p>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>
