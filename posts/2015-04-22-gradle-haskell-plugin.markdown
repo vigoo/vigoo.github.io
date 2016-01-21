@@ -9,8 +9,7 @@ The result is [Gradle Haskell Plugin](https://github.com/prezi/gradle-haskell-pl
 
 What makes this solution interesting is that it not just simply wraps *cabal* within Gradle tasks, but implements a way to define **dependencies** between Haskell projects and to upload the binary Haskell artifacts to a *repository* such as [artifactory](http://www.jfrog.com/open-source/). 
 
-This makes it easy to modularize our projects, publish them, and also works perfectly with [pride](https://github.com/prezi/pride), an other *open-source* Prezi project. This means that we can work on a subset of our Haskell projects while the other
-dependencies are built on Jenkins, and it also integrates well with our non-Haskell projects.
+This makes it easy to modularize our projects, publish them, and also works perfectly with [pride](https://github.com/prezi/pride), an other *open-source* Prezi project. This means that we can work on a subset of our Haskell projects while the other dependencies are built on Jenkins, and it also integrates well with our non-Haskell projects.
 
 ## How does it work?
 

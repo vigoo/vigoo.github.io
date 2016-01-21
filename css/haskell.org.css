@@ -44,8 +44,11 @@ div#header #navigation a:hover{
 }
 
 div#content {
-  margin-left: 50px;
-  margin-right: 50px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 70%;
+  max-width: 800px;
+  text-align: justify;
 }
 
 div#content h1{
@@ -61,9 +64,27 @@ div#content p{
     font-size: 15px;
 }
 
+div#content img{
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    padding-top: 1em;
+    padding-bottom: 1em;
+}
+
 div#content a{
   color: #428bca;
   text-decoration: none;
+}
+
+div#content pre{
+    padding-left: 2em;
+    background-color: #fafafa;
+}
+
+div#content code{
+    font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 12px;
 }
 
 div#footer {
