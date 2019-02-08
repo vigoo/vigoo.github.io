@@ -2,13 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Monoid (mappend)
 import qualified Data.Set as Set
+import qualified GHC.IO.Encoding as E
 import           Hakyll
+import           Text.Pandoc.Extensions
+import           Text.Pandoc.Highlighting
 import           Text.Pandoc.Options
 
 
---------------------------------------------------------------------------------
 main :: IO ()
-main = hakyll $ do
+main = do
+    E.setLocaleEncoding E.utf8
+    site
+
+site :: IO ()
+site = hakyll $ do
     match "js/*" $ do
         route   idRoute
         compile copyFileCompiler
@@ -25,13 +32,11 @@ main = hakyll $ do
         route $ setExtension "html"
         let readerOpts = 
               defaultHakyllReaderOptions 
-                { readerExtensions = 
-                    readerExtensions defaultHakyllReaderOptions `Set.union`
-                    githubMarkdownExtensions                   
+                { readerExtensions = (readerExtensions defaultHakyllReaderOptions) <> githubMarkdownExtensions
                 }
         let writerOpts = 
               defaultHakyllWriterOptions
-                { writerHighlight = True
+                { writerHighlightStyle = Just pygments
                 }
         compile $ pandocCompilerWith readerOpts writerOpts
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
