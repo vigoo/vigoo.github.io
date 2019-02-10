@@ -36,7 +36,7 @@ site = hakyll $ do
                 }
         let writerOpts = 
               defaultHakyllWriterOptions
-                { writerHighlightStyle = Just pygments
+                { writerHighlightStyle = Just kate
                 }
         compile $ pandocCompilerWith readerOpts writerOpts
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
