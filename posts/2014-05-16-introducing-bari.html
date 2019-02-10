@@ -8,7 +8,7 @@
         <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
         
         <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
-        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
         
         <!-- zoomingbox -->
         <script src="../js/jquery-1.11.0.min.js"></script>
@@ -35,24 +35,22 @@
 <p>Basically it tries to make .NET development more convenient, when</p>
 <ul>
 <li>The application may consist of a <em>large number of projects</em></li>
-<li>There may be several different <em>subsets</em> of these projects defining<br />
- valuable target <em>products</em></li>
+<li>There may be several different <em>subsets</em> of these projects defining valuable target <em>products</em></li>
 <li><em>Custom build steps</em> may be required</li>
-<li>It is important to be able to <em>reproduce</em> the build environment as<br />
-easily as possible</li>
+<li>It is important to be able to <em>reproduce</em> the build environment as easily as possible</li>
 <li>The developers want to use the full power of their <em>IDE</em></li>
 </ul>
 <p>The main idea is to generate Visual Studio solutions and projects <em>on the fly</em> as needed, from a concise <em>declarative</em> build description. I tried to optimize this build description for human readability. Let’s see an example, a short section from <strong>bari</strong>’s own build definition:</p>
-<div class="sourceCode"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span class="kw">-</span> <span class="fu">name:</span> bari
-  <span class="fu">type:</span> executable
-  <span class="fu">references:</span>
-    <span class="kw">-</span> <span class="fu">gac:</span>//System
-    <span class="kw">-</span> <span class="fu">nuget:</span>//log4net
-    <span class="kw">-</span> <span class="fu">nuget:</span>//Ninject/3.0.1.10
-    <span class="kw">-</span> <span class="fu">nuget:</span>//QuickGraph
-    <span class="kw">-</span> <span class="fu">module:</span>//Bari.Core
-  <span class="fu">csharp:</span>
-    <span class="fu">root-namespace:</span> Bari.Console</code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode yaml"><code class="sourceCode yaml"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">-</span> <span class="fu">name:</span><span class="at"> bari</span></a>
+<a class="sourceLine" id="cb1-2" title="2">  <span class="fu">type:</span><span class="at"> executable</span></a>
+<a class="sourceLine" id="cb1-3" title="3">  <span class="fu">references:</span></a>
+<a class="sourceLine" id="cb1-4" title="4">    <span class="kw">-</span> gac://System</a>
+<a class="sourceLine" id="cb1-5" title="5">    <span class="kw">-</span> nuget://log4net</a>
+<a class="sourceLine" id="cb1-6" title="6">    <span class="kw">-</span> nuget://Ninject/3.0.1.10</a>
+<a class="sourceLine" id="cb1-7" title="7">    <span class="kw">-</span> nuget://QuickGraph</a>
+<a class="sourceLine" id="cb1-8" title="8">    <span class="kw">-</span> module://Bari.Core</a>
+<a class="sourceLine" id="cb1-9" title="9">  <span class="fu">csharp:</span></a>
+<a class="sourceLine" id="cb1-10" title="10">    <span class="fu">root-namespace:</span><span class="at"> Bari.Console</span></a></code></pre></div>
 <p>The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.</p>
 <p>To keep build definitions short and readable, <strong>bari</strong> prefers <em>convention</em> over <em>configuration</em>. For example the directory stucture in which the source code lays defines not only the name of the modules to build, but also the way it is built. For example, in a simple <em>hello world</em> example the C# source code would be put in the <code>src/TestModule/HelloWorld/cs</code> directory, and <strong>bari</strong> would build <code>target/TestModule/HelloWorld.exe</code>.</p>
 <p><strong>bari</strong> unifies the handling of <em>project references</em> in a way that referencing projects within a suite, from the GAC, using <a href="http://www.nuget.org">Nuget</a> or from a custom repository works exactly the same. It is also possible to write <em>custom builders</em> in Python.</p>

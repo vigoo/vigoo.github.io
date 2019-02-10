@@ -8,7 +8,7 @@
         <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
         
         <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
-        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
         
         <!-- zoomingbox -->
         <script src="../js/jquery-1.11.0.min.js"></script>
@@ -35,135 +35,132 @@
 <p>It is not impossible to use FXML user interfaces from Scala, but the ScalaFX wrappers does not help and the code for the controller classes is not clean enough. See <a href="https://github.com/jpsacha/ProScalaFX/blob/master/src/proscalafx/ch10/fxml/AdoptionFormController.scala">the following example</a> to get a feeling how it looks like.</p>
 <p>To make it better I wrote a small library called <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>. In this post I’ll go through a small example to explain how it works.</p>
 <p>The following image shows how our sample application will look like:</p>
-<div class="figure">
-<img src="../images/unit-conversion-shot.png" alt />
-
-</div>
+<p><img src="../images/unit-conversion-shot.png" /></p>
 <p>The <em>From</em> fiels is editable, and the result in the <em>To</em> field is filled as you type using <em>data binding</em>. The <em>Close</em> button’s only purpose is to demonstrate event handlers.</p>
 <p>The conversion logic itself is implemented by <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/UnitConverter.scala">small classes</a> sharing the same trait:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">trait</span> UnitConverter {
-  <span class="kw">val</span> description: String
-  <span class="kw">def</span> <span class="fu">run</span>(input: String): String
-
-  <span class="kw">override</span> <span class="kw">def</span> toString = description
-}
-
-<span class="kw">object</span> MMtoInches <span class="kw">extends</span> UnitConverter {
-  <span class="kw">val</span> description: String = <span class="st">&quot;Millimeters to inches&quot;</span>
-  <span class="kw">def</span> <span class="fu">run</span>(input: String): String = 
-      <span class="kw">try</span> { 
-          (input.<span class="fu">toDouble</span> / <span class="fl">25.4</span>).<span class="fu">toString</span> 
-      } <span class="kw">catch</span> { 
-          <span class="kw">case</span> ex: Throwable =&gt; ex.<span class="fu">toString</span> 
-      }
-}
-
-<span class="kw">object</span> InchesToMM <span class="kw">extends</span> UnitConverter {
-  <span class="kw">val</span> description: String = <span class="st">&quot;Inches to millimeters&quot;</span>
-  <span class="kw">def</span> <span class="fu">run</span>(input: String): String = 
-      <span class="kw">try</span> { 
-          (input.<span class="fu">toDouble</span> * <span class="fl">25.4</span>).<span class="fu">toString</span> 
-      } <span class="kw">catch</span> { 
-          <span class="kw">case</span> ex: Throwable =&gt; ex.<span class="fu">toString</span> 
-      }
-}</code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">trait</span> UnitConverter {</a>
+<a class="sourceLine" id="cb1-2" title="2">  <span class="kw">val</span> description: String</a>
+<a class="sourceLine" id="cb1-3" title="3">  <span class="kw">def</span> <span class="fu">run</span>(input: String): String</a>
+<a class="sourceLine" id="cb1-4" title="4"></a>
+<a class="sourceLine" id="cb1-5" title="5">  <span class="kw">override</span> <span class="kw">def</span> toString = description</a>
+<a class="sourceLine" id="cb1-6" title="6">}</a>
+<a class="sourceLine" id="cb1-7" title="7"></a>
+<a class="sourceLine" id="cb1-8" title="8"><span class="kw">object</span> MMtoInches <span class="kw">extends</span> UnitConverter {</a>
+<a class="sourceLine" id="cb1-9" title="9">  <span class="kw">val</span> description: String = <span class="st">&quot;Millimeters to inches&quot;</span></a>
+<a class="sourceLine" id="cb1-10" title="10">  <span class="kw">def</span> <span class="fu">run</span>(input: String): String = </a>
+<a class="sourceLine" id="cb1-11" title="11">      <span class="kw">try</span> { </a>
+<a class="sourceLine" id="cb1-12" title="12">          (input.<span class="fu">toDouble</span> / <span class="fl">25.4</span>).<span class="fu">toString</span> </a>
+<a class="sourceLine" id="cb1-13" title="13">      } <span class="kw">catch</span> { </a>
+<a class="sourceLine" id="cb1-14" title="14">          <span class="kw">case</span> ex: Throwable =&gt; ex.<span class="fu">toString</span> </a>
+<a class="sourceLine" id="cb1-15" title="15">      }</a>
+<a class="sourceLine" id="cb1-16" title="16">}</a>
+<a class="sourceLine" id="cb1-17" title="17"></a>
+<a class="sourceLine" id="cb1-18" title="18"><span class="kw">object</span> InchesToMM <span class="kw">extends</span> UnitConverter {</a>
+<a class="sourceLine" id="cb1-19" title="19">  <span class="kw">val</span> description: String = <span class="st">&quot;Inches to millimeters&quot;</span></a>
+<a class="sourceLine" id="cb1-20" title="20">  <span class="kw">def</span> <span class="fu">run</span>(input: String): String = </a>
+<a class="sourceLine" id="cb1-21" title="21">      <span class="kw">try</span> { </a>
+<a class="sourceLine" id="cb1-22" title="22">          (input.<span class="fu">toDouble</span> * <span class="fl">25.4</span>).<span class="fu">toString</span> </a>
+<a class="sourceLine" id="cb1-23" title="23">      } <span class="kw">catch</span> { </a>
+<a class="sourceLine" id="cb1-24" title="24">          <span class="kw">case</span> ex: Throwable =&gt; ex.<span class="fu">toString</span> </a>
+<a class="sourceLine" id="cb1-25" title="25">      }</a>
+<a class="sourceLine" id="cb1-26" title="26">}</a></code></pre></div>
 <p>To describe the set of available <em>unit converters</em>, we define one more helper class:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">UnitConverters</span>(converters: UnitConverter*) {
-  <span class="kw">val</span> available = List(converters : _*)
-}</code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">class</span> <span class="fu">UnitConverters</span>(converters: UnitConverter*) {</a>
+<a class="sourceLine" id="cb2-2" title="2">  <span class="kw">val</span> available = List(converters : _*)</a>
+<a class="sourceLine" id="cb2-3" title="3">}</a></code></pre></div>
 <p>Now let’s start with a <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/PureScalaFX.scala">pure ScalaFX solution</a>, where the user interface is defined in Scala. I’ve implemented the view itself in a class called <code>PureScalaFXView</code>, which gets the set of available <em>unit converters</em> as a dependency through its constructor. This makes the main application object very simple:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">object</span> PureScalaFX <span class="kw">extends</span> JFXApp {
-  stage = <span class="kw">new</span> <span class="fu">PureScalaFXView</span>(
-      <span class="kw">new</span> <span class="fu">UnitConverters</span>(InchesToMM, MMtoInches))
-}</code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">object</span> PureScalaFX <span class="kw">extends</span> JFXApp {</a>
+<a class="sourceLine" id="cb3-2" title="2">  stage = <span class="kw">new</span> <span class="fu">PureScalaFXView</span>(</a>
+<a class="sourceLine" id="cb3-3" title="3">      <span class="kw">new</span> <span class="fu">UnitConverters</span>(InchesToMM, MMtoInches))</a>
+<a class="sourceLine" id="cb3-4" title="4">}</a></code></pre></div>
 <p>The <code>PureScalaFXView</code> class consists of two distinct parts. First we define the user interface using the <em>ScalaFX UI DSL</em>:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">PureScalaFXView</span>(converters: UnitConverters) <span class="kw">extends</span> JFXApp.<span class="fu">PrimaryStage</span> {
-
-  <span class="co">// UI Definition</span>
-  title = <span class="st">&quot;Unit conversion&quot;</span>
-
-  <span class="kw">private</span> <span class="kw">val</span> types = <span class="kw">new</span> ComboBox[UnitConverter]() {
-    maxWidth = Double.<span class="fu">MaxValue</span>
-    margin = Insets(<span class="dv">3</span>)
-  }
-
-  <span class="kw">private</span> <span class="kw">val</span> from = <span class="kw">new</span> TextField {
-    margin = Insets(<span class="dv">3</span>)
-    prefWidth = <span class="fl">200.0</span>
-  }
-
-  <span class="kw">private</span> <span class="kw">val</span> to = <span class="kw">new</span> TextField {
-    prefWidth = <span class="fl">200.0</span>
-    margin = Insets(<span class="dv">3</span>)
-    editable = <span class="kw">false</span>
-  }
-
-  scene = <span class="kw">new</span> Scene {
-    content = <span class="kw">new</span> GridPane {
-      padding = Insets(<span class="dv">5</span>)
-
-      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;Conversion type:&quot;</span>), <span class="dv">0</span>, <span class="dv">0</span>)
-      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;From:&quot;</span>), <span class="dv">0</span>, <span class="dv">1</span>)
-      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;To:&quot;</span>), <span class="dv">0</span>, <span class="dv">2</span>)
-
-      <span class="fu">add</span>(types, <span class="dv">1</span>, <span class="dv">0</span>)
-      <span class="fu">add</span>(from, <span class="dv">1</span>, <span class="dv">1</span>)
-      <span class="fu">add</span>(to, <span class="dv">1</span>, <span class="dv">2</span>)
-
-      <span class="fu">add</span>(<span class="kw">new</span> Button(<span class="st">&quot;Close&quot;</span>) {
-        <span class="co">// inline event handler binding</span>
-        onAction = (e: ActionEvent) =&gt; Platform.<span class="fu">exit</span>()
-      }, <span class="dv">1</span>, <span class="dv">3</span>)
-
-      columnConstraints = List(
-        <span class="kw">new</span> ColumnConstraints {
-          halignment = HPos.<span class="fu">LEFT</span>
-          hgrow = Priority.<span class="fu">SOMETIMES</span>
-          margin = Insets(<span class="dv">5</span>)
-        },
-        <span class="kw">new</span> ColumnConstraints {
-          halignment = HPos.<span class="fu">RIGHT</span>
-          hgrow = Priority.<span class="fu">ALWAYS</span>
-          margin = Insets(<span class="dv">5</span>)
-        }
-      )
-    }
-  }</code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">class</span> <span class="fu">PureScalaFXView</span>(converters: UnitConverters) <span class="kw">extends</span> JFXApp.<span class="fu">PrimaryStage</span> {</a>
+<a class="sourceLine" id="cb4-2" title="2"></a>
+<a class="sourceLine" id="cb4-3" title="3">  <span class="co">// UI Definition</span></a>
+<a class="sourceLine" id="cb4-4" title="4">  title = <span class="st">&quot;Unit conversion&quot;</span></a>
+<a class="sourceLine" id="cb4-5" title="5"></a>
+<a class="sourceLine" id="cb4-6" title="6">  <span class="kw">private</span> <span class="kw">val</span> types = <span class="kw">new</span> ComboBox[UnitConverter]() {</a>
+<a class="sourceLine" id="cb4-7" title="7">    maxWidth = Double.<span class="fu">MaxValue</span></a>
+<a class="sourceLine" id="cb4-8" title="8">    margin = Insets(<span class="dv">3</span>)</a>
+<a class="sourceLine" id="cb4-9" title="9">  }</a>
+<a class="sourceLine" id="cb4-10" title="10"></a>
+<a class="sourceLine" id="cb4-11" title="11">  <span class="kw">private</span> <span class="kw">val</span> from = <span class="kw">new</span> TextField {</a>
+<a class="sourceLine" id="cb4-12" title="12">    margin = Insets(<span class="dv">3</span>)</a>
+<a class="sourceLine" id="cb4-13" title="13">    prefWidth = <span class="fl">200.0</span></a>
+<a class="sourceLine" id="cb4-14" title="14">  }</a>
+<a class="sourceLine" id="cb4-15" title="15"></a>
+<a class="sourceLine" id="cb4-16" title="16">  <span class="kw">private</span> <span class="kw">val</span> to = <span class="kw">new</span> TextField {</a>
+<a class="sourceLine" id="cb4-17" title="17">    prefWidth = <span class="fl">200.0</span></a>
+<a class="sourceLine" id="cb4-18" title="18">    margin = Insets(<span class="dv">3</span>)</a>
+<a class="sourceLine" id="cb4-19" title="19">    editable = <span class="kw">false</span></a>
+<a class="sourceLine" id="cb4-20" title="20">  }</a>
+<a class="sourceLine" id="cb4-21" title="21"></a>
+<a class="sourceLine" id="cb4-22" title="22">  scene = <span class="kw">new</span> Scene {</a>
+<a class="sourceLine" id="cb4-23" title="23">    content = <span class="kw">new</span> GridPane {</a>
+<a class="sourceLine" id="cb4-24" title="24">      padding = Insets(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb4-25" title="25"></a>
+<a class="sourceLine" id="cb4-26" title="26">      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;Conversion type:&quot;</span>), <span class="dv">0</span>, <span class="dv">0</span>)</a>
+<a class="sourceLine" id="cb4-27" title="27">      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;From:&quot;</span>), <span class="dv">0</span>, <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb4-28" title="28">      <span class="fu">add</span>(<span class="kw">new</span> Label(<span class="st">&quot;To:&quot;</span>), <span class="dv">0</span>, <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb4-29" title="29"></a>
+<a class="sourceLine" id="cb4-30" title="30">      <span class="fu">add</span>(types, <span class="dv">1</span>, <span class="dv">0</span>)</a>
+<a class="sourceLine" id="cb4-31" title="31">      <span class="fu">add</span>(from, <span class="dv">1</span>, <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb4-32" title="32">      <span class="fu">add</span>(to, <span class="dv">1</span>, <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb4-33" title="33"></a>
+<a class="sourceLine" id="cb4-34" title="34">      <span class="fu">add</span>(<span class="kw">new</span> Button(<span class="st">&quot;Close&quot;</span>) {</a>
+<a class="sourceLine" id="cb4-35" title="35">        <span class="co">// inline event handler binding</span></a>
+<a class="sourceLine" id="cb4-36" title="36">        onAction = (e: ActionEvent) =&gt; Platform.<span class="fu">exit</span>()</a>
+<a class="sourceLine" id="cb4-37" title="37">      }, <span class="dv">1</span>, <span class="dv">3</span>)</a>
+<a class="sourceLine" id="cb4-38" title="38"></a>
+<a class="sourceLine" id="cb4-39" title="39">      columnConstraints = List(</a>
+<a class="sourceLine" id="cb4-40" title="40">        <span class="kw">new</span> ColumnConstraints {</a>
+<a class="sourceLine" id="cb4-41" title="41">          halignment = HPos.<span class="fu">LEFT</span></a>
+<a class="sourceLine" id="cb4-42" title="42">          hgrow = Priority.<span class="fu">SOMETIMES</span></a>
+<a class="sourceLine" id="cb4-43" title="43">          margin = Insets(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb4-44" title="44">        },</a>
+<a class="sourceLine" id="cb4-45" title="45">        <span class="kw">new</span> ColumnConstraints {</a>
+<a class="sourceLine" id="cb4-46" title="46">          halignment = HPos.<span class="fu">RIGHT</span></a>
+<a class="sourceLine" id="cb4-47" title="47">          hgrow = Priority.<span class="fu">ALWAYS</span></a>
+<a class="sourceLine" id="cb4-48" title="48">          margin = Insets(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb4-49" title="49">        }</a>
+<a class="sourceLine" id="cb4-50" title="50">      )</a>
+<a class="sourceLine" id="cb4-51" title="51">    }</a>
+<a class="sourceLine" id="cb4-52" title="52">  }</a></code></pre></div>
 <p>This is not 100% pure UI definition, because it also contains an inline event handler definition for the <em>Close</em> button.</p>
 <p>The next part fills the <em>combo box</em> and defines the data binding. Filling the combo box is a simple procedural loop:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">  <span class="kw">for</span> (converter &lt;- converters.<span class="fu">available</span>) {
-    types += converter
-  }
-  types.<span class="fu">getSelectionModel</span>.<span class="fu">selectFirst</span>()</code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1">  <span class="kw">for</span> (converter &lt;- converters.<span class="fu">available</span>) {</a>
+<a class="sourceLine" id="cb5-2" title="2">    types += converter</a>
+<a class="sourceLine" id="cb5-3" title="3">  }</a>
+<a class="sourceLine" id="cb5-4" title="4">  types.<span class="fu">getSelectionModel</span>.<span class="fu">selectFirst</span>()</a></code></pre></div>
 <p>For the data binding we define a <a href="http://docs.oracle.com/javafx/2/binding/jfxpub-binding.htm">low level data binding</a> which depends on the combo box’s selected value and the <em>From</em> field’s text, and produces the output for the <em>To</em> field:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">  to.<span class="fu">text</span> &lt;== <span class="kw">new</span> StringBinding {
-    <span class="fu">bind</span>(from.<span class="fu">text</span>.<span class="fu">delegate</span>, types.<span class="fu">getSelectionModel</span>.<span class="fu">selectedItemProperty</span>)
-    <span class="kw">def</span> <span class="fu">computeValue</span>() = types.<span class="fu">getSelectionModel</span>.<span class="fu">getSelectedItem</span>.<span class="fu">run</span>(from.<span class="fu">text</span>.<span class="fu">value</span>)
-  }</code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1">  to.<span class="fu">text</span> &lt;== <span class="kw">new</span> StringBinding {</a>
+<a class="sourceLine" id="cb6-2" title="2">    <span class="fu">bind</span>(from.<span class="fu">text</span>.<span class="fu">delegate</span>, types.<span class="fu">getSelectionModel</span>.<span class="fu">selectedItemProperty</span>)</a>
+<a class="sourceLine" id="cb6-3" title="3">    <span class="kw">def</span> <span class="fu">computeValue</span>() = types.<span class="fu">getSelectionModel</span>.<span class="fu">getSelectedItem</span>.<span class="fu">run</span>(from.<span class="fu">text</span>.<span class="fu">value</span>)</a>
+<a class="sourceLine" id="cb6-4" title="4">  }</a></code></pre></div>
 <p>That’s all, the application is fully functional. The next thing is to split this class so the UI definition and the UI logic got separated. This <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/RefactoredPureScalaFX.scala">refactored ScalaFX solution</a> is very similar to the previous one, but the initialization of the combo box, the data binding and the event handler are all encapsulated by a new, separate class:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">RawUnitConverterPresenter</span>(
-                              <span class="kw">private</span> <span class="kw">val</span> from: TextField,
-                              <span class="kw">private</span> <span class="kw">val</span> to: TextField,
-                              <span class="kw">private</span> <span class="kw">val</span> types: ComboBox[UnitConverter],
-                              <span class="kw">private</span> <span class="kw">val</span> converters: UnitConverters) {
-
-  <span class="co">// Filling the combo box</span>
-  <span class="kw">for</span> (converter &lt;- converters.<span class="fu">available</span>) {
-    types += converter
-  }
-  types.<span class="fu">getSelectionModel</span>.<span class="fu">selectFirst</span>()
-
-  <span class="co">// Data binding</span>
-  to.<span class="fu">text</span> &lt;== <span class="kw">new</span> StringBinding {
-    <span class="fu">bind</span>(from.<span class="fu">text</span>.<span class="fu">delegate</span>, types.<span class="fu">getSelectionModel</span>.<span class="fu">selectedItemProperty</span>)
-    <span class="kw">def</span> <span class="fu">computeValue</span>() = types.<span class="fu">getSelectionModel</span>.<span class="fu">getSelectedItem</span>.<span class="fu">run</span>(from.<span class="fu">text</span>.<span class="fu">value</span>)
-  }
-
-  <span class="co">// Close button event handler</span>
-  <span class="kw">def</span> <span class="fu">onClose</span>(event: ActionEvent) {
-    Platform.<span class="fu">exit</span>()
-  }
-}</code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">class</span> <span class="fu">RawUnitConverterPresenter</span>(</a>
+<a class="sourceLine" id="cb7-2" title="2">                              <span class="kw">private</span> <span class="kw">val</span> from: TextField,</a>
+<a class="sourceLine" id="cb7-3" title="3">                              <span class="kw">private</span> <span class="kw">val</span> to: TextField,</a>
+<a class="sourceLine" id="cb7-4" title="4">                              <span class="kw">private</span> <span class="kw">val</span> types: ComboBox[UnitConverter],</a>
+<a class="sourceLine" id="cb7-5" title="5">                              <span class="kw">private</span> <span class="kw">val</span> converters: UnitConverters) {</a>
+<a class="sourceLine" id="cb7-6" title="6"></a>
+<a class="sourceLine" id="cb7-7" title="7">  <span class="co">// Filling the combo box</span></a>
+<a class="sourceLine" id="cb7-8" title="8">  <span class="kw">for</span> (converter &lt;- converters.<span class="fu">available</span>) {</a>
+<a class="sourceLine" id="cb7-9" title="9">    types += converter</a>
+<a class="sourceLine" id="cb7-10" title="10">  }</a>
+<a class="sourceLine" id="cb7-11" title="11">  types.<span class="fu">getSelectionModel</span>.<span class="fu">selectFirst</span>()</a>
+<a class="sourceLine" id="cb7-12" title="12"></a>
+<a class="sourceLine" id="cb7-13" title="13">  <span class="co">// Data binding</span></a>
+<a class="sourceLine" id="cb7-14" title="14">  to.<span class="fu">text</span> &lt;== <span class="kw">new</span> StringBinding {</a>
+<a class="sourceLine" id="cb7-15" title="15">    <span class="fu">bind</span>(from.<span class="fu">text</span>.<span class="fu">delegate</span>, types.<span class="fu">getSelectionModel</span>.<span class="fu">selectedItemProperty</span>)</a>
+<a class="sourceLine" id="cb7-16" title="16">    <span class="kw">def</span> <span class="fu">computeValue</span>() = types.<span class="fu">getSelectionModel</span>.<span class="fu">getSelectedItem</span>.<span class="fu">run</span>(from.<span class="fu">text</span>.<span class="fu">value</span>)</a>
+<a class="sourceLine" id="cb7-17" title="17">  }</a>
+<a class="sourceLine" id="cb7-18" title="18"></a>
+<a class="sourceLine" id="cb7-19" title="19">  <span class="co">// Close button event handler</span></a>
+<a class="sourceLine" id="cb7-20" title="20">  <span class="kw">def</span> <span class="fu">onClose</span>(event: ActionEvent) {</a>
+<a class="sourceLine" id="cb7-21" title="21">    Platform.<span class="fu">exit</span>()</a>
+<a class="sourceLine" id="cb7-22" title="22">  }</a>
+<a class="sourceLine" id="cb7-23" title="23">}</a></code></pre></div>
 <p>What I wanted is to be able to define the controller class exactly like this while building the user interface from FXML. Without <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the controller class have some serious limitations:</p>
 <ul>
 <li>It must implement the <a href="http://docs.oracle.com/javafx/2/api/javafx/fxml/Initializable.html">Initializable</a> interface</li>
@@ -172,59 +169,56 @@
 <li>And they have to have the type of the JavaFX controls, so to be able to use the ScalaFX wrappers, they have to be explicitly wrapped in the <code>initialize</code> method.</li>
 </ul>
 <p>With <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the process is really simple. First we create the FXML, for example with the <a href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>:</p>
-<div class="figure">
-<img src="../images/unit-conversion-scenebuilder.png" alt />
-
-</div>
+<p><img src="../images/unit-conversion-scenebuilder.png" /></p>
 <p>In the FXML we give the <code>from</code>, <code>to</code>, and <code>types</code> identifiers to our controls using the <code>fx:id</code> attribute, for example:</p>
-<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml">    <span class="kw">&lt;TextField</span><span class="ot"> fx:id=</span><span class="st">&quot;from&quot;</span><span class="ot"> prefWidth=</span><span class="st">&quot;200.0&quot;</span> 
-<span class="ot">               GridPane.columnIndex=</span><span class="st">&quot;1&quot;</span> 
-<span class="ot">               GridPane.margin=</span><span class="st">&quot;$x1&quot;</span> 
-<span class="ot">               GridPane.rowIndex=</span><span class="st">&quot;1&quot;</span> <span class="kw">/&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode xml"><code class="sourceCode xml"><a class="sourceLine" id="cb8-1" title="1">    <span class="kw">&lt;TextField</span><span class="ot"> fx:id=</span><span class="st">&quot;from&quot;</span><span class="ot"> prefWidth=</span><span class="st">&quot;200.0&quot;</span> </a>
+<a class="sourceLine" id="cb8-2" title="2"><span class="ot">               GridPane.columnIndex=</span><span class="st">&quot;1&quot;</span> </a>
+<a class="sourceLine" id="cb8-3" title="3"><span class="ot">               GridPane.margin=</span><span class="st">&quot;$x1&quot;</span> </a>
+<a class="sourceLine" id="cb8-4" title="4"><span class="ot">               GridPane.rowIndex=</span><span class="st">&quot;1&quot;</span> <span class="kw">/&gt;</span></a></code></pre></div>
 <p>The event handlers can be specified simply by their name:</p>
-<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml"><span class="kw">&lt;Button</span><span class="ot"> onAction=</span><span class="st">&quot;#onClose&quot;</span><span class="ot"> text=</span><span class="st">&quot;Close&quot;</span> 
-<span class="ot">        mnemonicParsing=</span><span class="st">&quot;false&quot;</span>
-<span class="ot">        GridPane.columnIndex=</span><span class="st">&quot;1&quot;</span> 
-<span class="ot">        GridPane.halignment=</span><span class="st">&quot;RIGHT&quot;</span> 
-<span class="ot">        GridPane.rowIndex=</span><span class="st">&quot;3&quot;</span> <span class="kw">/&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode xml"><code class="sourceCode xml"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">&lt;Button</span><span class="ot"> onAction=</span><span class="st">&quot;#onClose&quot;</span><span class="ot"> text=</span><span class="st">&quot;Close&quot;</span> </a>
+<a class="sourceLine" id="cb9-2" title="2"><span class="ot">        mnemonicParsing=</span><span class="st">&quot;false&quot;</span></a>
+<a class="sourceLine" id="cb9-3" title="3"><span class="ot">        GridPane.columnIndex=</span><span class="st">&quot;1&quot;</span> </a>
+<a class="sourceLine" id="cb9-4" title="4"><span class="ot">        GridPane.halignment=</span><span class="st">&quot;RIGHT&quot;</span> </a>
+<a class="sourceLine" id="cb9-5" title="5"><span class="ot">        GridPane.rowIndex=</span><span class="st">&quot;3&quot;</span> <span class="kw">/&gt;</span></a></code></pre></div>
 <p>and the controller class must be referenced on the root node</p>
-<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml">fx:controller=&quot;scalafxml.demo.unitconverter.UnitConverterPresenter&quot;</code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode xml"><code class="sourceCode xml"><a class="sourceLine" id="cb10-1" title="1">fx:controller=&quot;scalafxml.demo.unitconverter.UnitConverterPresenter&quot;</a></code></pre></div>
 <p>The controller class <a href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/ScalaFXML.scala">can be exactly the same as the <code>RawUnitConverterPresenter</code></a>, adding an additional <code>@sfxml</code> annotation for it. Everything else is handled by the library, as we will see.</p>
 <p>The application object itself looks like this:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">object</span> ScalaFXML <span class="kw">extends</span> JFXApp {
-
-  <span class="kw">val</span> root = <span class="fu">FXMLView</span>(getClass.<span class="fu">getResource</span>(<span class="st">&quot;unitconverter.fxml&quot;</span>),
-    <span class="kw">new</span> <span class="fu">DependenciesByType</span>(Map(
-      typeOf[UnitConverters] -&gt; <span class="kw">new</span> <span class="fu">UnitConverters</span>(InchesToMM, MMtoInches))))
-
-  stage = <span class="kw">new</span> JFXApp.<span class="fu">PrimaryStage</span>() {
-    title = <span class="st">&quot;Unit conversion&quot;</span>
-    scene = <span class="kw">new</span> <span class="fu">Scene</span>(root)
-
-  }
-}</code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1"><span class="kw">object</span> ScalaFXML <span class="kw">extends</span> JFXApp {</a>
+<a class="sourceLine" id="cb11-2" title="2"></a>
+<a class="sourceLine" id="cb11-3" title="3">  <span class="kw">val</span> root = <span class="fu">FXMLView</span>(getClass.<span class="fu">getResource</span>(<span class="st">&quot;unitconverter.fxml&quot;</span>),</a>
+<a class="sourceLine" id="cb11-4" title="4">    <span class="kw">new</span> <span class="fu">DependenciesByType</span>(Map(</a>
+<a class="sourceLine" id="cb11-5" title="5">      typeOf[UnitConverters] -&gt; <span class="kw">new</span> <span class="fu">UnitConverters</span>(InchesToMM, MMtoInches))))</a>
+<a class="sourceLine" id="cb11-6" title="6"></a>
+<a class="sourceLine" id="cb11-7" title="7">  stage = <span class="kw">new</span> JFXApp.<span class="fu">PrimaryStage</span>() {</a>
+<a class="sourceLine" id="cb11-8" title="8">    title = <span class="st">&quot;Unit conversion&quot;</span></a>
+<a class="sourceLine" id="cb11-9" title="9">    scene = <span class="kw">new</span> <span class="fu">Scene</span>(root)</a>
+<a class="sourceLine" id="cb11-10" title="10"></a>
+<a class="sourceLine" id="cb11-11" title="11">  }</a>
+<a class="sourceLine" id="cb11-12" title="12">}</a></code></pre></div>
 <p>Beside giving the URI for the FXML file we also has to provide the <em>additional dependencies</em> of the controller class. This is an easily extensible part of the library, and it already has support for <a href="https://github.com/dickwall/subcut">SubCut</a> and <a href="https://code.google.com/p/google-guice/">Guice</a> as well. Here we are using a simple <em>type-&gt;value</em> mapping instead.</p>
 <p>How does this work? What happens behind the scenes?</p>
 <p>The <code>@sfxml</code> is a <a href="http://docs.scala-lang.org/overviews/macros/annotations.html">macro annotation</a>. In <em>compile-time</em>, the class definition itself is transformed by the <a href="https://github.com/vigoo/scalafxml/blob/master/core-macros/src/main/scala/scalafxml/core/macros/sfxmlMacro.scala"><code>sfxmlMacro.impl</code> function</a>.</p>
 <p>The transformation’s result is a class definition with the source class’ name, but with a completely different content. The original class is added as an inner class, always called <code>Controller</code>. In our example, the generated class definition would look like something similar:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">class</span> <span class="fu">UnitConverterPresenter</span>(<span class="kw">private</span> <span class="kw">val</span> dependencyResolver: ControllerDependencyResolver)
-    <span class="kw">extends</span> javafx.<span class="fu">fxml</span>.<span class="fu">Initializable</span> 
-    <span class="kw">with</span> FxmlProxyGenerator.<span class="fu">ProxyDependencyInjection</span> {
-    
-    <span class="kw">class</span> <span class="fu">Controller</span>(
-        <span class="kw">private</span> <span class="kw">val</span> from: TextField,
-        <span class="kw">private</span> <span class="kw">val</span> to: TextField,
-        <span class="kw">private</span> <span class="kw">val</span> types: ComboBox[UnitConverter],
-        <span class="kw">private</span> <span class="kw">val</span> converters: UnitConverters) {
-        <span class="co">// …</span>
-    }
-    
-    <span class="kw">private</span> <span class="kw">var</span> impl: Controller = <span class="kw">null</span>
-    
-    <span class="co">// …</span>
-}   </code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1"><span class="kw">class</span> <span class="fu">UnitConverterPresenter</span>(<span class="kw">private</span> <span class="kw">val</span> dependencyResolver: ControllerDependencyResolver)</a>
+<a class="sourceLine" id="cb12-2" title="2">    <span class="kw">extends</span> javafx.<span class="fu">fxml</span>.<span class="fu">Initializable</span> </a>
+<a class="sourceLine" id="cb12-3" title="3">    <span class="kw">with</span> FxmlProxyGenerator.<span class="fu">ProxyDependencyInjection</span> {</a>
+<a class="sourceLine" id="cb12-4" title="4">    </a>
+<a class="sourceLine" id="cb12-5" title="5">    <span class="kw">class</span> <span class="fu">Controller</span>(</a>
+<a class="sourceLine" id="cb12-6" title="6">        <span class="kw">private</span> <span class="kw">val</span> from: TextField,</a>
+<a class="sourceLine" id="cb12-7" title="7">        <span class="kw">private</span> <span class="kw">val</span> to: TextField,</a>
+<a class="sourceLine" id="cb12-8" title="8">        <span class="kw">private</span> <span class="kw">val</span> types: ComboBox[UnitConverter],</a>
+<a class="sourceLine" id="cb12-9" title="9">        <span class="kw">private</span> <span class="kw">val</span> converters: UnitConverters) {</a>
+<a class="sourceLine" id="cb12-10" title="10">        <span class="co">// …</span></a>
+<a class="sourceLine" id="cb12-11" title="11">    }</a>
+<a class="sourceLine" id="cb12-12" title="12">    </a>
+<a class="sourceLine" id="cb12-13" title="13">    <span class="kw">private</span> <span class="kw">var</span> impl: Controller = <span class="kw">null</span></a>
+<a class="sourceLine" id="cb12-14" title="14">    </a>
+<a class="sourceLine" id="cb12-15" title="15">    <span class="co">// …</span></a>
+<a class="sourceLine" id="cb12-16" title="16">}   </a></code></pre></div>
 <p>The class have four distinct parts:</p>
-<ol style="list-style-type: decimal">
+<ol type="1">
 <li>Getting the additional dependencies from the <em>dependency resolver</em></li>
 <li>Variable fields for binding the JavaFX controls defined in the FXML</li>
 <li>Event handler methods</li>
@@ -232,30 +226,30 @@
 </ol>
 <p>The first one is simple - for each constructor argument of the controller class which is <em>not</em> a ScalaFX control, we query the <em>dependency resolver</em> to get a value for it. These are performed when the outer, generated class is instantiated and stored through the <code>ProxyDependencyInjection</code> trait.</p>
 <p>The variable fields are simple fields for all the ScalaFX constructor arguments of the controller class, but converted to their JavaFX counterpart. For example the generated field for the controller’s <code>from</code> argument will look like this:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">@javafx.<span class="fu">fxml</span>.<span class="fu">FXML</span>
-<span class="kw">private</span> <span class="kw">var</span> from: javafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span> = <span class="kw">null</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1">@javafx.<span class="fu">fxml</span>.<span class="fu">FXML</span></a>
+<a class="sourceLine" id="cb13-2" title="2"><span class="kw">private</span> <span class="kw">var</span> from: javafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span> = <span class="kw">null</span></a></code></pre></div>
 <p>The <em>event handler</em>’s are proxies for all the public methods of the controller, but the ScalaFX event argument types are replaced with JavaFX event argument types and they are wrapped automatically when forwarding the call to the real implementation. For the <code>onClose</code> event handler it would look like the following:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">@javafx.<span class="fu">fxml</span>.<span class="fu">FXML</span> <span class="kw">def</span> <span class="fu">onClose</span>(e: javafx.<span class="fu">event</span>.<span class="fu">ActionEvent</span>) {
-    impl.<span class="fu">onClose</span>(<span class="kw">new</span> scalafx.<span class="fu">event</span>.<span class="fu">ActionEvent</span>(e))
-}</code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1">@javafx.<span class="fu">fxml</span>.<span class="fu">FXML</span> <span class="kw">def</span> <span class="fu">onClose</span>(e: javafx.<span class="fu">event</span>.<span class="fu">ActionEvent</span>) {</a>
+<a class="sourceLine" id="cb14-2" title="2">    impl.<span class="fu">onClose</span>(<span class="kw">new</span> scalafx.<span class="fu">event</span>.<span class="fu">ActionEvent</span>(e))</a>
+<a class="sourceLine" id="cb14-3" title="3">}</a></code></pre></div>
 <p>When JavaFX calls the generated controller’s <code>initialize</code> method, the control fields are already set up, and the additional dependencies were already gathered from the dependency resolver so we have all the values required to instantiate the real controller class. For ScalaFX arguments we wrap the JavaFX controls, for the additional dependencies we use the <code>ProxyDependencyInjection</code> trait’s <code>getDependency</code> method:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="kw">def</span> <span class="fu">initialize</span>(url: java.<span class="fu">net</span>.<span class="fu">URL</span>, rb: java.<span class="fu">util</span>.<span class="fu">ResourceBundle</span>) {
-    impl = <span class="kw">new</span> <span class="fu">Controller</span>(
-        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span>(from),
-        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span>(to),        
-        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">ComboBox</span>[UnitConverter](types),
-        getDependencies[UnitConverters](<span class="st">&quot;converters&quot;</span>))
-}</code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb15-1" title="1"><span class="kw">def</span> <span class="fu">initialize</span>(url: java.<span class="fu">net</span>.<span class="fu">URL</span>, rb: java.<span class="fu">util</span>.<span class="fu">ResourceBundle</span>) {</a>
+<a class="sourceLine" id="cb15-2" title="2">    impl = <span class="kw">new</span> <span class="fu">Controller</span>(</a>
+<a class="sourceLine" id="cb15-3" title="3">        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span>(from),</a>
+<a class="sourceLine" id="cb15-4" title="4">        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">TextField</span>(to),        </a>
+<a class="sourceLine" id="cb15-5" title="5">        <span class="kw">new</span> scalafx.<span class="fu">scene</span>.<span class="fu">control</span>.<span class="fu">ComboBox</span>[UnitConverter](types),</a>
+<a class="sourceLine" id="cb15-6" title="6">        getDependencies[UnitConverters](<span class="st">&quot;converters&quot;</span>))</a>
+<a class="sourceLine" id="cb15-7" title="7">}</a></code></pre></div>
 <p>That’s all. The final interesting bit is the <code>FXMLView</code> object, which overrides JavaFX’s default controller factory. This is only necessary to be able to pass the given <code>ControllerDependencyResolver</code> to the generated controller’s constructor:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala">  <span class="kw">def</span> <span class="fu">apply</span>(fxml: URL, dependencies: ControllerDependencyResolver): jfxs.<span class="fu">Parent</span> =
-    jfxf.<span class="fu">FXMLLoader</span>.<span class="fu">load</span>(
-      fxml, 
-      <span class="kw">null</span>,
-      <span class="kw">new</span> jfxf.<span class="fu">JavaFXBuilderFactory</span>(),
-      <span class="kw">new</span> jfxu.<span class="fu">Callback</span>[Class[_], Object] {
-        <span class="kw">override</span> <span class="kw">def</span> <span class="fu">call</span>(cls: Class[_]): Object = 
-            <span class="fu">FxmlProxyGenerator</span>(cls, dependencies)
-      })</code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1">  <span class="kw">def</span> <span class="fu">apply</span>(fxml: URL, dependencies: ControllerDependencyResolver): jfxs.<span class="fu">Parent</span> =</a>
+<a class="sourceLine" id="cb16-2" title="2">    jfxf.<span class="fu">FXMLLoader</span>.<span class="fu">load</span>(</a>
+<a class="sourceLine" id="cb16-3" title="3">      fxml, </a>
+<a class="sourceLine" id="cb16-4" title="4">      <span class="kw">null</span>,</a>
+<a class="sourceLine" id="cb16-5" title="5">      <span class="kw">new</span> jfxf.<span class="fu">JavaFXBuilderFactory</span>(),</a>
+<a class="sourceLine" id="cb16-6" title="6">      <span class="kw">new</span> jfxu.<span class="fu">Callback</span>[Class[_], Object] {</a>
+<a class="sourceLine" id="cb16-7" title="7">        <span class="kw">override</span> <span class="kw">def</span> <span class="fu">call</span>(cls: Class[_]): Object = </a>
+<a class="sourceLine" id="cb16-8" title="8">            <span class="fu">FxmlProxyGenerator</span>(cls, dependencies)</a>
+<a class="sourceLine" id="cb16-9" title="9">      })</a></code></pre></div>
 <p><code>FxmlProxyGenerator</code> uses reflection to create a new instance of the generated controller, and pass the dependency resolver as its only constructor argument.</p>
 
 

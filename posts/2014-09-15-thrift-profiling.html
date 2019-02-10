@@ -8,7 +8,7 @@
         <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
         
         <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
-        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
         
         <!-- zoomingbox -->
         <script src="../js/jquery-1.11.0.min.js"></script>
@@ -32,7 +32,7 @@
 </div>
 
 <p>A few weeks ago I met a problem where a script, running once every night sending out some emails did not run correctly because a remote thrift call timed out in it. As I started investigating it, turned out that it’s a <em>search</em> call:</p>
-<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">staff_users <span class="op">=</span> RemoteUserFactory().search(is_staff<span class="op">=</span><span class="va">True</span>)</code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><a class="sourceLine" id="cb1-1" title="1">staff_users <span class="op">=</span> RemoteUserFactory().search(is_staff<span class="op">=</span><span class="va">True</span>)</a></code></pre></div>
 <p>The details here are not really important, what this call does is that it asks a service to return a <em>set of users</em>, and the communication is going on <a href="https://thrift.apache.org/">thrift</a>.</p>
 <p>Executing it manually on the server revealed that it should return <em>5649</em> users. Checking out the logs I could see that the call took extremely long time, between 8 to 12 seconds. Even when the cron job was moved from 3:00 AM to a less busy time (several other jobs were executing at the same time), it took more than 6 seconds!</p>
 <p>This was suspicious so I also checked the log of a <em>proxy</em> which runs on the same host as the script itself and provides client side load balancing, circuit breaking, retry logic etc. for thrift connections. This log showed that the service replied in <em>2.5 seconds</em>, but it took almost 4 seconds to get this response from the proxy to the client on localhost! This seemed to be completely unacceptable, and also the 2.5 second response time from the service seemed to be too big (I ran the query on one of the server nodes and it returned the users from the database almost instantly). I also had similar experience (but without measurements) before.</p>
@@ -92,15 +92,15 @@
 <p><a href="../images/profile3.png" class="zimg"><img width="600" src="../images/profile3.png" alt="profile3"></a></p>
 <h3 id="optimizing-result-processing">Optimizing result processing</h3>
 <p>The client side of the test method was written similar to how the original API method is written:</p>
-<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="kw">def</span> test_get_users_thrift(<span class="va">self</span>, count, sleep):
-    rpc <span class="op">=</span> ThriftRPC(UserDataService, <span class="va">self</span>.name, service_name<span class="op">=</span><span class="va">self</span>.service_name, client_config<span class="op">=</span>client_config)
-
-    result <span class="op">=</span> []
-    <span class="cf">for</span> row <span class="op">in</span> rpc.test_get_users(count, sleep).iteritems():
-        user <span class="op">=</span> <span class="va">self</span>._row_to_model(<span class="va">self</span>.user_factory, row)
-        result.append(user)
-
-    <span class="cf">return</span> result</code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">def</span> test_get_users_thrift(<span class="va">self</span>, count, sleep):</a>
+<a class="sourceLine" id="cb3-2" title="2">    rpc <span class="op">=</span> ThriftRPC(UserDataService, <span class="va">self</span>.name, service_name<span class="op">=</span><span class="va">self</span>.service_name, client_config<span class="op">=</span>client_config)</a>
+<a class="sourceLine" id="cb3-3" title="3"></a>
+<a class="sourceLine" id="cb3-4" title="4">    result <span class="op">=</span> []</a>
+<a class="sourceLine" id="cb3-5" title="5">    <span class="cf">for</span> row <span class="kw">in</span> rpc.test_get_users(count, sleep).iteritems():</a>
+<a class="sourceLine" id="cb3-6" title="6">        user <span class="op">=</span> <span class="va">self</span>._row_to_model(<span class="va">self</span>.user_factory, row)</a>
+<a class="sourceLine" id="cb3-7" title="7">        result.append(user)</a>
+<a class="sourceLine" id="cb3-8" title="8"></a>
+<a class="sourceLine" id="cb3-9" title="9">    <span class="cf">return</span> result</a></code></pre></div>
 <p>It is clearly visible on the call graph that the 5499 call to <code>_row_to_model</code> takes 53% of the total time, which is ~1.7 seconds. There are two main branches of this call. The left hand side (<code>row_to_model</code>) seemed to be simple data conversion, and its slowest part is date-time deserialization.</p>
 <p>The other branch however looked like a real problem; why should we resolve HMAC host, or parse configuration for each row?</p>
 <p>It turned out to be a bug, <code>_row_to_model</code> created a new <em>model factory</em> in each call, which involves a lot of initialization, config parsing, and similar things.</p>
@@ -109,15 +109,15 @@
 <p><a href="../images/profile4.png" class="zimg"><img width="600" src="../images/profile4.png" alt="profile4"></a></p>
 <h3 id="further-optimizations">Further optimizations</h3>
 <p>I saw two possible ways to further optimize this case:</p>
-<ol style="list-style-type: decimal">
+<ol type="1">
 <li><p>Lazy conversion of raw thrift data to model data (per field). This would make sense because many times only a few fields (the id for example) are used, but it seemed to be a too complex change</p></li>
 <li><p>Checking the server side as well</p></li>
 </ol>
 <p>To profile the server side and only measure the thrift request processing I had to add profiling code to the django view class in the following way:</p>
-<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="im">import</span> cProfile
-
-cProfile.runctx(<span class="st">'self._call_processor(op_data)'</span>, <span class="bu">globals</span>(), <span class="bu">locals</span>(), <span class="st">'callstats'</span>)
-<span class="co"># self._call_processor(op_data)</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><a class="sourceLine" id="cb4-1" title="1"><span class="im">import</span> cProfile</a>
+<a class="sourceLine" id="cb4-2" title="2"></a>
+<a class="sourceLine" id="cb4-3" title="3">cProfile.runctx(<span class="st">'self._call_processor(op_data)'</span>, <span class="bu">globals</span>(), <span class="bu">locals</span>(), <span class="st">'callstats'</span>)</a>
+<a class="sourceLine" id="cb4-4" title="4"><span class="co"># self._call_processor(op_data)</span></a></code></pre></div>
 <p>The server-side call took <strong>1.691 seconds</strong> and looked like this:</p>
 <p><a href="../images/profile5.png" class="zimg"><img width="600" src="../images/profile5.png" alt="profile5"></a></p>
 <p>As expected, 60% of this was the 1 second sleep. The rest of the calls are data conversion with no obvious point to improve.</p>

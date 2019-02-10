@@ -8,7 +8,7 @@
         <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
         
         <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
-        <link rel="stylesheet" type="text/css" href="../css/hk-kate.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
         
         <!-- zoomingbox -->
         <script src="../js/jquery-1.11.0.min.js"></script>
@@ -34,17 +34,17 @@
 <p>I’ve released a new version of <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>, which now supports <em>both</em> <a href="https://github.com/scalafx/scalafx">ScalaFX 8</a> with <em>JavaFX 8</em> on Java 8, and <a href="https://github.com/scalafx/scalafx">ScalaFX 2.2</a> with <em>JavaFX 2.x</em> on Java 7.</p>
 <p>The two branches are separated by the <code>sfx2</code> and <code>sfx8</code> postfixes, and both are available for <em>Scala</em> <code>2.10.x</code> and <code>2.11.x</code>.</p>
 <p>To use it with <a href="http://www.scala-sbt.org/">sbt</a> on Java 7:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)
-
-libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;2.2.67-R10&quot;</span>
-
-libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx2&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)</a>
+<a class="sourceLine" id="cb1-2" title="2"></a>
+<a class="sourceLine" id="cb1-3" title="3">libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;2.2.67-R10&quot;</span></a>
+<a class="sourceLine" id="cb1-4" title="4"></a>
+<a class="sourceLine" id="cb1-5" title="5">libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx2&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></a></code></pre></div>
 <p>And on Java 8:</p>
-<div class="sourceCode"><pre class="sourceCode scala"><code class="sourceCode scala"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)
-
-libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;8.0.20-R6&quot;</span>
-
-libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx8&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="fu">addCompilerPlugin</span>(<span class="st">&quot;org.scalamacros&quot;</span> % <span class="st">&quot;paradise&quot;</span> % <span class="st">&quot;2.0.1&quot;</span> cross CrossVersion.<span class="fu">full</span>)</a>
+<a class="sourceLine" id="cb2-2" title="2"></a>
+<a class="sourceLine" id="cb2-3" title="3">libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafx&quot;</span> % <span class="st">&quot;8.0.20-R6&quot;</span></a>
+<a class="sourceLine" id="cb2-4" title="4"></a>
+<a class="sourceLine" id="cb2-5" title="5">libraryDependencies += <span class="st">&quot;org.scalafx&quot;</span> %% <span class="st">&quot;scalafxml-core-sfx8&quot;</span> % <span class="st">&quot;0.2.2&quot;</span></a></code></pre></div>
 
 
 <div id="disqus_thread"></div>
