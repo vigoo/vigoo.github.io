@@ -39,7 +39,7 @@
 <p>When I started writing the library I wanted to explore how I can express some strict constraints on the type level:</p>
 <ul>
 <li>A process can have its input, output and error streams redirected, but only once</li>
-<li>Two process can be piped together in which means the first process output and the second’s input cannot be redirected</li>
+<li>Processes without redirected output can be piped to processes without a redirected input</li>
 </ul>
 <p>In prox <em>0.2.1</em> a single system process is described by the following type:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">class</span> Process[Out, Err, OutResult, ErrResult, </a>
@@ -75,10 +75,10 @@
 <a class="sourceLine" id="cb4-5" title="5"></a>
 <a class="sourceLine" id="cb4-6" title="6">    <span class="kw">def</span> &gt;[To](to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): Process[IRS, Redirected, ERS] = ???</a>
 <a class="sourceLine" id="cb4-7" title="7">  }</a></code></pre></div>
-<p>By forcing the <code>ORS</code> type parameter to be <code>NotRedirected</code> and setting it to <code>Redirected</code> in the result type we can guarantee that this function can only be called on processes that does not have their output redirected yet. The <em>target</em> of the redirection is extensible through the <code>CanBeProcessOutputTarget</code> type class, as we will see later.</p>
+<p>By forcing the <code>ORS</code> type parameter to be <code>NotRedirected</code> and setting it to <code>Redirected</code> in the result type we can guarantee that this function can only be called on a process that does not have their output redirected yet. The <em>target</em> of the redirection is extensible through the <code>CanBeProcessOutputTarget</code> type class, as we will see later.</p>
 <h2 id="dependent-types">Dependent types</h2>
-<p>The reality is much more complicated, because of <em>process piping</em> and because the process types encode the redirection result types too. Let’s get back to our <code>&gt;</code> function and see how we could modify it so it works with piped processes too. Anyway, how is process piping encoded in this library?</p>
-<p>Two process connected through a pipe is represented by the <code>PipedProcess</code> class. Both <code>Procses</code> and <code>PipedProcess</code> implements the following trait:</p>
+<p>Reality is much more complicated, because of <em>process piping</em> and because the process types encode the redirection result types too. Let’s get back to our <code>&gt;</code> function and see how we could modify it so it works with piped processes too. Anyway, how is process piping encoded in this library?</p>
+<p>Two processes connected through a pipe are represented by the <code>PipedProcess</code> class. Both <code>Procses</code> and <code>PipedProcess</code> implements the following trait:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">sealed</span> <span class="kw">trait</span> ProcessNode[Out, Err, IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]</a></code></pre></div>
 <p>We’ve already seen <code>Process</code>. <code>PipedProcess</code> is a bit more complicated:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">class</span> PipedProcess[Out, Err, PN1Out, </a>
@@ -97,7 +97,7 @@
 <a class="sourceLine" id="cb7-5" title="5"></a>
 <a class="sourceLine" id="cb7-6" title="6">  <span class="kw">def</span> &gt;[To](to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): ProcessNode[IRS, Redirected, ERS] = ???</a>
 <a class="sourceLine" id="cb7-7" title="7">}</a></code></pre></div>
-<p>This has a serious problem though. The output type is <code>ProcessNode</code> and not the “real” process type, which mean that we loose type information and all the other dependent typed operations will not work. We have to make the result type <strong>depend</strong> on the input!</p>
+<p>This has a serious problem though. The output type is <code>ProcessNode</code> and not the “real” process type, which means that we lose type information and all the other dependent typed operations will not work. We have to make the result type <strong>depend</strong> on the input!</p>
 <p>The <strong>Aux pattern</strong>, used heavily in the <a href="https://github.com/milessabin/shapeless">shapeless</a> library provides a nice pattern for writing such code. We start by defining a <em>type class</em> for describing the operation, in this case <em>redirecting the output channel of a process</em>:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">trait</span> RedirectOutput[PN &lt;: ProcessNode[_, NotRedirected, _], To] {</a>
 <a class="sourceLine" id="cb8-2" title="2">    <span class="kw">type</span> Result &lt;: ProcessNode[_, Redirected, _]</a>
@@ -111,8 +111,8 @@
 <a class="sourceLine" id="cb8-10" title="10"></a>
 <a class="sourceLine" id="cb8-11" title="11">    <span class="co">// ... type class instances</span></a>
 <a class="sourceLine" id="cb8-12" title="12">}</a></code></pre></div>
-<p>The type class itself is straightforward. We have to implement it for both <code>Process</code> and <code>PipedProcess</code> and set the <code>Result</code> type accordingly, then implent <code>apply</code> that does sets up the actual redirection. But what is the <code>Aux</code> type is for?</p>
-<p>Without we may try to use the <code>RedirectionOutput</code> type class liek this:</p>
+<p>The type class itself is straightforward. We have to implement it for both <code>Process</code> and <code>PipedProcess</code> and set the <code>Result</code> type accordingly, then implement <code>apply</code> that sets up the actual redirection. But what the <code>Aux</code> type is for?</p>
+<p>Without it we may try to use the <code>RedirectionOutput</code> type class like this:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
 <a class="sourceLine" id="cb9-2" title="2">    IRS &lt;: RedirectionState, </a>
 <a class="sourceLine" id="cb9-3" title="3">    ERS &lt;: RedirectionState, </a>
@@ -124,10 +124,10 @@
 <a class="sourceLine" id="cb9-9" title="9">}</a></code></pre></div>
 <p>Here the result is a <em>path dependent type</em>. This may work in some simple cases but have two serious issues:</p>
 <ul>
-<li>It is not possible to use <code>redirectOutput.Result</code> in the <em>parameter block</em> of the function, so if another type class would need it as a type parameter we could not pass it.</li>
+<li>It is not possible to use <code>redirectOutput.Result</code> in the <em>parameter block</em> of the function, so if another type class needed it as a type parameter we could not pass it.</li>
 <li>Further implicit resolutions and type level operations will quickly break as the compiler will not be able to unify the various path dependent types</li>
 </ul>
-<p>The <code>Aux</code> helper type solves both if we use it like this:</p>
+<p>The <code>Aux</code> helper type solves both problems if we use it like this:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
 <a class="sourceLine" id="cb10-2" title="2">    IRS &lt;: RedirectionState, </a>
 <a class="sourceLine" id="cb10-3" title="3">    ERS &lt;: RedirectionState, </a>
@@ -137,7 +137,7 @@
 <a class="sourceLine" id="cb10-7" title="7">           (<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To],</a>
 <a class="sourceLine" id="cb10-8" title="8">            redirectOutput: RedirectOutput.<span class="fu">Aux</span>[PN, To, Result]): Result = <span class="fu">redirectOutput</span>(to)</a>
 <a class="sourceLine" id="cb10-9" title="9">}</a></code></pre></div>
-<p>By lifting the <code>Result</code> from the type class instance to a type parameter the compile can now “extract” the calculated type from <code>redirectOutput.Result</code> to the <code>&gt;</code> function’s <code>Result</code> type parameter and use it directly, both for other further type requirements or as we do here, in the result type.</p>
+<p>By lifting the <code>Result</code> from the type class instance to a type parameter the compiler can now “extract” the calculated type from <code>redirectOutput.Result</code> to the <code>&gt;</code> function’s <code>Result</code> type parameter and use it directly, both for other further type requirements or as we do here, in the result type.</p>
 <p>This is the basic pattern used for <em>all</em> the operations in prox.</p>
 <h2 id="starting-the-processes">Starting the processes</h2>
 <p>So far we just combined purely functional data structures in a complicated way. The result value may encode the launching of several system processes that are connected via pipes to each other and possibly other streams as we will see.</p>
@@ -157,7 +157,7 @@
 <p>Now we need to define a <code>start</code> extension method on <code>ProcessNode</code> that returns somehow one well typed <code>RunningProcess</code> for <em>each</em> system process that it starts.</p>
 <p>Let’s forget for a second about having multiple processes piped together and just consider the single process case. For that, we would need somehing like this (the <code>Out</code> parameter is needed only for piping so I omitted it):</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">def</span> start: IO[RunningProcess[OutResult, ErrResult]]</a></code></pre></div>
-<p>Now we can see why does <code>Process</code> have those additional type paramters. It is not enough to encode whether the output and error channels were redirected or not, we also have to encode the expected <em>result type</em> of redirecting these. By storing these types in type parameters of <code>Process</code> we can easily imagine that by using the pattern described in the previous section, the <em>result type</em> can <strong>depend</strong> on what we redirected the process to.</p>
+<p>Now we can see why <code>Process</code> has those additional type paramters. It is not enough to encode whether the output and error channels were redirected or not, we also have to encode the expected <em>result type</em> of redirecting these. By storing these types in type parameters of <code>Process</code> we can easily imagine that by using the pattern described in the previous section, the <em>result type</em> can <strong>depend</strong> on what we redirected the process to.</p>
 <p>Let’s see some examples of what this means!</p>
 <table>
 <colgroup>
