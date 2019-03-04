@@ -87,36 +87,36 @@
 <a class="sourceLine" id="cb7-6" title="6">  <span class="kw">def</span> &gt;[To](to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): ProcessNode[IRS, Redirected, ERS] = ???</a>
 <a class="sourceLine" id="cb7-7" title="7">}</a></code></pre></div>
 <p>This has a serious problem though. The output type is <code>ProcessNode</code> and not the “real” process type, which means that we lose type information and all the other dependent typed operations will not work. We have to make the result type <strong>depend</strong> on the input!</p>
-<p>The <strong>Aux pattern</strong>, used heavily in the <a href="https://github.com/milessabin/shapeless">shapeless</a> library provides a nice pattern for writing such code. We start by defining a <em>type class</em> for describing the operation, in this case <em>redirecting the output channel of a process</em>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">trait</span> RedirectOutput[PN &lt;: ProcessNode[_, NotRedirected, _], To] {</a>
-<a class="sourceLine" id="cb8-2" title="2">    <span class="kw">type</span> Result &lt;: ProcessNode[_, Redirected, _]</a>
-<a class="sourceLine" id="cb8-3" title="3"></a>
-<a class="sourceLine" id="cb8-4" title="4">    <span class="kw">def</span> <span class="fu">apply</span>(process: PN, to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): Result</a>
-<a class="sourceLine" id="cb8-5" title="5">}</a>
-<a class="sourceLine" id="cb8-6" title="6"></a>
-<a class="sourceLine" id="cb8-7" title="7"><span class="kw">object</span> RedirectOutput {</a>
-<a class="sourceLine" id="cb8-8" title="8">    <span class="kw">type</span> Aux[PN &lt;: ProcessNode[_, NotRedirected, _], To, Result0] = </a>
-<a class="sourceLine" id="cb8-9" title="9">        RedirectOutput[PN, To] { <span class="kw">type</span> Result = Result0 }</a>
-<a class="sourceLine" id="cb8-10" title="10"></a>
-<a class="sourceLine" id="cb8-11" title="11">    <span class="co">// ... type class instances</span></a>
-<a class="sourceLine" id="cb8-12" title="12">}</a></code></pre></div>
-<p>The type class itself is straightforward. We have to implement it for both <code>Process</code> and <code>PipedProcess</code> and set the <code>Result</code> type accordingly, then implement <code>apply</code> that sets up the actual redirection. But what the <code>Aux</code> type is for?</p>
-<p>Without it we may try to use the <code>RedirectionOutput</code> type class like this:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
-<a class="sourceLine" id="cb9-2" title="2">    IRS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb9-3" title="3">    ERS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb9-4" title="4">    PN &lt;: ProcessNode[IRS, NotRedirected, ERS]](process: PN) {</a>
-<a class="sourceLine" id="cb9-5" title="5"></a>
-<a class="sourceLine" id="cb9-6" title="6">  <span class="kw">def</span> &gt;[To](to: To)</a>
-<a class="sourceLine" id="cb9-7" title="7">           (<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To],</a>
-<a class="sourceLine" id="cb9-8" title="8">            redirectOutput: RedirectOutput[PN, To]): redirectOutput.<span class="fu">Result</span> = <span class="fu">redirectOutput</span>(to)</a>
-<a class="sourceLine" id="cb9-9" title="9">}</a></code></pre></div>
-<p>Here the result is a <em>path dependent type</em>. This may work in some simple cases but have two serious issues:</p>
+<p>We may try to use the <code>RedirectionOutput</code> type class like this:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
+<a class="sourceLine" id="cb8-2" title="2">    IRS &lt;: RedirectionState, </a>
+<a class="sourceLine" id="cb8-3" title="3">    ERS &lt;: RedirectionState, </a>
+<a class="sourceLine" id="cb8-4" title="4">    PN &lt;: ProcessNode[IRS, NotRedirected, ERS]](process: PN) {</a>
+<a class="sourceLine" id="cb8-5" title="5"></a>
+<a class="sourceLine" id="cb8-6" title="6">  <span class="kw">def</span> &gt;[To](to: To)</a>
+<a class="sourceLine" id="cb8-7" title="7">           (<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To],</a>
+<a class="sourceLine" id="cb8-8" title="8">            redirectOutput: RedirectOutput[PN, To]): redirectOutput.<span class="fu">Result</span> = <span class="fu">redirectOutput</span>(to)</a>
+<a class="sourceLine" id="cb8-9" title="9">}</a></code></pre></div>
+<p>Here the result (<code>redirectOutput.Result</code>) is a <em>path dependent type</em>. This may work in some simple cases but have two serious issues:</p>
 <ul>
 <li>It is not possible to use <code>redirectOutput.Result</code> in the <em>parameter block</em> of the function, so if another type class needed it as a type parameter we could not pass it.</li>
 <li>Further implicit resolutions and type level operations will quickly break as the compiler will not be able to unify the various path dependent types</li>
 </ul>
-<p>The <code>Aux</code> helper type solves both problems if we use it like this:</p>
+<p>The <strong>Aux pattern</strong>, used heavily in the <a href="https://github.com/milessabin/shapeless">shapeless</a> library provides a nice pattern for fixing both problems. We start by defining a <em>type class</em> for describing the operation, in this case <em>redirecting the output channel of a process</em>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">trait</span> RedirectOutput[PN &lt;: ProcessNode[_, NotRedirected, _], To] {</a>
+<a class="sourceLine" id="cb9-2" title="2">    <span class="kw">type</span> Result &lt;: ProcessNode[_, Redirected, _]</a>
+<a class="sourceLine" id="cb9-3" title="3"></a>
+<a class="sourceLine" id="cb9-4" title="4">    <span class="kw">def</span> <span class="fu">apply</span>(process: PN, to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): Result</a>
+<a class="sourceLine" id="cb9-5" title="5">}</a>
+<a class="sourceLine" id="cb9-6" title="6"></a>
+<a class="sourceLine" id="cb9-7" title="7"><span class="kw">object</span> RedirectOutput {</a>
+<a class="sourceLine" id="cb9-8" title="8">    <span class="kw">type</span> Aux[PN &lt;: ProcessNode[_, NotRedirected, _], To, Result0] = </a>
+<a class="sourceLine" id="cb9-9" title="9">        RedirectOutput[PN, To] { <span class="kw">type</span> Result = Result0 }</a>
+<a class="sourceLine" id="cb9-10" title="10"></a>
+<a class="sourceLine" id="cb9-11" title="11">    <span class="co">// ... type class instances</span></a>
+<a class="sourceLine" id="cb9-12" title="12">}</a></code></pre></div>
+<p>The type class itself is straightforward. We have to implement it for both <code>Process</code> and <code>PipedProcess</code> and set the <code>Result</code> type accordingly, then implement <code>apply</code> that sets up the actual redirection. But what the <code>Aux</code> type is for?</p>
+<p>It solves the problems with the <em>path dependent</em> version if we use it like this:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
 <a class="sourceLine" id="cb10-2" title="2">    IRS &lt;: RedirectionState, </a>
 <a class="sourceLine" id="cb10-3" title="3">    ERS &lt;: RedirectionState, </a>
@@ -127,7 +127,7 @@
 <a class="sourceLine" id="cb10-8" title="8">            redirectOutput: RedirectOutput.<span class="fu">Aux</span>[PN, To, Result]): Result = <span class="fu">redirectOutput</span>(to)</a>
 <a class="sourceLine" id="cb10-9" title="9">}</a></code></pre></div>
 <p>By lifting the <code>Result</code> from the type class instance to a type parameter the compiler can now “extract” the calculated type from <code>redirectOutput.Result</code> to the <code>&gt;</code> function’s <code>Result</code> type parameter and use it directly, both for other further type requirements or as we do here, in the result type.</p>
-<p>This is the basic pattern used for <em>all</em> the operations in prox.</p>
+<p>This is the basic pattern used for <em>all</em> the operations in prox. You can check <a href="http://gigiigig.github.io/posts/2015/09/13/aux-pattern.html">Luigi’s short introduction to the <code>Aux</code> pattern</a> for a more detailed explanation.</p>
 <h2 id="starting-the-processes">Starting the processes</h2>
 <p>So far we just combined purely functional data structures in a complicated way. The result value may encode the launching of several system processes that are connected via pipes to each other and possibly other streams as we will see.</p>
 <p>When we eventually decide to <em>start</em> these processes, we need a way to observe their status, wait for them to stop, get their exit code, and to access the data sent to the output streams if they were redirected. And we need this <em>per process</em>, while launching the whole process graph in a <em>single step</em>.</p>
@@ -202,7 +202,8 @@
 <a class="sourceLine" id="cb15-6" title="6"><span class="kw">val</span> rp2: IO[(RunningProcess, RunningProcess)] = (p1 | p2).<span class="fu">start</span></a>
 <a class="sourceLine" id="cb15-7" title="7"><span class="kw">val</span> rp3: IO[(RunningProcess, RunningProcess, RunningProcess)] = (p1 | p2 | p3).<span class="fu">start</span></a></code></pre></div>
 <p>We encode piped processes with tuples of <code>RunningProcess</code> and single process with a single <code>RunningProcess</code>. To implement this we can make use of the <a href="https://github.com/milessabin/shapeless">shapeless</a> library’s <code>HList</code> implementation.</p>
-<p>HLists are heterogeneous lists; basically the same thing as a tuple, but with all the “usual” list-like functions implemented as dependent typed functions. We can implement the <code>start</code> method more easily by building a <code>HList</code>, while still keep the desired interface as <a href="https://github.com/milessabin/shapeless">shapeless</a> implements a conversion from <code>HList</code> to tuples.</p>
+<p>HLists are heterogeneous lists; basically similar to a tuple, but with all the “usual” list-like functions implemented as dependent typed functions. It’s type describes the types of all its elements, and you can split it to head/tail, append two, etc. And we can do it both on the <em>type level</em> (computing the result type of appending two <code>HList</code>’s, for example) and on the <em>value leve</em> (appending the two values creating a third <code>HList</code> value).</p>
+<p>We can implement the <code>start</code> method more easily by building a <code>HList</code>, while still keep the desired interface as <a href="https://github.com/milessabin/shapeless">shapeless</a> implements a conversion from <code>HList</code> to tuples.</p>
 <p>We can define two separate <em>start functions</em>, one producing <code>HList</code> and another the tuples (IO releated parameters omitted):</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1"><span class="kw">def</span> start[RP](<span class="kw">implicit</span> start: Start.<span class="fu">Aux</span>[PN, RP, _]]): IO[RP] = ???</a>
 <a class="sourceLine" id="cb16-2" title="2"><span class="kw">def</span> startHL[RPL &lt;: HList](<span class="kw">implicit</span> start: Start.<span class="fu">Aux</span>[PN, _, RP[IO]): IO[RPL] = ???</a></code></pre></div>
