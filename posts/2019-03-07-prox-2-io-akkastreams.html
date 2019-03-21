@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>prox part 2 - akka streams with cats effect</title>
+        
+        <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
+        
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>prox part 2 - akka streams with cats effect</h1>
+
+            <div class="info">
+    Posted on March  7, 2019
+    
+</div>
+
+<h2 id="blog-post-series">Blog post series</h2>
+<ul>
+<li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
+<li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
+</ul>
+<h2 id="intro">Intro</h2>
+<p>In the previous post we have seen how <a href="https://github.com/vigoo/prox">prox</a> applies advanced type level programming techniques to express executing external system processes. The input and output of these processes can be connected to <strong>streams</strong>. The current version of <a href="https://github.com/vigoo/prox">prox</a> uses the <a href="https://fs2.io/">fs2</a> library to describe these streams, and <a href="https://typelevel.org/cats-effect/">cats-effect</a> as an <strong>IO</strong> abstraction, allowing it to separate the specification of a process pipeline from its actual execution.</p>
+<p>In this post we will keep <a href="https://typelevel.org/cats-effect/">cats-effect</a> but replace <a href="https://fs2.io/">fs2</a> with the stream library of the Akka toolkit, <a href="https://doc.akka.io/docs/akka/2.5/stream/">Akka Streams</a>. This will be a hybrid solution, as Akka Streams is not using any kind of IO abstraction, unlike <a href="https://fs2.io/">fs2</a> which is implemented on top of <a href="https://typelevel.org/cats-effect/">cats-effect</a>. We will experiment with implementing <a href="https://github.com/vigoo/prox">prox</a> purely with the <em>Akka</em> libraries in a future post.</p>
+<h2 id="replacing-fs2-with-akka-streams">Replacing fs2 with Akka Streams</h2>
+<p>We start by removing the <a href="https://fs2.io/">fs2</a> dependency and adding <em>Akka Streams</em>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1">- <span class="st">&quot;co.fs2&quot;</span> %% <span class="st">&quot;fs2-core&quot;</span> % <span class="st">&quot;1.0.3&quot;</span>,</a>
+<a class="sourceLine" id="cb1-2" title="2">- <span class="st">&quot;co.fs2&quot;</span> %% <span class="st">&quot;fs2-io&quot;</span> % <span class="st">&quot;1.0.3&quot;</span>,</a>
+<a class="sourceLine" id="cb1-3" title="3"></a>
+<a class="sourceLine" id="cb1-4" title="4">+ <span class="st">&quot;com.typesafe.akka&quot;</span> %% <span class="st">&quot;akka-stream&quot;</span> % <span class="st">&quot;2.5.20&quot;</span>,</a></code></pre></div>
+<p>Then we have to change all the <em>fs2</em> types used in the codebase to the matching <em>Akka Streams</em> types. The following table describe these pairs:</p>
+<table>
+<thead>
+<tr class="header">
+<th>fs2</th>
+<th>Akka Streams</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Stream[IO, O]</code></td>
+<td><code>Source[O, Any]</code></td>
+</tr>
+<tr class="even">
+<td><code>Pipe[IO, I, O]</code></td>
+<td><code>Flow[I, O, Any]</code></td>
+</tr>
+<tr class="odd">
+<td><code>Sink[IO, O]</code></td>
+<td><code>Sink[O, Future[Done]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Another small difference that requires changing a lot of our functions is the <em>implicit context</em> these streaming solutions require.</p>
+<p>With the original implementation it used to be:</p>
+<ul>
+<li>an implicit <code>ContextShift[IO]</code> instance</li>
+<li>and an explicitly passed <em>blocking execution context</em> of type <code>ExecutionContext</code></li>
+</ul>
+<p>We can treat the blocking execution context as part of the implicit context for <em>prox</em> too, and could refactor the library to pass both of them wrapped together within a context object.</p>
+<p>Let’s see what we need for the <em>Akka Streams</em> based implementation!</p>
+<ul>
+<li>an implicit <code>ContextShift[IO]</code> is <em>still needed</em> because we are still using <code>cats-effect</code> as our IO abstraction</li>
+<li>The blocking execution context however was only used for passing it to <em>fs2</em>, so we can remove that</li>
+<li>And for <em>Akka Streams</em> we will need an execution context of type <code>ExecutionContext</code> and also a <code>Materializer</code>. The materializer is used by <em>Akka Streams</em> to execute blueprints of streams. The usual implementation is <code>ActorMaterializer</code> which does that by spawning actors implementing the stream graph.</li>
+</ul>
+<p>So for example the <code>start</code> extension method, is modified like this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1">- <span class="kw">def</span> start[RP](blockingExecutionContext: ExecutionContext)</a>
+<a class="sourceLine" id="cb2-2" title="2">               (<span class="kw">implicit</span> start: Start.<span class="fu">Aux</span>[PN, RP, _], </a>
+<a class="sourceLine" id="cb2-3" title="3">                contextShift: ContextShift[IO]): IO[RP]</a>
+<a class="sourceLine" id="cb2-4" title="4">+ <span class="kw">def</span> start[RP]()</a>
+<a class="sourceLine" id="cb2-5" title="5">               (<span class="kw">implicit</span> start: Start.<span class="fu">Aux</span>[PN, RP, _],</a>
+<a class="sourceLine" id="cb2-6" title="6">                contextShift: ContextShift[IO],</a>
+<a class="sourceLine" id="cb2-7" title="7">                materializer: Materializer,</a>
+<a class="sourceLine" id="cb2-8" title="8">                executionContext: ExecutionContext): IO[RP]</a></code></pre></div>
+<p>It turns out that there is one more minor difference that needs changes in the internal type signatures.</p>
+<p>In <em>Akka Streams</em> byte streams are represented by not streams of element type <code>Byte</code>. like in <em>fs2</em>, but streams of <em>chunks</em> called <code>ByteString</code>s. So everywhere we used <code>Byte</code> as element type, such as on the process boundaries, we now simply have to use <code>ByteStrings</code>, for example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1">- <span class="kw">def</span> <span class="fu">apply</span>(from: PN1, to: PN2, via: Pipe[IO, Byte, Byte]): ResultProcess </a>
+<a class="sourceLine" id="cb3-2" title="2">+ <span class="kw">def</span> <span class="fu">apply</span>(from: PN1, to: PN2, via: Flow[ByteString, ByteString, Any]): ResultProcess </a></code></pre></div>
+<p>Another thing to notice is that <em>fs2</em> had a type parameter for passing the <code>IO</code> monad to run on. As I wrote earlier, <em>Akka Streams</em> does not depend on such abstractions, so this parameter is missing. On the other hand, it has a third type parameter which is set in the above example to <code>Any</code>. This parameter is called <code>Mat</code> and represents the type of the value the flow will materialize to. At this point we don’t care about it so we set it to <code>Any</code>.</p>
+<p>Let’s take a look of the <code>connect</code> function of the <code>ProcessIO</code> trait. With <em>fs2</em> the <code>InputStreamingSource</code> is implemented like this:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">class</span> <span class="fu">InputStreamingSource</span>(source: Source[ByteString, Any]) <span class="kw">extends</span> ProcessInputSource {</a>
+<a class="sourceLine" id="cb4-2" title="2">    <span class="kw">override</span> <span class="kw">def</span> toRedirect: Redirect = Redirect.<span class="fu">PIPE</span></a>
+<a class="sourceLine" id="cb4-3" title="3">    </a>
+<a class="sourceLine" id="cb4-4" title="4">    <span class="kw">override</span> <span class="kw">def</span> <span class="fu">connect</span>(systemProcess: lang.<span class="fu">Process</span>, blockingExecutionContext: ExecutionContext)</a>
+<a class="sourceLine" id="cb4-5" title="5">                        (<span class="kw">implicit</span> contextShift: ContextShift[IO]): Stream[IO, Byte] = {</a>
+<a class="sourceLine" id="cb4-6" title="6">        source.<span class="fu">observe</span>(</a>
+<a class="sourceLine" id="cb4-7" title="7">            io.<span class="fu">writeOutputStream</span>[IO](</a>
+<a class="sourceLine" id="cb4-8" title="8">                IO { systemProcess.<span class="fu">getOutputStream</span> },</a>
+<a class="sourceLine" id="cb4-9" title="9">                closeAfterUse = <span class="kw">true</span>,</a>
+<a class="sourceLine" id="cb4-10" title="10">                blockingExecutionContext = blockingExecutionContext))</a>
+<a class="sourceLine" id="cb4-11" title="11">    }</a>
+<a class="sourceLine" id="cb4-12" title="12"></a>
+<a class="sourceLine" id="cb4-13" title="13">    <span class="kw">override</span> <span class="kw">def</span> <span class="fu">run</span>(stream: Stream[IO, Byte])(<span class="kw">implicit</span> contextShift: ContextShift[IO]): IO[Fiber[IO, Unit]] =</a>
+<a class="sourceLine" id="cb4-14" title="14">        Concurrent[IO].<span class="fu">start</span>(stream.<span class="fu">compile</span>.<span class="fu">drain</span>) </a>
+<a class="sourceLine" id="cb4-15" title="15">}</a></code></pre></div>
+<p>We have a <code>source</code> stream and during the setup of the process graph, when the system process has been already created, we have to set up the redirection of this source stream to this process. This is separated to a <code>connect</code> and a <code>run</code> step:</p>
+<ul>
+<li>The <code>connect</code> step creates an <em>fs2 stream</em> that observers the source stream and sends each byte to the system process’s standard input. This just <strong>defines</strong> this stream, and returns it as a pure functional value.</li>
+<li>The <code>run</code> step on the other hand has the result type <code>IO[Fiber[IO, Unit]]</code>. It <strong>defines</strong> the effect of starting a new thread and running the stream on it.</li>
+</ul>
+<p>In the case of <em>fs2</em> we can be sure that the <code>source.observe</code> function is pure just by checking it’s type signature:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">def</span> <span class="fu">observe</span>(p: Pipe[F, O, Unit])(<span class="kw">implicit</span> F: Concurrent[F]): Stream[F, O]</a></code></pre></div>
+<p>All side-effecting functions in <em>fs2</em> are defined as <code>IO</code> functions, so we simply know that this one is not among them, and that’s why the <code>connect</code> was a pure, non-<code>IO</code> function in the original implementation. With <em>Akka Streams</em> we don’t have any information about this encoded in the type system. We use the <code>source.alsoTo</code> function:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">def</span> <span class="fu">alsoTo</span>(that: Graph[SinkShape[Out], _]): Repr[Out]</a></code></pre></div>
+<p>which is actually also pure (only creating a blueprint of the graph to be executed), so we can safely replace the implementation to this in the <em>Akka Streams</em> version:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">class</span> <span class="fu">InputStreamingSource</span>(source: Source[ByteString, Any]) <span class="kw">extends</span> ProcessInputSource {</a>
+<a class="sourceLine" id="cb7-2" title="2">    <span class="kw">override</span> <span class="kw">def</span> toRedirect: Redirect = Redirect.<span class="fu">PIPE</span></a>
+<a class="sourceLine" id="cb7-3" title="3"></a>
+<a class="sourceLine" id="cb7-4" title="4">    <span class="kw">override</span> <span class="kw">def</span> <span class="fu">connect</span>(systemProcess: lang.<span class="fu">Process</span>)(<span class="kw">implicit</span> contextShift: ContextShift[IO]): Source[ByteString, Any] =</a>
+<a class="sourceLine" id="cb7-5" title="5">        source.<span class="fu">alsoTo</span>(<span class="fu">fromOutputStream</span>(() =&gt; systemProcess.<span class="fu">getOutputStream</span>, autoFlush = <span class="kw">true</span>))</a>
+<a class="sourceLine" id="cb7-6" title="6"></a>
+<a class="sourceLine" id="cb7-7" title="7">    <span class="kw">override</span> <span class="kw">def</span> <span class="fu">run</span>(stream: Source[ByteString, Any])</a>
+<a class="sourceLine" id="cb7-8" title="8">                    (<span class="kw">implicit</span> contextShift: ContextShift[IO],</a>
+<a class="sourceLine" id="cb7-9" title="9">                     materializer: Materializer,</a>
+<a class="sourceLine" id="cb7-10" title="10">                     executionContext: ExecutionContext): IO[Fiber[IO, Unit]] = {</a>
+<a class="sourceLine" id="cb7-11" title="11">        Concurrent[IO].<span class="fu">start</span>(IO.<span class="fu">async</span> { finish =&gt;</a>
+<a class="sourceLine" id="cb7-12" title="12">            stream.<span class="fu">runWith</span>(Sink.<span class="fu">ignore</span>).<span class="fu">onComplete</span> {</a>
+<a class="sourceLine" id="cb7-13" title="13">                <span class="kw">case</span> <span class="fu">Success</span>(Done) =&gt; <span class="fu">finish</span>(<span class="fu">Right</span>(()))</a>
+<a class="sourceLine" id="cb7-14" title="14">                <span class="kw">case</span> <span class="fu">Failure</span>(reason) =&gt; <span class="fu">finish</span>(<span class="fu">Left</span>(reason))</a>
+<a class="sourceLine" id="cb7-15" title="15">            }</a>
+<a class="sourceLine" id="cb7-16" title="16">        })</a>
+<a class="sourceLine" id="cb7-17" title="17">    }</a>
+<a class="sourceLine" id="cb7-18" title="18">}</a></code></pre></div>
+<p>The implementation of <code>run</code> above is a nice example of how we can integrate asynchronous operations not implemented with <code>cats-effect</code> to an <code>IO</code> based program. With <code>IO.async</code> we define how to start the asynchronous operation (in this case running the <em>Akka stream</em>) and we get a callback function, <code>finish</code> to be called when the asynchronous operation ends. The stream here <em>materializes</em> to a <code>Future[T]</code> value, so we can use it’s <code>onComplete</code> function to notify the IO system about the finished stream. The <code>IO</code> value returned by <code>IO.async</code> represents the whole asynchronous operation, it returns it’s final result when the callback is called, and “blocks” the program flow until it is done. This does not mean actually blocking a thread; but the next IO function will be executed only when it finished running (as it’s type is <code>IO[A]</code>). That is not what we need here, so we use <code>Concurrent[IO].start</code> to put this <code>IO</code> action on a separate <em>fiber</em>. This way all streams involved in the process graph will be executing in parallel.</p>
+<h3 id="calculating-the-result">Calculating the result</h3>
+<p><a href="https://github.com/vigoo/prox">prox</a> supports multiple ways to calculate a result of running a process graph:</p>
+<ul>
+<li>If the target is a <code>Sink</code>, the result type is <code>Unit</code></li>
+<li>If the pipe’s output is <code>Out</code> and there is a <code>Monoid</code> instance for <code>Out</code>, the stream is folded into an <code>Out</code> value</li>
+<li>Otherwise if the pipe’s output is <code>Out</code>, the result type will be <code>Vector[Out]</code></li>
+</ul>
+<p>These cases can be enforced by the <code>Drain</code>, <code>ToVector</code> and <code>Fold</code> wrapper classes.</p>
+<p>Let’s see how we can implement them with <em>Akka Streams</em> compared to <em>fs2</em>.</p>
+<h4 id="drain-sink">Drain sink</h4>
+<p>The sink version was implemented like this with <em>fs2</em>:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1">Concurrent[IO].<span class="fu">start</span>(stream.<span class="fu">compile</span>.<span class="fu">drain</span>)</a></code></pre></div>
+<ul>
+<li><code>.compile</code> gets an interface that can be used to convert the stream to a <code>IO[A]</code> value in multiple ways.</li>
+<li><code>.drain</code> is one of them. It runs the stream but ignores its elements, having a result type of <code>IO[Unit]</code>.</li>
+<li>We want to run this concurrently with the other streams so we move it to a <em>fiber</em></li>
+</ul>
+<p>With <em>Akka Streams</em> there is one big difference. In <em>fs2</em> the sink is represented as a <code>Pipe[F, E, Unit]</code>, so we could treat it in the same way as other stream segments. In this case the <code>Sink</code> is not a <code>Flow</code>, so we do a trick to keep the interface as close to the original one as possible:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="fu">create</span>((sink: Sink[ByteString, Future[R]]) =&gt; <span class="kw">new</span> <span class="fu">OutputStreamingTarget</span>(Flow.<span class="fu">fromFunction</span>(identity)) </a>
+<a class="sourceLine" id="cb9-2" title="2">                                                <span class="kw">with</span> ProcessOutputTarget[ByteString, R] {</a>
+<a class="sourceLine" id="cb9-3" title="3">    <span class="kw">override</span> <span class="kw">def</span> <span class="fu">run</span>(stream: Source[ByteString, Any])</a>
+<a class="sourceLine" id="cb9-4" title="4">                    (<span class="kw">implicit</span> contextShift: ContextShift[IO],</a>
+<a class="sourceLine" id="cb9-5" title="5">                    materializer: Materializer,</a>
+<a class="sourceLine" id="cb9-6" title="6">                    executionContext: ExecutionContext): IO[Fiber[IO, R]] =</a>
+<a class="sourceLine" id="cb9-7" title="7">    Concurrent[IO].<span class="fu">start</span>(IO.<span class="fu">async</span> { complete =&gt;</a>
+<a class="sourceLine" id="cb9-8" title="8">        stream.<span class="fu">runWith</span>(sink).<span class="fu">onComplete</span> {</a>
+<a class="sourceLine" id="cb9-9" title="9">            <span class="kw">case</span> <span class="fu">Success</span>(value) =&gt; <span class="fu">complete</span>(<span class="fu">Right</span>(value))</a>
+<a class="sourceLine" id="cb9-10" title="10">            <span class="kw">case</span> <span class="fu">Failure</span>(reason) =&gt; <span class="fu">complete</span>(<span class="fu">Left</span>(reason))</a>
+<a class="sourceLine" id="cb9-11" title="11">        }</a>
+<a class="sourceLine" id="cb9-12" title="12">    })</a>
+<a class="sourceLine" id="cb9-13" title="13">}</a></code></pre></div>
+<p>The trick is that we create the <code>OutputStreamingTarget</code> with an identity flow, and only use the <code>Sink</code> when we actually run the stream, passing it to the <code>runWith</code> function. This materializes the stream into a <code>Future[Done]</code> value, that we can tie back to our <code>IO</code> system with <code>IO.async</code> as I already described it.</p>
+<h4 id="combine-with-monoid">Combine with Monoid</h4>
+<p>When the element type is a <em>monoid</em> we can fold it into a single value. <em>Fs2</em> directly supports this:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1">Concurrent[IO].<span class="fu">start</span>(stream.<span class="fu">compile</span>.<span class="fu">foldMonoid</span>)</a></code></pre></div>
+<p><em>Akka Streams</em> does not use cats type classes, but it also has a way to <em>fold</em> the stream, so we can easily implement it using the <em>monoid instance</em>:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1">Concurrent[IO].<span class="fu">start</span>(IO.<span class="fu">async</span> { complete =&gt;</a>
+<a class="sourceLine" id="cb11-2" title="2">    stream.<span class="fu">runFold</span>(monoid.<span class="fu">empty</span>)(monoid.<span class="fu">combine</span>).<span class="fu">onComplete</span> {</a>
+<a class="sourceLine" id="cb11-3" title="3">        <span class="kw">case</span> <span class="fu">Success</span>(value) =&gt; <span class="fu">complete</span>(<span class="fu">Right</span>(value))</a>
+<a class="sourceLine" id="cb11-4" title="4">        <span class="kw">case</span> <span class="fu">Failure</span>(reason) =&gt; <span class="fu">complete</span>(<span class="fu">Left</span>(reason))</a>
+<a class="sourceLine" id="cb11-5" title="5">    }</a>
+<a class="sourceLine" id="cb11-6" title="6">})</a></code></pre></div>
+<h4 id="vector-of-elements">Vector of elements</h4>
+<p>Finally let’s see the version that keeps all the stream elements in a vector as a result:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1">Concurrent[IO].<span class="fu">start</span>(stream.<span class="fu">compile</span>.<span class="fu">toVector</span>)</a></code></pre></div>
+<p>With <em>Akka Streams</em> we can do it by running the stream into a <em>sink</em> created for this, <code>Sink.seq</code>. It materializes into a <code>Future[Seq[T]]</code> value that holds all the elements of the executed stream:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1">Concurrent[IO].<span class="fu">start</span>(IO.<span class="fu">async</span> { complete =&gt;</a>
+<a class="sourceLine" id="cb13-2" title="2">    stream.<span class="fu">runWith</span>(Sink.<span class="fu">seq</span>).<span class="fu">onComplete</span> {</a>
+<a class="sourceLine" id="cb13-3" title="3">        <span class="kw">case</span> <span class="fu">Success</span>(value) =&gt; <span class="fu">complete</span>(<span class="fu">Right</span>(value.<span class="fu">toVector</span>))</a>
+<a class="sourceLine" id="cb13-4" title="4">        <span class="kw">case</span> <span class="fu">Failure</span>(reason) =&gt; <span class="fu">complete</span>(<span class="fu">Left</span>(reason))</a>
+<a class="sourceLine" id="cb13-5" title="5">    }</a>
+<a class="sourceLine" id="cb13-6" title="6">})</a></code></pre></div>
+<h3 id="testing">Testing</h3>
+<p>At this point the only remaining thing is to modify the tests too. One of the more complex examples is the <code>customProcessPiping</code> test case. With <em>fs2</em> it takes advantage of some <em>text processing</em> pipe elements coming with the library:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1"><span class="kw">val</span> customPipe: Pipe[IO, Byte, Byte] =</a>
+<a class="sourceLine" id="cb14-2" title="2">    (s: Stream[IO, Byte]) =&gt; s</a>
+<a class="sourceLine" id="cb14-3" title="3">    .<span class="fu">through</span>(text.<span class="fu">utf8Decode</span>)</a>
+<a class="sourceLine" id="cb14-4" title="4">    .<span class="fu">through</span>(text.<span class="fu">lines</span>)</a>
+<a class="sourceLine" id="cb14-5" title="5">    .<span class="fu">map</span>(_.<span class="fu">split</span>(<span class="ch">' '</span>).<span class="fu">toVector</span>)</a>
+<a class="sourceLine" id="cb14-6" title="6">    .<span class="fu">map</span>(v =&gt; v.<span class="fu">map</span>(_ + <span class="st">&quot; !!!&quot;</span>).<span class="fu">mkString</span>(<span class="st">&quot; &quot;</span>))</a>
+<a class="sourceLine" id="cb14-7" title="7">    .<span class="fu">intersperse</span>(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>)</a>
+<a class="sourceLine" id="cb14-8" title="8">    .<span class="fu">through</span>(text.<span class="fu">utf8Encode</span>)</a>
+<a class="sourceLine" id="cb14-9" title="9"></a>
+<a class="sourceLine" id="cb14-10" title="10"><span class="kw">val</span> proc = Process(<span class="st">&quot;echo&quot;</span>, List(<span class="st">&quot;This is a test string&quot;</span>))</a>
+<a class="sourceLine" id="cb14-11" title="11">            .<span class="fu">via</span>(customPipe)</a>
+<a class="sourceLine" id="cb14-12" title="12">            .<span class="fu">to</span>(Process(<span class="st">&quot;wc&quot;</span>, List(<span class="st">&quot;-w&quot;</span>)) &gt; text.<span class="fu">utf8Decode</span>[IO])</a></code></pre></div>
+<p>There are similar tools in <em>Akka Streams</em> to express this in the <code>Framing</code> module:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb15-1" title="1"> <span class="kw">val</span> customPipe = Framing.<span class="fu">delimiter</span>(</a>
+<a class="sourceLine" id="cb15-2" title="2">      delimiter = <span class="fu">ByteString</span>(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>),</a>
+<a class="sourceLine" id="cb15-3" title="3">      maximumFrameLength = <span class="dv">10000</span>,</a>
+<a class="sourceLine" id="cb15-4" title="4">      allowTruncation = <span class="kw">true</span></a>
+<a class="sourceLine" id="cb15-5" title="5">    ).<span class="fu">map</span>(_.<span class="fu">utf8String</span>)</a>
+<a class="sourceLine" id="cb15-6" title="6">     .<span class="fu">map</span>(_.<span class="fu">split</span>(<span class="ch">' '</span>).<span class="fu">toVector</span>)</a>
+<a class="sourceLine" id="cb15-7" title="7">     .<span class="fu">map</span>(v =&gt; v.<span class="fu">map</span>(_ + <span class="st">&quot; !!!&quot;</span>).<span class="fu">mkString</span>(<span class="st">&quot; &quot;</span>))</a>
+<a class="sourceLine" id="cb15-8" title="8">     .<span class="fu">intersperse</span>(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>)</a>
+<a class="sourceLine" id="cb15-9" title="9">     .<span class="fu">map</span>(ByteString.<span class="fu">apply</span>)</a>
+<a class="sourceLine" id="cb15-10" title="10"></a>
+<a class="sourceLine" id="cb15-11" title="11"><span class="kw">val</span> proc = Process(<span class="st">&quot;echo&quot;</span>, List(<span class="st">&quot;This is a test string&quot;</span>))</a>
+<a class="sourceLine" id="cb15-12" title="12">            .<span class="fu">via</span>(customPipe)</a>
+<a class="sourceLine" id="cb15-13" title="13">            .<span class="fu">to</span>(Process(<span class="st">&quot;wc&quot;</span>, List(<span class="st">&quot;-w&quot;</span>)) &gt; utf8Decode)</a></code></pre></div>
+<p>where <code>utf8Decode</code> is a helper sink defined as:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1"><span class="kw">val</span> utf8Decode: Sink[ByteString, Future[String]] =</a>
+<a class="sourceLine" id="cb16-2" title="2">    Flow[ByteString]</a>
+<a class="sourceLine" id="cb16-3" title="3">        .<span class="fu">reduce</span>(_ ++ _)</a>
+<a class="sourceLine" id="cb16-4" title="4">        .<span class="fu">map</span>(_.<span class="fu">utf8String</span>)</a>
+<a class="sourceLine" id="cb16-5" title="5">        .<span class="fu">toMat</span>(Sink.<span class="fu">head</span>)(Keep.<span class="fu">right</span>)</a></code></pre></div>
+<p>First it concatenates the <code>ByteString</code> chunks, then simply calls <code>.utf8String</code> on the result.</p>
+<h2 id="final-thoughts">Final thoughts</h2>
+<p>We have seen that it is relatively easy to replace the stream library in <a href="https://github.com/vigoo/prox">prox</a> without changing it’s interface much, if we keep <a href="https://typelevel.org/cats-effect/">cats-effect</a> for expressing the effectful computations. The complete working example is available on the <a href="https://github.com/vigoo/prox/compare/akka-streams"><code>akka-streams</code> branch</a>.</p>
+<p>In the next post I will show how it would look like if we drop <a href="https://typelevel.org/cats-effect/">cats-effect</a> and do everything with <em>Akka Streams</em>.</p>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>
