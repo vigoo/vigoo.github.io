@@ -56,7 +56,7 @@ So for example the `start` extension method, is modified like this:
                 executionContext: ExecutionContext): IO[RP]
 ```
 
-It turns out that there are one more minor difference that needs changes in the internal type signatures.
+It turns out that there is one more minor difference that needs changes in the internal type signatures.
 
 In *Akka Streams* byte streams are represented by not streams of element type `Byte`. like in *fs2*, but streams of *chunks* called `ByteString`s. So everywhere we used `Byte` as element type, such as on the process boundaries, we now simply have to use `ByteStrings`, for example:
 
@@ -67,7 +67,7 @@ In *Akka Streams* byte streams are represented by not streams of element type `B
 
 Another thing to notice is that *fs2* had a type parameter for passing the `IO` monad to run on. As I wrote earlier, *Akka Streams* does not depend on such abstractions, so this parameter is missing. On the other hand, it has a third type parameter which is set in the above example to `Any`. This parameter is called `Mat` and represents the type of the value the flow will materialize to. At this point we don't care about it so we set it to `Any`.
 
-Let's take a look of the `connect` function of the `ProcessIO` trait. With *fs2* it looks the `InputStreamingSource` is implemented like this:
+Let's take a look of the `connect` function of the `ProcessIO` trait. With *fs2* the `InputStreamingSource` is implemented like this:
 
 ```scala
 class InputStreamingSource(source: Source[ByteString, Any]) extends ProcessInputSource {
@@ -147,6 +147,116 @@ The sink version was implemented like this with *fs2*:
 Concurrent[IO].start(stream.compile.drain)
 ```
 
+- `.compile` gets an interface that can be used to convert the stream to a `IO[A]` value in multiple ways.
+- `.drain` is one of them. It runs the stream but ignores its elements, having a result type of `IO[Unit]`.
+- We want to run this concurrently with the other streams so we move it to a *fiber*
+
+With *Akka Streams* there is one big difference. In *fs2* the sink is represented as a `Pipe[F, E, Unit]`, so we could treat it in the same way as other stream segments. In this case the `Sink` is not a `Flow`, so we do a trick to keep the interface as close to the original one as possible:
+
+```scala
+create((sink: Sink[ByteString, Future[R]]) => new OutputStreamingTarget(Flow.fromFunction(identity)) 
+                                                with ProcessOutputTarget[ByteString, R] {
+    override def run(stream: Source[ByteString, Any])
+                    (implicit contextShift: ContextShift[IO],
+                    materializer: Materializer,
+                    executionContext: ExecutionContext): IO[Fiber[IO, R]] =
+    Concurrent[IO].start(IO.async { complete =>
+        stream.runWith(sink).onComplete {
+            case Success(value) => complete(Right(value))
+            case Failure(reason) => complete(Left(reason))
+        }
+    })
+}
+```
+
+The trick is that we create the `OutputStreamingTarget` with an identity flow, and only use the `Sink` when we actually run the stream, passing it to the `runWith` function. This materializes the stream into a `Future[Done]` value, that we can tie back to our `IO` system with `IO.async` as I already described it.
+
 #### Combine with Monoid
+When the element type is a *monoid* we can fold it into a single value. *Fs2* directly supports this:
+
+```scala
+Concurrent[IO].start(stream.compile.foldMonoid)
+```
+
+*Akka Streams* does not use cats type classes, but it also has a way to *fold* the stream, so we can easily implement it using the *monoid instance*:
+
+```scala
+Concurrent[IO].start(IO.async { complete =>
+    stream.runFold(monoid.empty)(monoid.combine).onComplete {
+        case Success(value) => complete(Right(value))
+        case Failure(reason) => complete(Left(reason))
+    }
+})
+```
 
 #### Vector of elements
+Finally let's see the version that keeps all the stream elements in a vector as a result:
+
+```scala
+Concurrent[IO].start(stream.compile.toVector)
+```
+
+With *Akka Streams* we can do it by running the stream into a *sink* created for this, `Sink.seq`. It materializes into a `Future[Seq[T]]` value that holds all the elements
+of the executed stream:
+
+```scala
+Concurrent[IO].start(IO.async { complete =>
+    stream.runWith(Sink.seq).onComplete {
+        case Success(value) => complete(Right(value.toVector))
+        case Failure(reason) => complete(Left(reason))
+    }
+})
+```
+
+### Testing
+At this point the only remaining thing is to modify the tests too. One of the more complex examples is the `customProcessPiping` test case. With *fs2* it takes advantage of some *text processing* pipe elements coming with the library:
+
+```scala
+val customPipe: Pipe[IO, Byte, Byte] =
+    (s: Stream[IO, Byte]) => s
+    .through(text.utf8Decode)
+    .through(text.lines)
+    .map(_.split(' ').toVector)
+    .map(v => v.map(_ + " !!!").mkString(" "))
+    .intersperse("\n")
+    .through(text.utf8Encode)
+
+val proc = Process("echo", List("This is a test string"))
+            .via(customPipe)
+            .to(Process("wc", List("-w")) > text.utf8Decode[IO])
+```
+
+There are similar tools in *Akka Streams* to express this in the `Framing` module:
+
+```scala
+ val customPipe = Framing.delimiter(
+      delimiter = ByteString("\n"),
+      maximumFrameLength = 10000,
+      allowTruncation = true
+    ).map(_.utf8String)
+     .map(_.split(' ').toVector)
+     .map(v => v.map(_ + " !!!").mkString(" "))
+     .intersperse("\n")
+     .map(ByteString.apply)
+
+val proc = Process("echo", List("This is a test string"))
+            .via(customPipe)
+            .to(Process("wc", List("-w")) > utf8Decode)
+```
+
+where `utf8Decode` is a helper sink defined as:
+
+```scala
+val utf8Decode: Sink[ByteString, Future[String]] =
+    Flow[ByteString]
+        .reduce(_ ++ _)
+        .map(_.utf8String)
+        .toMat(Sink.head)(Keep.right)
+```
+
+First it concatenates the `ByteString` chunks, then simply calls `.utf8String` on the result.
+
+## Final thoughts
+We have seen that it is relatively easy to replace the stream library in [prox](https://github.com/vigoo/prox) without changing it's interface much, if we keep [cats-effect](https://typelevel.org/cats-effect/) for expressing the effectful computations. The complete working example is available on the [`akka-streams` branch](https://github.com/vigoo/prox/compare/akka-streams).
+
+In the next post I will show how it would look like if we drop [cats-effect](https://typelevel.org/cats-effect/) and do everything with *Akka Streams*.
