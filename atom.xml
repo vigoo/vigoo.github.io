@@ -25,7 +25,7 @@
 <li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
 <li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
 <li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
-<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
+<li><a href="2020-08-03-prox-4-simplify.html">Part 4 - simplified redesign</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p>In <a href="2019-02-10-prox-1-types.html">Part 1</a> I described how the advanced type level programming techniques can be used to describe the execution of system processes. It was both a good playground to experiment with these and the result has been proven useful as we started to use it in more and more production systems and test environments at <a href="https://prezi.com">Prezi</a>.</p>
@@ -354,7 +354,7 @@
 <li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
 <li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
 <li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
-<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
+<li><a href="2020-08-03-prox-4-simplify.html">Part 4 - simplified redesign</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p>The <a href="2019-02-10-prox-1-types.html">first post</a> introduced the <em>prox library</em> and demonstrated the advanced type level programming techniques it uses. Then in the <a href="2019-03-07-prox-2-io-akkastreams.html">second part</a> of this series we experimented with replacing the <em>streaming library</em> from <a href="https://fs2.io/">fs2</a> to <a href="https://doc.akka.io/docs/akka/2.5/stream/">Akka Streams</a>.</p>
@@ -513,7 +513,7 @@
 <li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
 <li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
 <li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
-<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
+<li><a href="2020-08-03-prox-4-simplify.html">Part 4 - simplified redesign</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p>In the previous post we have seen how <a href="https://github.com/vigoo/prox">prox</a> applies advanced type level programming techniques to express executing external system processes. The input and output of these processes can be connected to <strong>streams</strong>. The current version of <a href="https://github.com/vigoo/prox">prox</a> uses the <a href="https://fs2.io/">fs2</a> library to describe these streams, and <a href="https://typelevel.org/cats-effect/">cats-effect</a> as an <strong>IO</strong> abstraction, allowing it to separate the specification of a process pipeline from its actual execution.</p>
@@ -726,7 +726,7 @@
 <li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
 <li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
 <li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
-<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
+<li><a href="2020-08-03-prox-4-simplify.html">Part 4 - simplified redesign</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p>I started writing <a href="https://github.com/vigoo/prox">prox</a> at the end of 2017 for two reasons. First, I never liked any of the existing solutions for running external processes and capture their input/output streams. And I just returned from the <a href="https://scala.io/">scala.io conference</a> full of inspiration; I wanted to try out some techniques and libraries and this seemed to be a nice small project to do so.</p>
