@@ -7,6 +7,7 @@ tags: prox scala akka effects
 - [Part 1 - type level programming](2019-02-10-prox-1-types.html)
 - [Part 2 - akka streams with cats effect](2019-03-07-prox-2-io-akkastreams.html)
 - [Part 3 - effect abstraction and ZIO](2019-08-13-prox-3-zio.html)
+- [Part 4 - simplified redesign](2020-08-03-prox-4-simplify.hml)
 
 ## Intro
 In the previous post we have seen how [prox](https://github.com/vigoo/prox) applies advanced type level programming techniques to express executing external system processes. The input and output of these processes can be connected to **streams**. The current version of [prox](https://github.com/vigoo/prox) uses the [fs2](https://fs2.io/) library to describe these streams, and [cats-effect](https://typelevel.org/cats-effect/) as an **IO** abstraction, allowing it to separate the specification of a process pipeline from its actual execution.
@@ -259,5 +260,3 @@ First it concatenates the `ByteString` chunks, then simply calls `.utf8String` o
 
 ## Final thoughts
 We have seen that it is relatively easy to replace the stream library in [prox](https://github.com/vigoo/prox) without changing it's interface much, if we keep [cats-effect](https://typelevel.org/cats-effect/) for expressing the effectful computations. The complete working example is available on the [`akka-streams` branch](https://github.com/vigoo/prox/compare/akka-streams).
-
-In the next post I will show how it would look like if we drop [cats-effect](https://typelevel.org/cats-effect/) and do everything with *Akka Streams*.
