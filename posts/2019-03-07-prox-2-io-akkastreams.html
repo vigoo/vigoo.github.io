@@ -36,6 +36,7 @@
 <li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
 <li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
 <li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
+<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p>In the previous post we have seen how <a href="https://github.com/vigoo/prox">prox</a> applies advanced type level programming techniques to express executing external system processes. The input and output of these processes can be connected to <strong>streams</strong>. The current version of <a href="https://github.com/vigoo/prox">prox</a> uses the <a href="https://fs2.io/">fs2</a> library to describe these streams, and <a href="https://typelevel.org/cats-effect/">cats-effect</a> as an <strong>IO</strong> abstraction, allowing it to separate the specification of a process pipeline from its actual execution.</p>
@@ -230,7 +231,6 @@
 <p>First it concatenates the <code>ByteString</code> chunks, then simply calls <code>.utf8String</code> on the result.</p>
 <h2 id="final-thoughts">Final thoughts</h2>
 <p>We have seen that it is relatively easy to replace the stream library in <a href="https://github.com/vigoo/prox">prox</a> without changing it’s interface much, if we keep <a href="https://typelevel.org/cats-effect/">cats-effect</a> for expressing the effectful computations. The complete working example is available on the <a href="https://github.com/vigoo/prox/compare/akka-streams"><code>akka-streams</code> branch</a>.</p>
-<p>In the next post I will show how it would look like if we drop <a href="https://typelevel.org/cats-effect/">cats-effect</a> and do everything with <em>Akka Streams</em>.</p>
 
 
 <div id="disqus_thread"></div>

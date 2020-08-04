@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>prox part 4 - simplified redesign</title>
+        
+        <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
+        
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>prox part 4 - simplified redesign</h1>
+
+            <div class="info">
+    Posted on August  3, 2020
+    
+</div>
+
+<h2 id="blog-post-series">Blog post series</h2>
+<ul>
+<li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
+<li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
+<li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
+<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
+</ul>
+<h2 id="intro">Intro</h2>
+<p>In <a href="2019-02-10-prox-1-types.html">Part 1</a> I described how the advanced type level programming techniques can be used to describe the execution of system processes. It was both a good playground to experiment with these and the result has been proven useful as we started to use it in more and more production systems and test environments at <a href="https://prezi.com">Prezi</a>.</p>
+<p>On the other hand as I mentioned at the end of the first post, there is a tradeoff. These techniques made the original version of <em>prox</em> very hard to maintain and improve, and the error messages library users got by small mistakes were really hard to understand.</p>
+<p>Last December (in 2019) I redesigned the library to be simpler and easier to use by making some compromises. Let’s discover how!</p>
+<h2 id="a-single-process">A single process</h2>
+<p>We start completely from scratch and try to design the library with the same functionality but with simplicity in mind. The code snippets shown here are not necessarily the final, current state of the traits and objects of the library, but some intermediate steps so we see the thought process.</p>
+<p>First let’s focus on defining a <strong>single process</strong>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">trait</span> Process {</a>
+<a class="sourceLine" id="cb1-2" title="2">  <span class="kw">val</span> command: String</a>
+<a class="sourceLine" id="cb1-3" title="3">  <span class="kw">val</span> arguments: List[String]</a>
+<a class="sourceLine" id="cb1-4" title="4">  <span class="kw">val</span> workingDirectory: Option[Path]</a>
+<a class="sourceLine" id="cb1-5" title="5">  <span class="kw">val</span> environmentVariables: Map[String, String]</a>
+<a class="sourceLine" id="cb1-6" title="6">  <span class="kw">val</span> removedEnvironmentVariables: Set[String]    </a>
+<a class="sourceLine" id="cb1-7" title="7">}</a></code></pre></div>
+<p>Without deciding already how it will be implemented, we know we need these information to be able to launch the process alone. And how to execute it? Let’s separate it completely:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">trait</span> ProcessResult {</a>
+<a class="sourceLine" id="cb2-2" title="2">  <span class="kw">val</span> exitCode: ExitCode</a>
+<a class="sourceLine" id="cb2-3" title="3">}</a>
+<a class="sourceLine" id="cb2-4" title="4"></a>
+<a class="sourceLine" id="cb2-5" title="5"><span class="kw">trait</span> ProcessRunner {</a>
+<a class="sourceLine" id="cb2-6" title="6">  <span class="kw">def</span> <span class="fu">start</span>(process: Process): Resource[IO, Fiber[IO, ProcessResult]]</a>
+<a class="sourceLine" id="cb2-7" title="7">}</a></code></pre></div>
+<p>I decided that better integration with the IO library (<a href="https://typelevel.org/cats-effect/">cats-effect</a> in this case) is also a goal of the redesign, so for starter modelled the <em>running process</em> as a cancellable fiber resulting in <code>ProcessResult</code>, where cancellation means <strong>terminating</strong> the process. At this stage of the redesign I worked directly with <code>IO</code> instead of the <em>IO typeclasses</em> and later replaced it like I described in <a href="2019-08-13-prox-3-zio.html">the previous post</a>.</p>
+<p>Let’s see how a simple runner implementation would look like:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">import</span> java.<span class="fu">lang</span>.{Process =&gt; JvmProcess}</a>
+<a class="sourceLine" id="cb3-2" title="2"></a>
+<a class="sourceLine" id="cb3-3" title="3"><span class="kw">class</span> <span class="fu">JVMProcessRunner</span>(<span class="kw">implicit</span> contextShift: ContextShift[IO]) <span class="kw">extends</span> ProcessRunner {</a>
+<a class="sourceLine" id="cb3-4" title="4">  <span class="kw">import</span> JVMProcessRunner._</a>
+<a class="sourceLine" id="cb3-5" title="5"></a>
+<a class="sourceLine" id="cb3-6" title="6">  <span class="kw">override</span> <span class="kw">def</span> <span class="fu">start</span>(process: Process): Resource[IO, Fiber[IO, ProcessResult]] = {</a>
+<a class="sourceLine" id="cb3-7" title="7">    <span class="kw">val</span> builder = <span class="fu">withEnvironmentVariables</span>(process,</a>
+<a class="sourceLine" id="cb3-8" title="8">      <span class="fu">withWorkingDirectory</span>(process,</a>
+<a class="sourceLine" id="cb3-9" title="9">        <span class="kw">new</span> ProcessBuilder((process.<span class="fu">command</span> :: process.<span class="fu">arguments</span>).<span class="fu">asJava</span>)))</a>
+<a class="sourceLine" id="cb3-10" title="10"></a>
+<a class="sourceLine" id="cb3-11" title="11">    <span class="kw">val</span> start = IO.<span class="fu">delay</span>(<span class="kw">new</span> <span class="fu">JVMRunningProcess</span>(builder.<span class="fu">start</span>())).<span class="fu">bracketCase</span> { runningProcess =&gt;</a>
+<a class="sourceLine" id="cb3-12" title="12">      runningProcess.<span class="fu">waitForExit</span>()</a>
+<a class="sourceLine" id="cb3-13" title="13">    } {</a>
+<a class="sourceLine" id="cb3-14" title="14">      <span class="kw">case</span> (_, Completed) =&gt;</a>
+<a class="sourceLine" id="cb3-15" title="15">        IO.<span class="fu">unit</span></a>
+<a class="sourceLine" id="cb3-16" title="16">      <span class="kw">case</span> (_, Error(reason)) =&gt;</a>
+<a class="sourceLine" id="cb3-17" title="17">        IO.<span class="fu">raiseError</span>(reason)</a>
+<a class="sourceLine" id="cb3-18" title="18">      <span class="kw">case</span> (runningProcess, Canceled) =&gt;</a>
+<a class="sourceLine" id="cb3-19" title="19">        runningProcess.<span class="fu">terminate</span>() &gt;&gt; IO.<span class="fu">unit</span></a>
+<a class="sourceLine" id="cb3-20" title="20">    }.<span class="fu">start</span></a>
+<a class="sourceLine" id="cb3-21" title="21"></a>
+<a class="sourceLine" id="cb3-22" title="22">    Resource.<span class="fu">make</span>(start)(_.<span class="fu">cancel</span>)</a>
+<a class="sourceLine" id="cb3-23" title="23">  }</a>
+<a class="sourceLine" id="cb3-24" title="24">}</a></code></pre></div>
+<p>Here <code>withEnvironmentVariables</code> and <code>withWorkingDirectories</code> are just helper functions around the JVM <em>process builder</em>. The more important part is the <em>cancelation</em> and that we expose it as a <em>resource</em>.</p>
+<p>First we wrap the started JVM process in a <code>JVMRunningProcess</code> class which really just wraps some of it’s operations in IO operations:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">case</span> <span class="kw">class</span> <span class="fu">SimpleProcessResult</span>(<span class="kw">override</span> <span class="kw">val</span> exitCode: ExitCode)</a>
+<a class="sourceLine" id="cb4-2" title="2">  <span class="kw">extends</span> ProcessResult</a>
+<a class="sourceLine" id="cb4-3" title="3"></a>
+<a class="sourceLine" id="cb4-4" title="4"><span class="kw">class</span> <span class="fu">JVMRunningProcess</span>(<span class="kw">val</span> nativeProcess: JvmProcess) <span class="kw">extends</span> RunningProcess {</a>
+<a class="sourceLine" id="cb4-5" title="5">  <span class="kw">override</span> <span class="kw">def</span> isAlive: IO[Boolean] = IO.<span class="fu">delay</span>(nativeProcess.<span class="fu">isAlive</span>)</a>
+<a class="sourceLine" id="cb4-6" title="6">  <span class="kw">override</span> <span class="kw">def</span> <span class="fu">kill</span>(): IO[ProcessResult] = IO.<span class="fu">delay</span>(nativeProcess.<span class="fu">destroyForcibly</span>()) &gt;&gt; <span class="fu">waitForExit</span>()</a>
+<a class="sourceLine" id="cb4-7" title="7">  <span class="kw">override</span> <span class="kw">def</span> <span class="fu">terminate</span>(): IO[ProcessResult] = IO.<span class="fu">delay</span>(nativeProcess.<span class="fu">destroy</span>()) &gt;&gt; <span class="fu">waitForExit</span>()</a>
+<a class="sourceLine" id="cb4-8" title="8">  <span class="kw">override</span> <span class="kw">def</span> <span class="fu">waitForExit</span>(): IO[ProcessResult] =</a>
+<a class="sourceLine" id="cb4-9" title="9">    <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb4-10" title="10">      exitCode &lt;- IO.<span class="fu">delay</span>(nativeProcess.<span class="fu">waitFor</span>())</a>
+<a class="sourceLine" id="cb4-11" title="11">    } <span class="kw">yield</span> <span class="fu">SimpleProcessResult</span>(<span class="fu">ExitCode</span>(exitCode))</a>
+<a class="sourceLine" id="cb4-12" title="12">}</a></code></pre></div>
+<p>Then we wrap the <em>starting of the process</em> with <code>bracketCase</code>, specifying the two cases:</p>
+<ul>
+<li>On normal execution, we <code>waitForExit</code> for the process to stop and create the <code>ProcessResult</code> as the result of the bracketed IO operation.</li>
+<li>In the release case, if JVM thrown an exception it is raised to the IO level</li>
+<li>And if it got <em>canceled</em>, we <code>terminate</code> the process</li>
+</ul>
+<p>This way the IO cancelation interface gets a simple way to wait for or terminate an executed process. By calling <code>.start</code> on this bracketed IO operation we move it to a concurrent <em>fiber</em>.</p>
+<p>Finally we wrap it in a <code>Resource</code>, so if the user code starting the process got canceled, it <em>releases the resource</em> too that ends up <em>terminating</em> the process, leaving no process leaks. This is something that was missing from the earlier versions of the library.</p>
+<p>To make starting processes more convenient we can create an <strong>extension method</strong> on the <code>Process</code> trait:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> <span class="fu">ProcessOps</span>(<span class="kw">private</span> <span class="kw">val</span> process: Process) <span class="kw">extends</span> AnyVal {</a>
+<a class="sourceLine" id="cb5-2" title="2">  <span class="kw">def</span> <span class="fu">start</span>(<span class="kw">implicit</span> runner: ProcessRunner): Resource[IO, Fiber[IO, ProcessResult]] =</a>
+<a class="sourceLine" id="cb5-3" title="3">    runner.<span class="fu">start</span>(process)</a>
+<a class="sourceLine" id="cb5-4" title="4">}</a></code></pre></div>
+<h2 id="redirection">Redirection</h2>
+<p>The next step was to implement input/output/error <em>redirection</em>. In the original <em>prox</em> library we had two important features, both implemented with type level techniques:</p>
+<ul>
+<li>Allow redirection only once per channel</li>
+<li>The redirection source or target was a type class with <em>dependent result types</em></li>
+</ul>
+<p>To keep the type signatures simpler I decided to work around these by sacrificing some genericity and terseness. Let’s start by defining an interface for <strong>redirecting process output</strong>:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">trait</span> RedirectableOutput[+P[_] &lt;: Process[_]] {</a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="kw">def</span> connectOutput[R &lt;: OutputRedirection, O](target: R)(<span class="kw">implicit</span> outputRedirectionType: OutputRedirectionType.<span class="fu">Aux</span>[R, O]): P[O]</a>
+<a class="sourceLine" id="cb6-3" title="3">  </a>
+<a class="sourceLine" id="cb6-4" title="4">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb6-5" title="5">}</a></code></pre></div>
+<p>This is not <em>very</em> much different than the output redirection operator in the previous <em>prox</em> versions:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">def</span> &gt;[F[_], To, NewOut, NewOutResult, Result &lt;: ProcessNode[_, _, _, Redirected, _]]</a>
+<a class="sourceLine" id="cb7-2" title="2">    (to: To)</a>
+<a class="sourceLine" id="cb7-3" title="3">    (<span class="kw">implicit</span></a>
+<a class="sourceLine" id="cb7-4" title="4">     contextOf: ContextOf.<span class="fu">Aux</span>[PN, F],</a>
+<a class="sourceLine" id="cb7-5" title="5">     target: CanBeProcessOutputTarget.<span class="fu">Aux</span>[F, To, NewOut, NewOutResult],</a>
+<a class="sourceLine" id="cb7-6" title="6">     redirectOutput: RedirectOutput.<span class="fu">Aux</span>[F, PN, To, NewOut, NewOutResult, Result])</a></code></pre></div>
+<p>One of the primary differences is that we don’t allow arbitrary targets just by requiring a <code>CanBeProcessOutput</code> type class. Instead we can only connect the output to a value of <code>OutputRedirection</code> which is an ADT:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">sealed</span> <span class="kw">trait</span> OutputRedirection</a>
+<a class="sourceLine" id="cb8-2" title="2"><span class="kw">case</span> <span class="kw">object</span> StdOut <span class="kw">extends</span> OutputRedirection</a>
+<a class="sourceLine" id="cb8-3" title="3"><span class="kw">case</span> <span class="kw">class</span> <span class="fu">OutputFile</span>(path: Path, append: Boolean) <span class="kw">extends</span> OutputRedirection</a>
+<a class="sourceLine" id="cb8-4" title="4"><span class="kw">case</span> <span class="kw">class</span> OutputStream[O, +OR](pipe: Pipe[IO, Byte, O], runner: Stream[IO, O] =&gt; IO[OR], chunkSize: Int = <span class="dv">8192</span>) <span class="kw">extends</span> OutputRedirection</a></code></pre></div>
+<p>We still need a type level calculation to extract the result type of the <code>OutputStream</code> case (which is the <code>OR</code> type parameter). This extracted by the following trait with the help of the <code>Aux</code> pattern:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">trait</span> OutputRedirectionType[R] {</a>
+<a class="sourceLine" id="cb9-2" title="2">  <span class="kw">type</span> Out</a>
+<a class="sourceLine" id="cb9-3" title="3">  <span class="kw">def</span> <span class="fu">runner</span>(of: R)(nativeProcess: JvmProcess, blocker: Blocker, contextShift: ContextShift[IO]): IO[Out]</a>
+<a class="sourceLine" id="cb9-4" title="4">}</a></code></pre></div>
+<p>The important difference from earlier versions of the library is that this remains completely an implementation detail. <code>OutputRedirectionType</code> is implemented for all three cases of the <code>OutputRedirection</code> type and <code>connectOutput</code> is not even used in the default use cases, only when implementing redirection for something custom.</p>
+<p>Instead the <code>RedirectableOutput</code> trait itself defines a set of operators and named function versions for redirecting to different targets. With this we loose a general-purpose, type class managed way to redirect to <em>anything</em> but improve a lot on the usability of the library. All these functions are easily discoverable from the IDE and there would not be any weird implicit resolution errors.</p>
+<p>Let’s see some examples of these functions:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">trait</span> RedirectableOutput[+P[_] &lt;: Process[_]] {</a>
+<a class="sourceLine" id="cb10-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb10-3" title="3">  <span class="kw">def</span> &gt;(sink: Pipe[IO, Byte, Unit]): P[Unit] = <span class="fu">toSink</span>(sink)</a>
+<a class="sourceLine" id="cb10-4" title="4">  <span class="kw">def</span> <span class="fu">toSink</span>(sink: Pipe[F, Byte, Unit]): P[Unit] = </a>
+<a class="sourceLine" id="cb10-5" title="5">    <span class="fu">connectOutput</span>(OutputStream(sink, (s: Stream[F, Unit]) =&gt; s.<span class="fu">compile</span>.<span class="fu">drain</span>))</a>
+<a class="sourceLine" id="cb10-6" title="6">    </a>
+<a class="sourceLine" id="cb10-7" title="7">  <span class="kw">def</span> &gt;#[O: Monoid](pipe: Pipe[F, Byte, O]): P[O] = <span class="fu">toFoldMonoid</span>(pipe)</a>
+<a class="sourceLine" id="cb10-8" title="8">  <span class="kw">def</span> toFoldMonoid[O: Monoid](pipe: Pipe[F, Byte, O]): P[O] =</a>
+<a class="sourceLine" id="cb10-9" title="9">    <span class="fu">connectOutput</span>(OutputStream(pipe, (s: Stream[F, O]) =&gt; s.<span class="fu">compile</span>.<span class="fu">foldMonoid</span>))</a>
+<a class="sourceLine" id="cb10-10" title="10">    </a>
+<a class="sourceLine" id="cb10-11" title="11">  <span class="kw">def</span> &gt;&gt;(path: Path): P[Unit] = <span class="fu">appendToFile</span>(path)</a>
+<a class="sourceLine" id="cb10-12" title="12">  <span class="kw">def</span> <span class="fu">appendToFile</span>(path: Path): P[Unit] =</a>
+<a class="sourceLine" id="cb10-13" title="13">    <span class="fu">connectOutput</span>(OutputFile[F](path, append = <span class="kw">true</span>))    </a>
+<a class="sourceLine" id="cb10-14" title="14">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb10-15" title="15">}</a></code></pre></div>
+<p>All of them are just using the <code>connectOutput</code> function so implementations of the <code>RedirectableOutput</code> trait need to define that single function to get this capability.</p>
+<p>Note that <code>connectOutput</code> has a return type of <code>P[O]</code> instead of being just <code>Process</code>. This is important for multiple reasons.</p>
+<p>First, in order to actually <em>execute</em> the output streams, we need to store it somehow in the <code>Process</code> data type itself. For this reason we add a type parameter to the <code>Process</code> trait representing the <em>output type</em> and store the <em>output stream runner function</em> itself in it:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1"><span class="kw">trait</span> Process[O] {</a>
+<a class="sourceLine" id="cb11-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb11-3" title="3">  <span class="kw">val</span> outputRedirection: OutputRedirection</a>
+<a class="sourceLine" id="cb11-4" title="4">  <span class="kw">val</span> runOutputStream: (JvmProcess, Blocker, ContextShift[IO]) =&gt; IO[O]</a>
+<a class="sourceLine" id="cb11-5" title="5">}</a></code></pre></div>
+<p>Note that <code>runOutputStream</code> is actually the <code>OutputRedirectiontype.runner</code> function, got from the “hidden” type level operation and stored in the process data structure. With this, the <em>process runner</em> can be extended to pass the started JVM process to this function that sets up the redirection, and then store the result of type <code>O</code> in <code>ProcessResult[O]</code>:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1"><span class="kw">override</span> <span class="kw">def</span> start[O](process: Process[O], blocker: Blocker): Resource[IO, Fiber[IO, ProcessResult[O]]] = {</a>
+<a class="sourceLine" id="cb12-2" title="2">  <span class="co">// ... process builder</span></a>
+<a class="sourceLine" id="cb12-3" title="3">    </a>
+<a class="sourceLine" id="cb12-4" title="4">  <span class="kw">val</span> outputRedirect = process.<span class="fu">outputRedirection</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb12-5" title="5">    <span class="kw">case</span> StdOut =&gt; ProcessBuilder.<span class="fu">Redirect</span>.<span class="fu">INHERIT</span></a>
+<a class="sourceLine" id="cb12-6" title="6">    <span class="kw">case</span> <span class="fu">OutputFile</span>(path) =&gt; ProcessBuilder.<span class="fu">Redirect</span>.<span class="fu">to</span>(path.<span class="fu">toFile</span>)</a>
+<a class="sourceLine" id="cb12-7" title="7">    <span class="kw">case</span> OutputStream(_, _, _) =&gt; ProcessBuilder.<span class="fu">Redirect</span>.<span class="fu">PIPE</span></a>
+<a class="sourceLine" id="cb12-8" title="8">  }</a>
+<a class="sourceLine" id="cb12-9" title="9">  builder.<span class="fu">redirectOutput</span>(outputRedirect)</a>
+<a class="sourceLine" id="cb12-10" title="10"></a>
+<a class="sourceLine" id="cb12-11" title="11">  <span class="kw">val</span> startProcess = <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb12-12" title="12">    nativeProcess &lt;- IO.<span class="fu">delay</span>(builder.<span class="fu">start</span>())</a>
+<a class="sourceLine" id="cb12-13" title="13">    runningOutput &lt;- process.<span class="fu">runOutputStream</span>(nativeProcess, blocker, contextShift).<span class="fu">start</span></a>
+<a class="sourceLine" id="cb12-14" title="14">  } <span class="kw">yield</span> <span class="kw">new</span> <span class="fu">JVMRunningProcess</span>(nativeProcess, runningOutput)  </a>
+<a class="sourceLine" id="cb12-15" title="15">  </a>
+<a class="sourceLine" id="cb12-16" title="16">  <span class="co">// ... bracketCase, start, Resource.make</span></a>
+<a class="sourceLine" id="cb12-17" title="17">}</a></code></pre></div>
+<p>It is also important that this <code>RedirectableOutput</code> trait is not something all process has: it is a <strong>capability</strong>, and only processes with unbound output should implement it. This is the new encoding of fixing the three channels of a process. Instead of having three type parameters with <em>phantom types</em>, now we have a combination of capability traits mixed with the <code>Process</code> trait, constraining what kind of redirections we can do. As this is not something unbounded and have relatively small number of cases, I chose to implement the combinations by hand, designing it in a way to minimize the redundancy in these implementation classes. This means, in total <strong>8</strong> classes representing the combinations of bound input, output and error.</p>
+<p>I will demonstrate this with a single example. The <code>Process</code> constructor now returns a type with everything unbound, represented by having all the redirection capability traits:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">object</span> Process {</a>
+<a class="sourceLine" id="cb13-2" title="2">  <span class="kw">def</span> <span class="fu">apply</span>(command: String, arguments: List[String] = List.<span class="fu">empty</span>): ProcessImpl =</a>
+<a class="sourceLine" id="cb13-3" title="3">    <span class="fu">ProcessImpl</span>(</a>
+<a class="sourceLine" id="cb13-4" title="4">      command,</a>
+<a class="sourceLine" id="cb13-5" title="5">      arguments,</a>
+<a class="sourceLine" id="cb13-6" title="6">      workingDirectory = None,</a>
+<a class="sourceLine" id="cb13-7" title="7">      environmentVariables = Map.<span class="fu">empty</span>,</a>
+<a class="sourceLine" id="cb13-8" title="8">      removedEnvironmentVariables = Set.<span class="fu">empty</span>,</a>
+<a class="sourceLine" id="cb13-9" title="9">      </a>
+<a class="sourceLine" id="cb13-10" title="10">      outputRedirection = StdOut,</a>
+<a class="sourceLine" id="cb13-11" title="11">      runOutputStream = (_, _, _) =&gt; IO.<span class="fu">unit</span>,</a>
+<a class="sourceLine" id="cb13-12" title="12">      errorRedirection = StdOut,</a>
+<a class="sourceLine" id="cb13-13" title="13">      runErrorStream = (_, _, _) =&gt; IO.<span class="fu">unit</span>,</a>
+<a class="sourceLine" id="cb13-14" title="14">      inputRedirection = StdIn</a>
+<a class="sourceLine" id="cb13-15" title="15">    )</a>
+<a class="sourceLine" id="cb13-16" title="16">    </a>
+<a class="sourceLine" id="cb13-17" title="17">  <span class="kw">case</span> <span class="kw">class</span> <span class="fu">ProcessImpl</span>(<span class="kw">override</span> <span class="kw">val</span> command: String,</a>
+<a class="sourceLine" id="cb13-18" title="18">                         <span class="kw">override</span> <span class="kw">val</span> arguments: List[String],</a>
+<a class="sourceLine" id="cb13-19" title="19">                         <span class="kw">override</span> <span class="kw">val</span> workingDirectory: Option[Path],</a>
+<a class="sourceLine" id="cb13-20" title="20">                         <span class="kw">override</span> <span class="kw">val</span> environmentVariables: Map[String, String],</a>
+<a class="sourceLine" id="cb13-21" title="21">                         <span class="kw">override</span> <span class="kw">val</span> removedEnvironmentVariables: Set[String],</a>
+<a class="sourceLine" id="cb13-22" title="22">                         <span class="kw">override</span> <span class="kw">val</span> outputRedirection: OutputRedirection[F],</a>
+<a class="sourceLine" id="cb13-23" title="23">                         <span class="kw">override</span> <span class="kw">val</span> runOutputStream: (java.<span class="fu">io</span>.<span class="fu">InputStream</span>, Blocker, ContextShift[F]) =&gt; F[Unit],</a>
+<a class="sourceLine" id="cb13-24" title="24">                         <span class="kw">override</span> <span class="kw">val</span> errorRedirection: OutputRedirection[F],</a>
+<a class="sourceLine" id="cb13-25" title="25">                         <span class="kw">override</span> <span class="kw">val</span> runErrorStream: (java.<span class="fu">io</span>.<span class="fu">InputStream</span>, Blocker, ContextShift[F]) =&gt; F[Unit],</a>
+<a class="sourceLine" id="cb13-26" title="26">                         <span class="kw">override</span> <span class="kw">val</span> inputRedirection: InputRedirection[F])</a>
+<a class="sourceLine" id="cb13-27" title="27">    <span class="kw">extends</span> Process[Unit, Unit]</a>
+<a class="sourceLine" id="cb13-28" title="28">      <span class="kw">with</span> RedirectableOutput[ProcessImplO[*]]</a>
+<a class="sourceLine" id="cb13-29" title="29">      <span class="kw">with</span> RedirectableError[ProcessImplE[*]]</a>
+<a class="sourceLine" id="cb13-30" title="30">      <span class="kw">with</span> RedirectableInput[ProcessImplI]] {</a>
+<a class="sourceLine" id="cb13-31" title="31">    <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-32" title="32">    </a>
+<a class="sourceLine" id="cb13-33" title="33">    <span class="kw">def</span> connectOutput[R &lt;: OutputRedirection, RO](target: R)(<span class="kw">implicit</span> outputRedirectionType: OutputRedirectionType.<span class="fu">Aux</span>[R, RO]): ProcessImplO[RO] =</a>
+<a class="sourceLine" id="cb13-34" title="34">      <span class="fu">ProcessImplO</span>(</a>
+<a class="sourceLine" id="cb13-35" title="35">        <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-36" title="36">        target,</a>
+<a class="sourceLine" id="cb13-37" title="37">        outputRedirectionType.<span class="fu">runner</span>(target),</a>
+<a class="sourceLine" id="cb13-38" title="38">        <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-39" title="39">      )</a>
+<a class="sourceLine" id="cb13-40" title="40">  }</a>
+<a class="sourceLine" id="cb13-41" title="41">    </a>
+<a class="sourceLine" id="cb13-42" title="42">  <span class="kw">case</span> <span class="kw">class</span> ProcessImplO[O](<span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-43" title="43">                             <span class="kw">override</span> <span class="kw">val</span> runOutputStream: (java.<span class="fu">io</span>.<span class="fu">InputStream</span>, Blocker, ContextShift[F]) =&gt; F[O],</a>
+<a class="sourceLine" id="cb13-44" title="44">                             <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-45" title="45">                            )</a>
+<a class="sourceLine" id="cb13-46" title="46">    <span class="kw">extends</span> Process[O, Unit]</a>
+<a class="sourceLine" id="cb13-47" title="47">      <span class="kw">with</span> RedirectableError[ProcessImplOE[O, *]]</a>
+<a class="sourceLine" id="cb13-48" title="48">      <span class="kw">with</span> RedirectableInput[ProcessImplIO[O]] {    </a>
+<a class="sourceLine" id="cb13-49" title="49">      <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-50" title="50">    }</a>
+<a class="sourceLine" id="cb13-51" title="51">}</a></code></pre></div>
+<p>Each implementation class only has the necessary subset of type parameters <code>O</code> and <code>E</code> (<code>E</code> is the error output type), and the <code>I</code> <code>O</code> and <code>E</code> postfixes in the class names represent which channels are <em>bound</em>. Each redirection leads to a different implementation class with less and less redirection <em>capabilities</em>. <code>ProcessImplIOE</code> is the fully bound process.</p>
+<p>This makes all the redirection operators completely type inferable and very pleasant to use for building up concrete process definitions. And we don’t loose the ability to create generic function either. We can do it by requiring redirection capabilities:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1"><span class="kw">def</span> withInput[O, E, P &lt;: Process[O, E]](s: String)(process: Process[O, E] <span class="kw">with</span> RedirectableInput[P]): P = {</a>
+<a class="sourceLine" id="cb14-2" title="2">  <span class="kw">val</span> input = Stream(<span class="st">&quot;This is a test string&quot;</span>).<span class="fu">through</span>(text.<span class="fu">utf8Encode</span>)</a>
+<a class="sourceLine" id="cb14-3" title="3">  process &lt; input</a>
+<a class="sourceLine" id="cb14-4" title="4">}</a></code></pre></div>
+<p>Here we know we want to have a <code>Process</code> with the <code>RedirectableInput</code> capability. We also know that by binding the input we get a something without that trait, so we know the result is a process <code>P</code> but know nothing else about its further capabilities. This is where this solution gets a bit inconvenient, if we want to chain these wrapper functions. To help with it, the library contains <em>type aliases</em> for the whole redirection capability chain that can be used in these functions. For example:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb15-1" title="1"><span class="co">/**</span> Process with unbound input<span class="co">,</span> output and error streams <span class="co">*/</span></a>
+<a class="sourceLine" id="cb15-2" title="2"><span class="kw">type</span> UnboundProcess = Process[Unit, Unit]</a>
+<a class="sourceLine" id="cb15-3" title="3">  <span class="kw">with</span> RedirectableInput[UnboundOEProcess]</a>
+<a class="sourceLine" id="cb15-4" title="4">  <span class="kw">with</span> RedirectableOutput[UnboundIEProcess[*]]</a>
+<a class="sourceLine" id="cb15-5" title="5">  <span class="kw">with</span> RedirectableError[UnboundIOProcess[*]]</a></code></pre></div>
+<h2 id="process-piping">Process piping</h2>
+<p>The other major feature beside redirection that <em>prox</em> had is <strong>piping processes together</strong>, meaning the first process’ output gets redirected to the second process’ input. Now that we have redesigned processes and redirection capabilities, we can try to implement this on top of them.</p>
+<p>The idea is that when we construct a <em>process group</em> from a list of <code>Process</code> instances with the necessary redirection capabilities, this construction could set up the redirection and store the modified processes instead, then running them together. And it can reuse the <code>RedirectableOutput</code> and <code>RedirectableInput</code> capabilities to bind the first/last process!</p>
+<p>Let’s again start by defining what we need for the <em>process group</em>:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1"><span class="kw">trait</span> ProcessGroup[O, E] <span class="kw">extends</span> ProcessLike {</a>
+<a class="sourceLine" id="cb16-2" title="2">  <span class="kw">val</span> firstProcess: Process[Stream[IO, Byte], E]</a>
+<a class="sourceLine" id="cb16-3" title="3">  <span class="kw">val</span> innerProcesses: List[Process.<span class="fu">UnboundIProcess</span>[Stream[IO, Byte], E]]</a>
+<a class="sourceLine" id="cb16-4" title="4">  <span class="kw">val</span> lastProcess: Process.<span class="fu">UnboundIProcess</span>[O, E]</a>
+<a class="sourceLine" id="cb16-5" title="5"></a>
+<a class="sourceLine" id="cb16-6" title="6">  <span class="kw">val</span> originalProcesses: List[Process[Unit, Unit]]</a>
+<a class="sourceLine" id="cb16-7" title="7">}</a></code></pre></div>
+<p><code>ProcessLike</code> is a common base trait for <code>Process</code> and <code>ProcessGroup</code>. By introducing it, we can change the <code>RedirectableOutput</code> trait’s self type bounds so it works for both processes and process groups.</p>
+<p>A valid process group always have at least <strong>2</strong> processes and they get pre-configured during the construction of the group so when they get started, their channels can be joined. This means the group members can be split into three groups:</p>
+<ul>
+<li>The <strong>first process</strong> has it’s output redirected to a stream, but <em>running</em> the stream just returns the stream itself; this way it can be connected to the next process’s input</li>
+<li>The <strong>inner processes</strong> are all having their output redirected in the same way, and it is also a <em>requirement</em> that these must have their <em>input channel</em> unbound. This is needed for the operation described above, when we plug the previous process’ output into the input</li>
+<li>The <strong>last process</strong> can have its output freely redirected by the user, but it’s <em>input</em> must be unbound so the previous process can be plugged in</li>
+</ul>
+<p>We also store the <em>original</em> process values for reasons explained later.</p>
+<p>So as we can see the piping has two stages:</p>
+<ol type="1">
+<li>First we prepare the processes by setting up their output to return an un-executed stream</li>
+<li>And we need a process group specific start function into the <code>ProcessRunner</code> that plugs everything together</li>
+</ol>
+<p>The first step is performed by the <em>pipe operator</em> (<code>|</code>), which is defined on <code>Process</code> via an extension method to construct group of two processes, and on <code>ProcessGroupImpl</code> to add more. For simplicity the piping operator is currently not defined on the bound process group types. So it has to be first constructed, and then the redirection set up.</p>
+<p>Let’s see the one that adds one more process to a group:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb17-1" title="1"><span class="kw">def</span> <span class="fu">pipeInto</span>(other: Process.<span class="fu">UnboundProcess</span>,</a>
+<a class="sourceLine" id="cb17-2" title="2">             channel: Pipe[IO, Byte, Byte]): ProcessGroupImpl = {</a>
+<a class="sourceLine" id="cb17-3" title="3">  <span class="kw">val</span> pl1 = lastProcess.<span class="fu">connectOutput</span>(OutputStream(channel, (stream: Stream[IO, Byte]) =&gt; IO.<span class="fu">pure</span>(stream)))</a>
+<a class="sourceLine" id="cb17-4" title="4"></a>
+<a class="sourceLine" id="cb17-5" title="5">  <span class="fu">copy</span>(</a>
+<a class="sourceLine" id="cb17-6" title="6">    innerProcesses = pl1 :: innerProcesses,</a>
+<a class="sourceLine" id="cb17-7" title="7">    lastProcess = other,</a>
+<a class="sourceLine" id="cb17-8" title="8">    originalProcesses = other :: originalProcesses</a>
+<a class="sourceLine" id="cb17-9" title="9">  )</a>
+<a class="sourceLine" id="cb17-10" title="10">}</a>
+<a class="sourceLine" id="cb17-11" title="11"></a>
+<a class="sourceLine" id="cb17-12" title="12"><span class="kw">def</span> |(other: Process.<span class="fu">UnboundProcess</span>): ProcessGroupImpl = <span class="fu">pipeInto</span>(other, identity)</a></code></pre></div>
+<p>Other than moving processes around in the <code>innerProcesses</code> and <code>lastProcess</code>, we also set up the <strong>previous last process</strong>’s output in the way I described:</p>
+<ul>
+<li>It gets redirected to a pipe which is by default <code>identity</code></li>
+<li>And it’s <em>runner</em> instead of actually running the stream, just returns the stream definition</li>
+</ul>
+<p>This way we can write a process group specific start function into the <em>process runner</em>:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb18-1" title="1"><span class="kw">override</span> <span class="kw">def</span> startProcessGroup[O, E](processGroup: ProcessGroup[O, E], blocker: Blocker): IO[RunningProcessGroup[O, E]] =</a>
+<a class="sourceLine" id="cb18-2" title="2">  <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb18-3" title="3">    first &lt;- <span class="fu">startProcess</span>(processGroup.<span class="fu">firstProcess</span>, blocker)</a>
+<a class="sourceLine" id="cb18-4" title="4">    firstOutput &lt;- first.<span class="fu">runningOutput</span>.<span class="fu">join</span></a>
+<a class="sourceLine" id="cb18-5" title="5">    innerResult &lt;- <span class="kw">if</span> (processGroup.<span class="fu">innerProcesses</span>.<span class="fu">isEmpty</span>) {</a>
+<a class="sourceLine" id="cb18-6" title="6">      IO.<span class="fu">pure</span>((List.<span class="fu">empty</span>, firstOutput))</a>
+<a class="sourceLine" id="cb18-7" title="7">    } <span class="kw">else</span> {</a>
+<a class="sourceLine" id="cb18-8" title="8">      <span class="kw">val</span> inner = processGroup.<span class="fu">innerProcesses</span>.<span class="fu">reverse</span></a>
+<a class="sourceLine" id="cb18-9" title="9">      <span class="fu">connectAndStartProcesses</span>(inner.<span class="fu">head</span>, firstOutput, inner.<span class="fu">tail</span>, blocker, List.<span class="fu">empty</span>)</a>
+<a class="sourceLine" id="cb18-10" title="10">    }</a>
+<a class="sourceLine" id="cb18-11" title="11">    (inner, lastInput) = innerResult</a>
+<a class="sourceLine" id="cb18-12" title="12">    last &lt;- <span class="fu">startProcess</span>(processGroup.<span class="fu">lastProcess</span>.<span class="fu">connectInput</span>(InputStream(lastInput, flushChunks = <span class="kw">false</span>)), blocker)</a>
+<a class="sourceLine" id="cb18-13" title="13">    runningProcesses = processGroup.<span class="fu">originalProcesses</span>.<span class="fu">reverse</span>.<span class="fu">zip</span>((first :: inner) :+ last).<span class="fu">toMap</span></a>
+<a class="sourceLine" id="cb18-14" title="14">  } <span class="kw">yield</span> <span class="kw">new</span> JVMRunningProcessGroup[O, E](runningProcesses, last.<span class="fu">runningOutput</span>)</a></code></pre></div>
+<p>where <code>connectAndStartProcesses</code> is a recursive function that does the same as we do with the first process:</p>
+<ul>
+<li>start it with the <code>startProcess</code> function (this is the same function we discussed in the first section, that starts <code>Process</code> values)</li>
+<li>then “join” the output fiber; this completes immediately as it is not really running the output stream just returning it</li>
+<li>we connect the <em>input</em> of the next process to the previous process’ output</li>
+</ul>
+<p>One thing we did not talk about yet is getting the <strong>results</strong> of a process group. This is where the old implementation again used some type level techniques and returned a <code>RunningProcess</code> value with specific per-process output and error types for each member of the group, as a <code>HList</code> (or converted to a <em>tuple</em>).</p>
+<p>By making the library a bit more dynamic we can drop this part too. What is that we really want to do with a running process group?</p>
+<ul>
+<li><strong>Terminating</strong> the whole group together. Terminating just one part is something we does not support currently although it would not be hard to add.</li>
+<li><strong>Waiting</strong> for all processes to stop</li>
+<li>Examining the <strong>exit code</strong> for each member of the group</li>
+<li>Redirecting the <strong>error</strong> channel of each process to something and getting them in the result</li>
+<li>Redirecting the <strong>input</strong> of the group’s first process</li>
+<li>Redirecting the <strong>output</strong> of the group’s last process, and getting it in the result</li>
+</ul>
+<p>The most difficult and primary reason for the <code>HList</code> in the old version is the error redirection, as it can be done <em>per process</em>. With some restrictions we can make a reasonable implementation though.</p>
+<p>First, we require that the processes participating in forming a <em>process group</em> does not have their <em>error channel</em> bound yet. Then we create a <code>RedirectableErrors</code> capability that is very similar to the existing <code>RedirectableError</code> trait, but provides an advanced interface through it’s <code>customizedPerProcess</code> field:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb19-1" title="1"><span class="kw">trait</span> RedirectableErrors[+P[_] &lt;: ProcessGroup[_, _]] {</a>
+<a class="sourceLine" id="cb19-2" title="2">  <span class="kw">lazy</span> <span class="kw">val</span> customizedPerProcess: RedirectableErrors.<span class="fu">CustomizedPerProcess</span>[P] = <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb19-3" title="3">}</a></code></pre></div>
+<p>where the <code>CustomizedPerProcess</code> interface contains the same redirection functions but accept a function of a <code>Process</code> as parameter.</p>
+<p>For example:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb20-1" title="1"><span class="kw">def</span> <span class="fu">errorsToSink</span>(sink: Pipe[IO, Byte, Unit]): P[Unit]</a>
+<a class="sourceLine" id="cb20-2" title="2"><span class="co">// vs</span></a>
+<a class="sourceLine" id="cb20-3" title="3"><span class="kw">def</span> <span class="fu">errorsToSink</span>(sinkFn: Process[_, _] =&gt; Pipe[IO, Byte, Unit]): P[Unit] =</a></code></pre></div>
+<p>The limitation is that for all process we need to have the same <strong>error result type</strong> but it still gets a lot of freedom via the advanced interface: we can tag the output with the process and split their processing further in the stream.</p>
+<p>With this choice, we can finally define the result type of the process group too:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb21-1" title="1"><span class="kw">trait</span> ProcessGroupResult[+O, +E] {</a>
+<a class="sourceLine" id="cb21-2" title="2">  <span class="kw">val</span> exitCodes: Map[Process[Unit, Unit], ExitCode]</a>
+<a class="sourceLine" id="cb21-3" title="3">  <span class="kw">val</span> output: O</a>
+<a class="sourceLine" id="cb21-4" title="4">  <span class="kw">val</span> errors: Map[Process[Unit, Unit], E]</a>
+<a class="sourceLine" id="cb21-5" title="5">}</a></code></pre></div>
+<p>The error results and the exit codes are in a map indexed by the <strong>original process</strong>. This is the value passed to the piping operator, the one that the user constructing the group has. That’s why in the <code>ProcessGroup</code> trait we also had to store the original process values.</p>
+<p>As the output of all the inner processes are piped to the next process, we only have to care about the last process’ output.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>With a full redesign and making some compromises, we get a library that has a much more readable and easier to maintain code, and an API that is discoverable by the IDE and does not produce any weird error messages on misuse.</p>
+<p>Note that in all the code snippets above I removed the <em>effect abstraction</em> and just used <code>IO</code> to make them simpler. The real code of course can be used with any IO library such as ZIO, just like the previous versions.</p>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>

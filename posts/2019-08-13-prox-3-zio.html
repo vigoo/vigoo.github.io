@@ -36,6 +36,7 @@
 <li><a href="2019-02-10-prox-1-types.html">Part 1 - type level programming</a></li>
 <li><a href="2019-03-07-prox-2-io-akkastreams.html">Part 2 - akka streams with cats effect</a></li>
 <li><a href="2019-08-13-prox-3-zio.html">Part 3 - effect abstraction and ZIO</a></li>
+<li><a href="2020-08-03-prox-4-simplify.hml">Part 4 - simplified redesign</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p>The <a href="2019-02-10-prox-1-types.html">first post</a> introduced the <em>prox library</em> and demonstrated the advanced type level programming techniques it uses. Then in the <a href="2019-03-07-prox-2-io-akkastreams.html">second part</a> of this series we experimented with replacing the <em>streaming library</em> from <a href="https://fs2.io/">fs2</a> to <a href="https://doc.akka.io/docs/akka/2.5/stream/">Akka Streams</a>.</p>
@@ -51,12 +52,12 @@
 <li>An implicit <em>context shifter</em> is needed by the implementations which are calling some streaming functions needing it.</li>
 </ul>
 <p>To make it independent of the effect library implementation we have to get rid of <code>IO</code> and use a generic type instead, let’s call it <code>F</code>:</p>
-<pre><code>def apply(process: PN, 
-          dontStartOutput: Boolean = false, 
-          blocker: Blocker)
-         (implicit
-          concurrent: Concurrent[F],
-          contextShift: ContextShift[F]): F[RunningProcesses]</code></pre>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">def</span> <span class="fu">apply</span>(process: PN, </a>
+<a class="sourceLine" id="cb2-2" title="2">          dontStartOutput: Boolean = <span class="kw">false</span>, </a>
+<a class="sourceLine" id="cb2-3" title="3">          blocker: Blocker)</a>
+<a class="sourceLine" id="cb2-4" title="4">         (<span class="kw">implicit</span></a>
+<a class="sourceLine" id="cb2-5" title="5">          concurrent: Concurrent[F],</a>
+<a class="sourceLine" id="cb2-6" title="6">          contextShift: ContextShift[F]): F[RunningProcesses]</a></code></pre></div>
 <p>Beside using <code>F</code> instead of <code>IO</code> everywhere we also have a new requirement, our context type (<code>F</code>) have to have an implementation of the <a href="https://typelevel.org/cats-effect/typeclasses/concurrent.html"><code>Concurrent</code></a> type class.</p>
 <p><em>Cats-effect</em> defines a hierarchy of type classes to deal with effectful computations. At the time of writing it looks like this: <img src="https://typelevel.org/cats-effect/img/cats-effect-typeclasses.svg" /></p>
 <p>Read the <a href="https://typelevel.org/cats-effect/typeclasses/">official documentation</a> for more information.</p>
