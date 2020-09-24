@@ -8,8 +8,334 @@
         <name>Daniel Vigovszky</name>
         <email>daniel.vigovszky@gmail.com</email>
     </author>
-    <updated>2020-08-03T00:00:00Z</updated>
+    <updated>2020-09-23T00:00:00Z</updated>
     <entry>
+    <title>Code generation in ZIO-AWS</title>
+    <link href="http://vigoo.github.io/posts/2020-09-23-zioaws-code-generation.html" />
+    <id>http://vigoo.github.io/posts/2020-09-23-zioaws-code-generation.html</id>
+    <published>2020-09-23T00:00:00Z</published>
+    <updated>2020-09-23T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on September 23, 2020
+    
+</div>
+
+<p>I have recently published a set of libraries, <a href="https://github.com/vigoo/zio-aws"><strong>zio-aws</strong></a>, aiming to provide a better interface for working with <em>AWS services</em> from <a href="https://zio.dev/">ZIO</a> applications. For more information about how the ZIO <em>interface</em> works and how to get started with these libraries, read the repository’s README. In this post, I will focus on how these libraries are generated from the schema provided by the <a href="https://github.com/aws/aws-sdk-java-v2">AWS Java SDK v2</a>.</p>
+<h2 id="generating-code">Generating code</h2>
+<p>I wanted to cover <em>all</em> AWS services at once. This means client libraries for more than 200 services, so the only possible approach was to <em>generate</em> these libraries on top of a small hand-written core.</p>
+<h3 id="schema">Schema</h3>
+<p>The first thing we need for generating code is a source schema. This is the model that we use to create the source code from. It is usually constructed by some kind of DSL or more directly described by a JSON or YAML or similar data model. In the case of <strong>zio-aws</strong> this was already defined in the <a href="https://github.com/aws/aws-sdk-java-v2">AWS Java SDK v2</a> project. The way it works is:</p>
+<ul>
+<li>There is a <code>codegen</code> project, published in the <code>software.amazon.awssdk</code> group among the client libraries, that contains the Java classes used for generating the Java SDK itself. This contains the data model classes for parsing the actual schema as well.</li>
+<li>In the AWS Java SDK v2 repository, the schema is located in the subdirectory called <a href="https://github.com/aws/aws-sdk-java-v2/tree/master/services"><code>services</code></a>. There is a directory for each AWS service and it contains among other things some relevant <em>JSON</em> schema files:
+<ul>
+<li><code>service-2.json</code> is the main schema of the service, describing the data structures and operations</li>
+<li><code>paginators-1.json</code> describes the operations that the Java SDK creates a <em>paginator interface</em> for</li>
+<li><code>customization.config</code> contains extra information, including changes to be applied on top of the service model</li>
+</ul></li>
+<li>Fortunately, these are also embedded in the generated <em>AWS Java SDK</em> libraries as resources, so getting <em>all client libraries</em> on the classpath gives us an easy way to get the corresponding schemas as well</li>
+</ul>
+<p>I decided to use the low-level data classes from the AWS <code>codegen</code> library to parse these files and using that build a higher-level model that can be then used as an input for the <em>code generator</em>.</p>
+<p>This is encapsulated in a <em>ZIO layer</em> called <code>Loader</code>, which has two functions:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">def</span> <span class="fu">findModels</span>(): ZIO[Blocking, Throwable, Set[ModelId]]</a>
+<a class="sourceLine" id="cb1-2" title="2"><span class="kw">def</span> <span class="fu">loadCodegenModel</span>(id: ModelId): ZIO[Blocking, Throwable, C2jModels]</a></code></pre></div>
+<p>The first one, <code>findModels</code> uses the <code>ClassLoader</code> to enumerate all <code>codegen-resources</code> folders on the <em>classpath</em> and just returns a set of <code>ModelId</code>s. <code>ModelId</code> is a pair of a model name (such as <code>s3</code>) and an optional submodule name (for example <code>dynamodb:dynamodbstreams</code>).</p>
+<p>Then for each detected model we can load it with the <code>loadCodegenModel</code> function, <code>C2jModels</code> is a class from the AWS <code>codegen</code> library.</p>
+<p>Figuring out how to interpret these data structures, and how to map them to the generated Java API was the hardest part, but it’s out of scope for this post. Our next topic here is how we generate code from our <em>model</em>.</p>
+<h3 id="scalameta">Scalameta</h3>
+<p>There are several possibilities to generate source code and I tried many of them during the past years. Let’s see some examples:</p>
+<ul>
+<li>Using a general-purpose text template engine. An example we used at <a href="https://prezi.com">Prezi</a> is the <a href="https://github.com/bkiers/Liqp">Java implementation of the Liquid templating engine</a>. Another example is the <a href="https://github.com/OpenAPITools/openapi-generator">OpenAPI generator project</a> that uses <a href="https://mustache.github.io/">Mustache</a> templates to generate server and client code from OpenAPI specifications.</li>
+<li>Generating from code with some general-purpose pretty-printing library. With this approach, we are using the pretty-printer library’s composability features to create source code building blocks, and map the code generator model to these constructs. It is easier to express complex logic in this case, as we don’t have to encode it in a limited dynamic template model. On the other hand, reading the code generator’s source and imagining the output is not easy, and nothing enforces that the pretty-printer building blocks are actually creating valid source code.</li>
+<li>If the target language has an AST with a pretty-printing feature, we can map the model to the AST directly and just pretty print at the end. With this, we get a much more efficient development cycle, as the generated code is at least guaranteed to be syntactically correct. But the AST can be far from how the target language’s textual representation looks like, which makes it difficult to read and write this code.</li>
+<li>With a library that supports building ASTs with <em>quasiquotes</em>, we can build the AST fragments with a syntax that is very close to the generated target language. For <em>Scala</em>, a library that supports this and is used in a lot of tooling projects is <a href="https://scalameta.org/">Scalameta</a></li>
+</ul>
+<p>I wanted to try using <em>Scalameta</em> ever since I met Devon Stewart and he mentioned how he uses it in <a href="https://github.com/twilio/guardrail/">guardrail</a>. Finally, this was a perfect use case to do so!</p>
+<p>To get an understanding of what kind of Scala language constructs can be built with <em>quasiquotes</em> with <em>Scalameta</em>, check <a href="https://scalameta.org/docs/trees/quasiquotes.html">the list of them in the official documentation</a>.</p>
+<p>We get a good mix of both worlds with this. It is possible to express complex template logic in real code, creating higher-level constructs, taking advantage of the full power of Scala. On the other hand, the actual <em>quasiquoted</em> fragments are still close to the code generator’s target language (which is in this case also Scala).</p>
+<p>Let’s see a short example of this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">private</span> <span class="kw">def</span> <span class="fu">generateMap</span>(m: Model): ZIO[GeneratorContext, GeneratorFailure, ModelWrapper] = {</a>
+<a class="sourceLine" id="cb2-2" title="2">  <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb2-3" title="3">    keyModel &lt;- <span class="fu">get</span>(m.<span class="fu">shape</span>.<span class="fu">getMapKeyType</span>.<span class="fu">getShape</span>)</a>
+<a class="sourceLine" id="cb2-4" title="4">    valueModel &lt;- <span class="fu">get</span>(m.<span class="fu">shape</span>.<span class="fu">getMapValueType</span>.<span class="fu">getShape</span>)</a>
+<a class="sourceLine" id="cb2-5" title="5">    keyT &lt;- TypeMapping.<span class="fu">toWrappedType</span>(keyModel)</a>
+<a class="sourceLine" id="cb2-6" title="6">    valueT &lt;- TypeMapping.<span class="fu">toWrappedType</span>(valueModel)</a>
+<a class="sourceLine" id="cb2-7" title="7">  } <span class="kw">yield</span> <span class="fu">ModelWrapper</span>(</a>
+<a class="sourceLine" id="cb2-8" title="8">    code = List(q<span class="st">&quot;&quot;&quot;type ${m.asType} = Map[$keyT, $valueT]&quot;&quot;&quot;</span>)</a>
+<a class="sourceLine" id="cb2-9" title="9">  )</a>
+<a class="sourceLine" id="cb2-10" title="10">}</a></code></pre></div>
+<p>For each <em>AWS</em> service-specific <em>model type</em> we generate some kind of wrapper code into the ZIO service client library. This is done by processing the schema model to an intermediate format where for each such wrapper, we have a <code>ModelWrapper</code> value that already has the <em>Scalameta AST</em> for that particular wrapper. The above code fragment creates this for <em>map types</em>, which is a simple type alias for a Scala <code>Map</code>. It’s a <code>ZIO</code> function, taking advantage of passing around the context in the <em>environment</em> and safely handling generator failures, while the actual generated code part in the <code>q&quot;&quot;&quot;...&quot;&quot;&quot;</code> remained quite readable.</p>
+<p>Then the whole <em>model package</em> can be expressed like this:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb3-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb3-3" title="3">  primitiveModels &lt;- ZIO.<span class="fu">foreach</span>(primitiveModels.<span class="fu">toList</span>.<span class="fu">sortBy</span>(_.<span class="fu">name</span>))(generateModel)</a>
+<a class="sourceLine" id="cb3-4" title="4">  models &lt;- ZIO.<span class="fu">foreach</span>(complexModels.<span class="fu">toList</span>.<span class="fu">sortBy</span>(_.<span class="fu">name</span>))(generateModel)</a>
+<a class="sourceLine" id="cb3-5" title="5">} <span class="kw">yield</span> q<span class="st">&quot;&quot;&quot;package $fullPkgName {</span></a>
+<a class="sourceLine" id="cb3-6" title="6"></a>
+<a class="sourceLine" id="cb3-7" title="7">            <span class="kw">import</span> scala.<span class="fu">jdk</span>.<span class="fu">CollectionConverters</span>._</a>
+<a class="sourceLine" id="cb3-8" title="8">            <span class="kw">import</span> java.<span class="fu">time</span>.<span class="fu">Instant</span></a>
+<a class="sourceLine" id="cb3-9" title="9">            <span class="kw">import</span> zio.{Chunk, ZIO}</a>
+<a class="sourceLine" id="cb3-10" title="10">            <span class="kw">import</span> software.<span class="fu">amazon</span>.<span class="fu">awssdk</span>.<span class="fu">core</span>.<span class="fu">SdkBytes</span></a>
+<a class="sourceLine" id="cb3-11" title="11"></a>
+<a class="sourceLine" id="cb3-12" title="12">            ..$parentModuleImport</a>
+<a class="sourceLine" id="cb3-13" title="13"></a>
+<a class="sourceLine" id="cb3-14" title="14">            <span class="kw">package</span> <span class="kw">object</span> model {</a>
+<a class="sourceLine" id="cb3-15" title="15">              <span class="kw">object</span> primitives {</a>
+<a class="sourceLine" id="cb3-16" title="16">                ..${primitiveModels.<span class="fu">flatMap</span>(_.<span class="fu">code</span>)}</a>
+<a class="sourceLine" id="cb3-17" title="17">              }</a>
+<a class="sourceLine" id="cb3-18" title="18"></a>
+<a class="sourceLine" id="cb3-19" title="19">              ..${models.<span class="fu">flatMap</span>(_.<span class="fu">code</span>)}</a>
+<a class="sourceLine" id="cb3-20" title="20">            }}<span class="st">&quot;&quot;&quot;</span></a></code></pre></div>
+<p>This can be then <em>pretty printed</em> simply with<code>.toString</code> and saved to a <code>.scala</code> file.</p>
+<h2 id="building-the-libraries">Building the libraries</h2>
+<p>We have a way to collect the service models and generate source code from that, but we still have to use that generated code somehow. In <code>zio-aws</code> the goal was to generate a separate <em>client library</em> for each AWS service. At the time of writing, there were <strong>235</strong> such services. The generated libraries have to be built and published to <em>Sonatype</em>.</p>
+<h3 id="first-version">First version</h3>
+<p>In the first version I simply wired together the above described <code>loader</code> and <code>generator</code> module into a <code>ZIO</code> <em>command line</em> app, using <a href="https://vigoo.github.io/clipp/docs/">clipp</a> for command line parsing. It’s <code>main</code> was really just something like the following:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">val</span> app = <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb4-2" title="2">  svcs &lt;- config.<span class="fu">parameters</span>[Parameters].<span class="fu">map</span>(_.<span class="fu">serviceList</span>)</a>
+<a class="sourceLine" id="cb4-3" title="3">  ids &lt;- svcs <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb4-4" title="4">    <span class="kw">case</span> Some(ids) =&gt; ZIO.<span class="fu">succeed</span>(ids.<span class="fu">toSet</span>)</a>
+<a class="sourceLine" id="cb4-5" title="5">    <span class="kw">case</span> None =&gt; loader.<span class="fu">findModels</span>().<span class="fu">mapError</span>(ReflectionError)</a>
+<a class="sourceLine" id="cb4-6" title="6">  }</a>
+<a class="sourceLine" id="cb4-7" title="7">  _ &lt;- ZIO.<span class="fu">foreachPar</span>(ids) { id =&gt;</a>
+<a class="sourceLine" id="cb4-8" title="8">    <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb4-9" title="9">      model &lt;- loader.<span class="fu">loadCodegenModel</span>(id).<span class="fu">mapError</span>(ReflectionError)</a>
+<a class="sourceLine" id="cb4-10" title="10">      _ &lt;- generator.<span class="fu">generateServiceCode</span>(id, model).<span class="fu">mapError</span>(GeneratorError)</a>
+<a class="sourceLine" id="cb4-11" title="11">    } <span class="kw">yield</span> ()</a>
+<a class="sourceLine" id="cb4-12" title="12">  }</a>
+<a class="sourceLine" id="cb4-13" title="13">  _ &lt;- generator.<span class="fu">generateBuildSbt</span>(ids).<span class="fu">mapError</span>(GeneratorError)</a>
+<a class="sourceLine" id="cb4-14" title="14">  _ &lt;- generator.<span class="fu">copyCoreProject</span>().<span class="fu">mapError</span>(GeneratorError)</a>
+<a class="sourceLine" id="cb4-15" title="15">} <span class="kw">yield</span> ExitCode.<span class="fu">success</span></a>
+<a class="sourceLine" id="cb4-16" title="16"></a>
+<a class="sourceLine" id="cb4-17" title="17"><span class="kw">val</span> cfg = config.<span class="fu">fromArgsWithUsageInfo</span>(args, Parameters.<span class="fu">spec</span>).<span class="fu">mapError</span>(ParserError)</a>
+<a class="sourceLine" id="cb4-18" title="18"><span class="kw">val</span> modules = loader.<span class="fu">live</span> ++ (cfg &gt;+&gt; generator.<span class="fu">live</span>)</a>
+<a class="sourceLine" id="cb4-19" title="19">app.<span class="fu">provideCustomLayer</span>(modules)</a></code></pre></div>
+<p>Then created a <em>multi-module</em> <code>sbt</code> project with the following modules:</p>
+<ul>
+<li><code>zio-aws-codegen</code> the CLI code generator we were talking about so far</li>
+<li><code>zio-aws-core</code> holding the common part of all AWS service wrapper libraries. This contains things like how to translate AWS pagination into <code>ZStream</code> etc.</li>
+<li><code>zio-aws-akka-http</code>, <code>zio-aws-http4s</code> and <code>zio-aws-netty</code> are the supported <em>HTTP layers</em>, all depend on <code>zio-aws-core</code></li>
+</ul>
+<p>I also created a first <em>example</em> project in a separate <code>sbt</code> project, that demonstrated the use of some of the generated AWS client libraries. With this primitive setup, building everything from scratch and running the example took the following steps:</p>
+<ol type="1">
+<li><code>sbt compile</code> the root project</li>
+<li>manually running <code>zio-aws-codegen</code> to generate <em>all client libs at once</em> to a separate directory, with a corresponding <code>build.sbt</code> including all these projects in a single <code>sbt</code> project</li>
+<li><code>sbt publishLocal</code> in the generated <code>sbt</code> project</li>
+<li><code>sbt run</code> in the <em>examples</em> project</li>
+</ol>
+<p>For the second, manual step I created some <em>custom sbt tasks</em> called <code>generateAll</code>, <code>buildAll</code>, and <code>publishLocalAll</code>, that downloaded an <code>sbt-launch-*.jar</code> and used it to run the code generator and fork an <code>sbt</code> to build the generated project.</p>
+<p>The <code>generateAll</code> task was quite simple:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1">generateAll := Def.<span class="fu">taskDyn</span> {</a>
+<a class="sourceLine" id="cb5-2" title="2">  <span class="kw">val</span> root = baseDirectory.<span class="fu">value</span>.<span class="fu">getAbsolutePath</span></a>
+<a class="sourceLine" id="cb5-3" title="3">  Def.<span class="fu">task</span> {</a>
+<a class="sourceLine" id="cb5-4" title="4">    (codegen / Compile / run).<span class="fu">toTask</span>(s<span class="st">&quot; --target-root ${root}/generated --source-root ${root} --version $zioAwsVersion --zio-version $zioVersion --zio-rs-version $zioReactiveStreamsInteropVersion&quot;</span>).<span class="fu">value</span></a>
+<a class="sourceLine" id="cb5-5" title="5">  }</a>
+<a class="sourceLine" id="cb5-6" title="6">}.<span class="fu">value</span></a></code></pre></div>
+<p>Launching a second <code>sbt</code> took more effort:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1">buildAll := Def.<span class="fu">taskDyn</span> {</a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="kw">val</span> _ = generateAll.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="kw">val</span> generatedRoot = baseDirectory.<span class="fu">value</span> / <span class="st">&quot;generated&quot;</span></a>
+<a class="sourceLine" id="cb6-4" title="4">  <span class="kw">val</span> launcherVersion = sbtVersion.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb6-5" title="5">  <span class="kw">val</span> launcher = s<span class="st">&quot;sbt-launch-$launcherVersion.jar&quot;</span></a>
+<a class="sourceLine" id="cb6-6" title="6">  <span class="kw">val</span> launcherFile = generatedRoot / launcher</a>
+<a class="sourceLine" id="cb6-7" title="7"></a>
+<a class="sourceLine" id="cb6-8" title="8">  Def.<span class="fu">task</span>[Unit] {</a>
+<a class="sourceLine" id="cb6-9" title="9">    <span class="kw">if</span> (!launcherFile.<span class="fu">exists</span>) {</a>
+<a class="sourceLine" id="cb6-10" title="10">      <span class="kw">val</span> u = <span class="fu">url</span>(s<span class="st">&quot;https://oss.sonatype.org/content/repositories/public/org/scala-sbt/sbt-launch/$launcherVersion/sbt-launch-$launcherVersion.jar&quot;</span>)</a>
+<a class="sourceLine" id="cb6-11" title="11">      sbt.<span class="fu">io</span>.<span class="fu">Using</span>.<span class="fu">urlInputStream</span>(u) { inputStream =&gt;</a>
+<a class="sourceLine" id="cb6-12" title="12">        IO.<span class="fu">transfer</span>(inputStream, launcherFile)</a>
+<a class="sourceLine" id="cb6-13" title="13">      }</a>
+<a class="sourceLine" id="cb6-14" title="14">    }</a>
+<a class="sourceLine" id="cb6-15" title="15">    <span class="kw">val</span> fork = <span class="kw">new</span> <span class="fu">ForkRun</span>(<span class="fu">ForkOptions</span>()</a>
+<a class="sourceLine" id="cb6-16" title="16">      .<span class="fu">withWorkingDirectory</span>(generatedRoot))</a>
+<a class="sourceLine" id="cb6-17" title="17">    fork.<span class="fu">run</span>(</a>
+<a class="sourceLine" id="cb6-18" title="18">      <span class="st">&quot;xsbt.boot.Boot&quot;</span>,</a>
+<a class="sourceLine" id="cb6-19" title="19">      classpath = launcherFile :: Nil,</a>
+<a class="sourceLine" id="cb6-20" title="20">      options = <span class="st">&quot;compile&quot;</span> :: Nil,</a>
+<a class="sourceLine" id="cb6-21" title="21">      log = streams.<span class="fu">value</span>.<span class="fu">log</span></a>
+<a class="sourceLine" id="cb6-22" title="22">    )</a>
+<a class="sourceLine" id="cb6-23" title="23">  }</a>
+<a class="sourceLine" id="cb6-24" title="24">}.<span class="fu">value</span></a></code></pre></div>
+<p>With these extra tasks, I released the first version of the library manually, but there was a lot of annoying difficulties:</p>
+<ul>
+<li>Having to switch between various <code>sbt</code> projects</li>
+<li>The need to <code>publishLocal</code> the generated artifacts in order to build the examples, or any kind of integration tests that I planned to add</li>
+<li>The only way to build only those client libraries that are needed for the examples/tests was to build and publish them manually, as this dependency was not tracked at all between the unrelated <code>sbt</code> projects</li>
+<li>Because the generated <code>sbt</code> project could not refer to the outer <code>zio-aws-core</code> project, it has to be copied into the generated project in the code generator step</li>
+<li>Building and publishing all the <strong>235</strong> projects at once required about <strong>16Gb</strong> memory and hours of compilation time. It was too big to run on any of the (freely available) CI systems.</li>
+</ul>
+<h3 id="proper-solution">Proper solution</h3>
+<p>When I mentioned this, <em>Itamar Ravid</em> recommended trying to make it an <em>sbt code generator</em>. <code>sbt</code> has built-in support for generating source code, as described <a href="https://www.scala-sbt.org/1.0/docs/Howto-Generating-Files.html">on it’s documentation page</a>. This alone though would not be enough to cover our use case, as in <code>zio-aws</code> even the <em>set of projects</em> is dynamic and comes from the enumeration of schema models. Fortunately, there is support for that in too, through the <code>extraProjects</code> property of <code>sbt</code> <em>plugins</em>.</p>
+<p>With these two tools, the new project layout became the following:</p>
+<ul>
+<li><code>zio-aws-codegen</code> is an sbt <strong>plugin</strong>, having it’s own <code>sbt</code> project in a subdirectory</li>
+<li>the <code>zio-aws-core</code> and the HTTP libraries are all in the top-level project as before</li>
+<li>examples and integration tests are also part of the top-level project</li>
+<li>the <code>zio-aws-codegen</code> plugin is referenced using a <code>ProjectRef</code> from the outer project</li>
+<li>the plugin adds all the <em>AWS service client wrapper libraries</em> to the top-level project</li>
+<li>these projects generate their source on-demand</li>
+</ul>
+<p>In this setup, it is possible to build any subset of the generated libraries without the need to process and compile all of them, so it needs much less memory. It is also much simpler to run tests or build examples on top of them, as the test and example projects can directly depend on the generated libraries as <code>sbt</code> submodules. And even developing the <em>code generator</em> itself is convenient - although for editing it, it has to be opened as in a separate IDE session, but otherwise, <code>sbt reload</code> on the top level project automatically recompiles the plugin when needed.</p>
+<p>Let’s see piece by piece how we can achieve this!</p>
+<h4 id="project-as-a-source-dependency">Project as a source dependency</h4>
+<p>The first thing I wanted to do is having the <code>zio-aws-codegen</code> project converted to an <code>sbt</code> plugin, but still having it in the same repository and be able to use it without having to install to a local repository. Although the whole code generator code could have been added to the top level <code>sbt</code> project’s <code>project</code> source, I wanted to keep it as a separate module to be able to publish it as a library or a CLI tool in the future if needed.</p>
+<p>This can be achieved by putting it in a subdirectory of the top level project, with a separate <code>build.sbt</code> that contains the</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1">sbtPlugin := <span class="kw">true</span></a></code></pre></div>
+<p>(beside the usual ones). Then it can be referenced in the top level project’s <code>project/plugins.sbt</code> in the following way:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">lazy</span> <span class="kw">val</span> codegen = project</a>
+<a class="sourceLine" id="cb8-2" title="2">  .<span class="fu">in</span>(<span class="fu">file</span>(<span class="st">&quot;.&quot;</span>))</a>
+<a class="sourceLine" id="cb8-3" title="3">  .<span class="fu">dependsOn</span>(<span class="fu">ProjectRef</span>(<span class="fu">file</span>(<span class="st">&quot;../zio-aws-codegen&quot;</span>), <span class="st">&quot;zio-aws-codegen&quot;</span>))</a></code></pre></div>
+<p>and enabled in the <code>build.sbt</code> as</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="fu">enablePlugins</span>(ZioAwsCodegenPlugin)</a></code></pre></div>
+<h4 id="dynamically-generating-projects">Dynamically generating projects</h4>
+<p>To generate the subprojects dynamically, we need the <code>Set[ModelId]</code> coming from the <code>loader</code> module. It is a <code>ZIO</code> module, so from the <code>sbt</code> plugin we have to use <code>Runtime.default.unsafeRun</code> to execute it.</p>
+<p>As the code generator project is now an <code>sbt</code> plugin, all the <code>sbt</code> data structures are directly available, so we can just write a function that maps the <code>ModelId</code>s to <code>Project</code>s:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">protected</span> <span class="kw">def</span> <span class="fu">generateSbtSubprojects</span>(ids: Set[ModelId]): Seq[Project] = ???</a></code></pre></div>
+<p>One interesting part here is that some of the subprojects are depending on each other. This happens with AWS service <em>submodules</em>, indicated by the second parameter of <code>ModelId</code>. An example is <code>dynamodbstreams</code> that depends on <code>dynamodb</code>. When creating the <code>Project</code> values, we have to be able to <code>dependOn</code> on some other already generated projects, and they have to be generated in the correct order to do so.</p>
+<p>We could do a full topological sort, but it is not necessary, here we know that the maximum depth of dependencies is 1, so it is enough to put the submodules at the end of the sequence:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1"><span class="kw">val</span> map = ids</a>
+<a class="sourceLine" id="cb11-2" title="2">  .<span class="fu">toSeq</span></a>
+<a class="sourceLine" id="cb11-3" title="3">  .<span class="fu">sortWith</span> { <span class="kw">case</span> (a, b) =&gt;</a>
+<a class="sourceLine" id="cb11-4" title="4">    <span class="kw">val</span> aIsDependent = a.<span class="fu">subModuleName</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb11-5" title="5">      <span class="kw">case</span> Some(value) <span class="kw">if</span> value != a.<span class="fu">name</span> =&gt; <span class="kw">true</span></a>
+<a class="sourceLine" id="cb11-6" title="6">      <span class="kw">case</span> _ =&gt; <span class="kw">false</span></a>
+<a class="sourceLine" id="cb11-7" title="7">    }</a>
+<a class="sourceLine" id="cb11-8" title="8">    <span class="kw">val</span> bIsDependent = b.<span class="fu">subModuleName</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb11-9" title="9">      <span class="kw">case</span> Some(value) <span class="kw">if</span> value != b.<span class="fu">name</span> =&gt; <span class="kw">true</span></a>
+<a class="sourceLine" id="cb11-10" title="10">      <span class="kw">case</span> _ =&gt; <span class="kw">false</span></a>
+<a class="sourceLine" id="cb11-11" title="11">    }</a>
+<a class="sourceLine" id="cb11-12" title="12">    bIsDependent || (!aIsDependent &amp;&amp; a.<span class="fu">toString</span> &lt; b.<span class="fu">toString</span>)</a>
+<a class="sourceLine" id="cb11-13" title="13">  }</a></code></pre></div>
+<p>Then in order to be able get the dependencies, we do a <em>fold</em> on the ordered <code>ModelId</code>s:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1">  .<span class="fu">foldLeft</span>(Map.<span class="fu">empty</span>[ModelId, Project]) { (mapping, id) =&gt;</a>
+<a class="sourceLine" id="cb12-2" title="2">      <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb12-3" title="3">      <span class="kw">val</span> deps = id.<span class="fu">subModule</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb12-4" title="4">        <span class="kw">case</span> Some(value) <span class="kw">if</span> value != id.<span class="fu">name</span> =&gt;</a>
+<a class="sourceLine" id="cb12-5" title="5">          Seq(<span class="fu">ClasspathDependency</span>(<span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-core&quot;</span>), None),</a>
+<a class="sourceLine" id="cb12-6" title="6">              <span class="fu">ClasspathDependency</span>(<span class="fu">mapping</span>(<span class="fu">ModelId</span>(id.<span class="fu">name</span>, Some(id.<span class="fu">name</span>))), None))</a>
+<a class="sourceLine" id="cb12-7" title="7">        <span class="kw">case</span> _ =&gt;</a>
+<a class="sourceLine" id="cb12-8" title="8">          Seq(<span class="fu">ClasspathDependency</span>(<span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-core&quot;</span>), None))</a>
+<a class="sourceLine" id="cb12-9" title="9">      }      </a>
+<a class="sourceLine" id="cb12-10" title="10">      <span class="kw">val</span> project = <span class="fu">Project</span>(fullName, <span class="fu">file</span>(<span class="st">&quot;generated&quot;</span>) / name)</a>
+<a class="sourceLine" id="cb12-11" title="11">        .<span class="fu">settings</span>(</a>
+<a class="sourceLine" id="cb12-12" title="12">          libraryDependencies += <span class="st">&quot;software.amazon.awssdk&quot;</span> % id.<span class="fu">name</span> % awsLibraryVersion.<span class="fu">value</span>,</a>
+<a class="sourceLine" id="cb12-13" title="13">          <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb12-14" title="14">        .<span class="fu">dependsOn</span>(deps: _*)</a>
+<a class="sourceLine" id="cb12-15" title="15"></a>
+<a class="sourceLine" id="cb12-16" title="16">      mapping.<span class="fu">updated</span>(id, project)</a>
+<a class="sourceLine" id="cb12-17" title="17">  }</a></code></pre></div>
+<p>To make it easier to work with the generated projects, we also create a project named <code>all</code> that aggregates all the ones generated above.</p>
+<h4 id="applying-settings-to-the-generated-projects">Applying settings to the generated projects</h4>
+<p>The code generator only sets the basic settings for the generated projects: name, path and dependencies. We need a lot more, setting organization and version, all the publishing options, controlling the Scala version, etc.</p>
+<p>I decided to keep these settings outside of the code generator plugin, in the top-level <code>sbt</code> project. By creating an <code>AutoPlugin</code> end enabling it for all projects, we can inject all the common settings for both the hand-written and the generated projects:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">object</span> Common <span class="kw">extends</span> AutoPlugin {</a>
+<a class="sourceLine" id="cb13-2" title="2"></a>
+<a class="sourceLine" id="cb13-3" title="3">  <span class="kw">object</span> autoImport {</a>
+<a class="sourceLine" id="cb13-4" title="4">    <span class="kw">val</span> scala212Version = <span class="st">&quot;2.12.12&quot;</span></a>
+<a class="sourceLine" id="cb13-5" title="5">    <span class="kw">val</span> scala213Version = <span class="st">&quot;2.13.3&quot;</span></a>
+<a class="sourceLine" id="cb13-6" title="6">    <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-7" title="7">  }</a>
+<a class="sourceLine" id="cb13-8" title="8">  <span class="kw">import</span> autoImport._</a>
+<a class="sourceLine" id="cb13-9" title="9">    </a>
+<a class="sourceLine" id="cb13-10" title="10">  <span class="kw">override</span> <span class="kw">val</span> trigger = allRequirements</a>
+<a class="sourceLine" id="cb13-11" title="11">  <span class="kw">override</span> <span class="kw">val</span> <span class="kw">requires</span> = Sonatype</a>
+<a class="sourceLine" id="cb13-12" title="12"></a>
+<a class="sourceLine" id="cb13-13" title="13">  <span class="kw">override</span> <span class="kw">lazy</span> <span class="kw">val</span> projectSettings =</a>
+<a class="sourceLine" id="cb13-14" title="14">    Seq(</a>
+<a class="sourceLine" id="cb13-15" title="15">      scalaVersion := scala213Version,</a>
+<a class="sourceLine" id="cb13-16" title="16">      crossScalaVersions := List(scala212Version, scala213Version),</a>
+<a class="sourceLine" id="cb13-17" title="17">      <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-18" title="18">    )</a>
+<a class="sourceLine" id="cb13-19" title="19">}</a></code></pre></div>
+<h4 id="source-generator-task">Source generator task</h4>
+<p>At this point, we could also add the already existing <em>source code generation</em> to the initialization of the plugin, and just generate all the subproject’s all source files every time the <code>sbt</code> project is loaded. With this number of generated projects though, it would have been a very big startup overhead and would not allow us to split the build (at least not the code generation part) on CI, to solve the memory and build time issues.</p>
+<p>As <code>sbt</code> has built-in support for defining <em>source generator tasks</em>, we can do much better!</p>
+<p>Instead of generating the source codes in one step, we define a <code>generateSources</code> task and add it to each <em>generated subproject</em> as a <em>source generator</em>:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1">Compile / sourceGenerators += generateSources.<span class="fu">taskValue</span>,</a>
+<a class="sourceLine" id="cb14-2" title="2">awsLibraryId := id.<span class="fu">toString</span></a></code></pre></div>
+<p>The <code>awsLibraryId</code> is a custom property that we the <code>generateSources</code> task can use to determine which schema to use for the code generation.</p>
+<p>The first part of this task is to gather the information from the project it got applied on, including the custom <code>awsLibraryId</code> property:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb15-1" title="1"><span class="kw">lazy</span> <span class="kw">val</span> generateSources =</a>
+<a class="sourceLine" id="cb15-2" title="2">  Def.<span class="fu">task</span> {</a>
+<a class="sourceLine" id="cb15-3" title="3">    <span class="kw">val</span> log = streams.<span class="fu">value</span>.<span class="fu">log</span></a>
+<a class="sourceLine" id="cb15-4" title="4"></a>
+<a class="sourceLine" id="cb15-5" title="5">    <span class="kw">val</span> idStr = awsLibraryId.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-6" title="6">    <span class="kw">val</span> id = ModelId.<span class="fu">parse</span>(idStr) <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb15-7" title="7">      <span class="kw">case</span> <span class="fu">Left</span>(failure) =&gt; sys.<span class="fu">error</span>(failure)</a>
+<a class="sourceLine" id="cb15-8" title="8">      <span class="kw">case</span> <span class="fu">Right</span>(value) =&gt; value</a>
+<a class="sourceLine" id="cb15-9" title="9">    }</a>
+<a class="sourceLine" id="cb15-10" title="10"></a>
+<a class="sourceLine" id="cb15-11" title="11">    <span class="kw">val</span> targetRoot = (sourceManaged in Compile).<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-12" title="12">    <span class="kw">val</span> travisSrc = travisSource.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-13" title="13">    <span class="kw">val</span> travisDst = travisTarget.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-14" title="14">    <span class="kw">val</span> parallelJobs = travisParallelJobs.<span class="fu">value</span></a></code></pre></div>
+<p>From these, we create a <code>Parameters</code> data structure to pass to the <code>generator</code> module. This is what we used to construct with <code>clipp</code> from CLI arguments:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1">    <span class="kw">val</span> params = <span class="fu">Parameters</span>(</a>
+<a class="sourceLine" id="cb16-2" title="2">      targetRoot = Path.<span class="fu">fromJava</span>(targetRoot.<span class="fu">toPath</span>),</a>
+<a class="sourceLine" id="cb16-3" title="3">      travisSource = Path.<span class="fu">fromJava</span>(travisSrc.<span class="fu">toPath</span>),</a>
+<a class="sourceLine" id="cb16-4" title="4">      travisTarget = Path.<span class="fu">fromJava</span>(travisDst.<span class="fu">toPath</span>),</a>
+<a class="sourceLine" id="cb16-5" title="5">      parallelTravisJobs = parallelJobs</a>
+<a class="sourceLine" id="cb16-6" title="6">    )</a></code></pre></div>
+<p>And finally, construct the <code>ZIO</code> environment, load a <strong>single</strong> schema model, and generate the library’s source code:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb17-1" title="1">    zio.<span class="fu">Runtime</span>.<span class="fu">default</span>.<span class="fu">unsafeRun</span> {</a>
+<a class="sourceLine" id="cb17-2" title="2">      <span class="kw">val</span> cfg = ZLayer.<span class="fu">succeed</span>(params)</a>
+<a class="sourceLine" id="cb17-3" title="3">      <span class="kw">val</span> env = loader.<span class="fu">live</span> ++ (cfg &gt;+&gt; generator.<span class="fu">live</span>)</a>
+<a class="sourceLine" id="cb17-4" title="4">      <span class="kw">val</span> task =</a>
+<a class="sourceLine" id="cb17-5" title="5">        <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb17-6" title="6">          _ &lt;- ZIO.<span class="fu">effect</span>(log.<span class="fu">info</span>(s<span class="st">&quot;Generating sources for $id&quot;</span>))</a>
+<a class="sourceLine" id="cb17-7" title="7">          model &lt;- loader.<span class="fu">loadCodegenModel</span>(id)</a>
+<a class="sourceLine" id="cb17-8" title="8">          files &lt;- generator.<span class="fu">generateServiceCode</span>(id, model)</a>
+<a class="sourceLine" id="cb17-9" title="9">        } <span class="kw">yield</span> files.<span class="fu">toSeq</span></a>
+<a class="sourceLine" id="cb17-10" title="10">      task.<span class="fu">provideCustomLayer</span>(env).<span class="fu">catchAll</span> { generatorError =&gt;</a>
+<a class="sourceLine" id="cb17-11" title="11">        ZIO.<span class="fu">effect</span>(log.<span class="fu">error</span>(s<span class="st">&quot;Code generator failure: ${generatorError}&quot;</span>)).<span class="fu">as</span>(Seq.<span class="fu">empty</span>)</a>
+<a class="sourceLine" id="cb17-12" title="12">      }</a>
+<a class="sourceLine" id="cb17-13" title="13">    }</a>
+<a class="sourceLine" id="cb17-14" title="14">  }</a></code></pre></div>
+<p>The <code>generateServiceCode</code> function returns a <code>Set[File]</code> value containing all the generated source files. This is the result of the <em>source generator task</em>, and <code>sbt</code> uses this information to add the generated files to the compilation.</p>
+<h4 id="referencing-the-generated-projects">Referencing the generated projects</h4>
+<p>When defining downstream projects in the <code>build.sbt</code>, such as integration tests and other examples, we have to refer to the generated projects somehow. There is no value of type <code>Project</code> in scope to do so, but we can do it easily by name using <code>LocalProject</code>. The following example shows how the <code>example1</code> subproject does this:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb18-1" title="1"><span class="kw">lazy</span> <span class="kw">val</span> example1 = <span class="fu">Project</span>(<span class="st">&quot;example1&quot;</span>, <span class="fu">file</span>(<span class="st">&quot;examples&quot;</span>) / <span class="st">&quot;example1&quot;</span>)</a>
+<a class="sourceLine" id="cb18-2" title="2">  .<span class="fu">dependsOn</span>(</a>
+<a class="sourceLine" id="cb18-3" title="3">    core,</a>
+<a class="sourceLine" id="cb18-4" title="4">    http4s,</a>
+<a class="sourceLine" id="cb18-5" title="5">    netty,</a>
+<a class="sourceLine" id="cb18-6" title="6">    <span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-elasticbeanstalk&quot;</span>),</a>
+<a class="sourceLine" id="cb18-7" title="7">    <span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-ec2&quot;</span>)</a>
+<a class="sourceLine" id="cb18-8" title="8">  )</a></code></pre></div>
+<h4 id="parallel-build-on-travis-ci">Parallel build on Travis CI</h4>
+<p>The last thing that I wanted to solve is building the full <code>zio-aws</code> suite on a CI. I am using <a href="https://travis-ci.org/">Travis CI</a> for my private projects, so that’s what I built it for. The idea is to split the set of <em>service client libraries</em> to chunks and create <a href="https://docs.travis-ci.com/user/build-matrix/">build matrix</a> to run those in parallel. The tricky part is that the set of generated service libraries is dynamic, collected by the code generator.</p>
+<p>To solve this, I started to generate the <code>.travis.yml</code> build descriptor as well. The <em>hand-written</em> part has been moved to <code>.travis.base.yml</code>:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode yaml"><code class="sourceCode yaml"><a class="sourceLine" id="cb19-1" title="1"><span class="fu">language:</span><span class="at"> scala</span></a>
+<a class="sourceLine" id="cb19-2" title="2"><span class="fu">services:</span></a>
+<a class="sourceLine" id="cb19-3" title="3">  <span class="kw">-</span> docker</a>
+<a class="sourceLine" id="cb19-4" title="4"><span class="fu">scala:</span></a>
+<a class="sourceLine" id="cb19-5" title="5">  <span class="kw">-</span> <span class="fl">2.12.12</span></a>
+<a class="sourceLine" id="cb19-6" title="6">  <span class="kw">-</span> <span class="fl">2.13.3</span></a>
+<a class="sourceLine" id="cb19-7" title="7"></a>
+<a class="sourceLine" id="cb19-8" title="8"><span class="fu">cache:</span></a>
+<a class="sourceLine" id="cb19-9" title="9">  <span class="fu">directories:</span></a>
+<a class="sourceLine" id="cb19-10" title="10">    <span class="kw">-</span> $HOME/.cache/coursier</a>
+<a class="sourceLine" id="cb19-11" title="11">    <span class="kw">-</span> $HOME/.ivy2/cache</a>
+<a class="sourceLine" id="cb19-12" title="12">    <span class="kw">-</span> $HOME/.sbt</a>
+<a class="sourceLine" id="cb19-13" title="13"></a>
+<a class="sourceLine" id="cb19-14" title="14"><span class="fu">env:</span></a>
+<a class="sourceLine" id="cb19-15" title="15">  <span class="kw">-</span> COMMANDS=<span class="st">&quot;clean zio-aws-core/test zio-aws-akka-http/test zio-aws-http4s/test zio-aws-netty/test&quot;</span></a>
+<a class="sourceLine" id="cb19-16" title="16">  <span class="kw">-</span> COMMANDS=<span class="st">&quot;clean examples/compile&quot;</span></a>
+<a class="sourceLine" id="cb19-17" title="17">  <span class="kw">-</span> COMMANDS=<span class="st">&quot;clean integtests/test&quot;</span></a>
+<a class="sourceLine" id="cb19-18" title="18"></a>
+<a class="sourceLine" id="cb19-19" title="19"><span class="fu">before_install:</span></a>
+<a class="sourceLine" id="cb19-20" title="20">  <span class="kw">-</span> if <span class="kw">[</span> <span class="st">&quot;$COMMANDS&quot;</span> = <span class="st">&quot;clean integtests/test&quot;</span> <span class="kw">]</span>; then docker pull localstack/localstack; fi</a>
+<a class="sourceLine" id="cb19-21" title="21">  <span class="kw">-</span> if <span class="kw">[</span> <span class="st">&quot;$COMMANDS&quot;</span> = <span class="st">&quot;clean integtests/test&quot;</span> <span class="kw">]</span>; then docker run -d -p 4566:4566 --env SERVICES=s3,dynamodb --env START_WEB=0 localstack/localstack; fi</a>
+<a class="sourceLine" id="cb19-22" title="22"></a>
+<a class="sourceLine" id="cb19-23" title="23"><span class="fu">script:</span></a>
+<a class="sourceLine" id="cb19-24" title="24">  <span class="kw">-</span> sbt ++$TRAVIS_SCALA_VERSION -jvm-opts travis/jvmopts $COMMANDS</a></code></pre></div>
+<p>I use the <code>COMMANDS</code> environment variable to define the parallel sets of <code>sbt</code> commands here. There are three predefined sets: building <code>zio-aws-core</code> and the HTTP implementations, building the <em>example projects</em> and running the <em>integration test</em>. The last two involve generating actual service client code and building them - but only the few that are necessary, so it is not an issue to do that redundantly.</p>
+<p>The real <code>.travis.yml</code> file is then generated by running a task <em>manually</em>, <code>sbt generateTravisYaml</code>. It is implemented in the <code>zio-aws-codegen</code> plugin and it loads the <code>.travis.base.yml</code> file and extends the <code>env</code> section with a set of <code>COMMANDS</code> variants, each compiling a subset of the generated subprojects.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Travis CI can now build <code>zio-aws</code> and run its integration tests. A build runs for hours, but it is stable, and consists of 22 parallel jobs to build all the libraries for both Scala 2.12 and 2.13. At the same time, developing the code generator and the other subprojects and tests became really convenient.</p>
+]]></summary>
+</entry>
+<entry>
     <title>prox part 4 - simplified redesign</title>
     <link href="http://vigoo.github.io/posts/2020-08-03-prox-4-simplify.html" />
     <id>http://vigoo.github.io/posts/2020-08-03-prox-4-simplify.html</id>
@@ -956,6 +1282,198 @@
 <p>As we’ve seen, Scala’s type system can bring us quite far in expressing a dependent typed interface. On the other hand writing and reading code in this style is really hard, and if things go wrong, decoding the compiler’s error messages is not an easy task either. This is a serious tradeoff that has to be considered and in many cases a more dynamic but much more readable and maintainable approach can be better.</p>
 <p>With <a href="https://github.com/vigoo/prox">prox</a> I explicitly wanted to explore these features of the Scala language.</p>
 <p>In the next posts we will ignore the type level parts of the library and focus on different <em>streaming</em> and <em>effect</em> libraries.</p>
+]]></summary>
+</entry>
+<entry>
+    <title>AWS rate limits vs prezidig</title>
+    <link href="http://vigoo.github.io/posts/2018-09-21-aws-rate-limits-prezidig.html" />
+    <id>http://vigoo.github.io/posts/2018-09-21-aws-rate-limits-prezidig.html</id>
+    <published>2018-09-21T00:00:00Z</published>
+    <updated>2018-09-21T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on September 21, 2018
+    
+</div>
+
+<p>At <a href="https://prezi.com">Prezi</a>, we have an internal tool called <strong>prezidig</strong> for discovering AWS resources. I like it a lot so I was quite annoyed recently that it always fails with a <em>throttling exception</em> because of our increased use of the AWS API. It made it completely unusable, so I decided to try to fix this.</p>
+<p>Then I decided to write the story in this blog post, as the steps I had to made to achieve the results I aimed for can be useful for writing maintainable, fast and safe Scala code in the future.</p>
+<p>I will describe the phases as they happened, as I did not really know anything about this codebase so the path to the success was not exactly clear immediately.</p>
+<h2 id="wrapping-the-calls">Wrapping the calls</h2>
+<p>So my initial thought was to just find the AWS API calls and wrap them in a helper function which catches the throttling error and retries with an increasing delay.</p>
+<p>I basically wrote this in the base class of all the <em>mirrors</em> (the classes which are responsible for fetching AWS and other resource data for <strong>prezidig</strong>):</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"> <span class="kw">protected</span> <span class="kw">def</span> byHandlingThrottling[T](awsCall: =&gt; T): Future[T] = {</a>
+<a class="sourceLine" id="cb1-2" title="2">    <span class="kw">def</span> <span class="fu">call</span>(remainingTries: Int, wait: FiniteDuration): Future[T] = {</a>
+<a class="sourceLine" id="cb1-3" title="3">      Future(<span class="fu">Try</span>(awsCall)).<span class="fu">flatMap</span> {</a>
+<a class="sourceLine" id="cb1-4" title="4">        <span class="kw">case</span> <span class="fu">Success</span>(result) =&gt; Future.<span class="fu">successful</span>(result)</a>
+<a class="sourceLine" id="cb1-5" title="5">        <span class="kw">case</span> <span class="fu">Failure</span>(awsException: AmazonServiceException) <span class="kw">if</span> awsException.<span class="fu">getErrorCode</span> == <span class="st">&quot;Throttling&quot;</span> &amp;&amp; remainingTries &gt; <span class="dv">0</span> =&gt;</a>
+<a class="sourceLine" id="cb1-6" title="6">          akka.<span class="fu">pattern</span>.<span class="fu">after</span>(wait, actorSystem.<span class="fu">scheduler</span>) {</a>
+<a class="sourceLine" id="cb1-7" title="7">            <span class="fu">call</span>(remainingTries - <span class="dv">1</span>, wait * <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb1-8" title="8">          }</a>
+<a class="sourceLine" id="cb1-9" title="9">        <span class="kw">case</span> <span class="fu">Failure</span>(reason) =&gt; Future.<span class="fu">failed</span>(reason)</a>
+<a class="sourceLine" id="cb1-10" title="10">      }</a>
+<a class="sourceLine" id="cb1-11" title="11">    }</a>
+<a class="sourceLine" id="cb1-12" title="12">     <span class="fu">call</span>(<span class="dv">10</span>, <span class="fl">100.</span>millis) <span class="co">// TODO: make configurable</span></a>
+<a class="sourceLine" id="cb1-13" title="13">  }</a></code></pre></div>
+<p>Then the only thing I had to do was to was wrapping all the existing AWS calls with this. Then I realized that this won’t be this simple, as these calls were not always asynchronous, just sometimes. To see an example, for an <em>ElasticBeanstalk application</em>, it fetches the <em>application metadata</em> with synchronous call, then fetches the related <em>EB environments</em> asynchronously. The whole thing might be wrapped in another future somewhere else, but that’s a different story.</p>
+<p>While making these discoveries I also found several synchronization points, like the code waiting for some futures to complete in a blocking way. Also that the model is mutable. So… just for trying this out, I <em>still <strong>wrapped</strong></em> all the AWS calls with this stuff, by converting the future back to a synchronous call by immediately blocking on it.</p>
+<p>What did I achieve with this? Well, some throttling errors were fixed, the code became extremely ugly, and I could not even wrap everything so the errors remained, and because of the tons of blocking, timeouts, etc. it was basically impossible to understand whether this would work or deadlock or just be slow.</p>
+<p>That was the point I decided to do this properly</p>
+<h2 id="reflection">Reflection</h2>
+<p>Before solving the real problem I found that the mirrors are initialized via reflection, something like this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">def</span> buildMirrors[A &lt;: RegionAwareAWSMirror[_, _]](<span class="kw">implicit</span> mf: Manifest[A]): Seq[A] =</a>
+<a class="sourceLine" id="cb2-2" title="2">    Config.<span class="fu">regions</span>.<span class="fu">map</span>(region =&gt; mf.<span class="fu">runtimeClass</span>.<span class="fu">getConstructor</span>(classOf[String]).<span class="fu">newInstance</span>(region).<span class="fu">asInstanceOf</span>[A])</a></code></pre></div>
+<p>This is something that you should avoid, as it leads to problems that are not detected by the compiler, only at runtime, every time you refactor something around these classes. There are some use cases where this may be required, like dynamically loading plugins or stuff like this, but to just have a factory for something, it is must simple to use… <strong>functions</strong>!</p>
+<p>So I could not hold myself back and quickly changed this to:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">def</span> buildMirrors[A &lt;: RegionAwareAWSMirror[_, _]](factory: (String, ActorSystem) =&gt; A)</a>
+<a class="sourceLine" id="cb3-2" title="2">    Config.<span class="fu">regions</span>.<span class="fu">map</span>(region =&gt; <span class="fu">factory</span>(region, system))</a></code></pre></div>
+<p>(Since then even this has disappeared, but don’t run that much forward).</p>
+<h2 id="async-fetching">Async fetching</h2>
+<p>Ok so the first obvious step was to refactor the whole fetching code in a way that it is just a chain of <strong>futures</strong>. By making everything async in the process, the AWS calls would be simply replaceable with the throttling function above or anything more sophisticated!</p>
+<p>But I knew that I cannot safely do this while the model we are building itself is mutable - there is no way I want to debug what happens with it once all the steps are really becoming parallel!</p>
+<h3 id="immutable-model">Immutable model</h3>
+<p>I believe the following GitHub diff captures the core change of this step:</p>
+<p><img src="/images/prezidig-img-1.png" width="800"/></p>
+<p>Of course I had to change all the subtypes of Model, and I went through the code looking for</p>
+<ul>
+<li><strong>var</strong>s</li>
+<li>mutable collections</li>
+</ul>
+<p>and got rid of them. Except for the caching constructs, because I planned to refactor those in the next step, so for now I left them alone.</p>
+<h3 id="async-mirrors">Async mirrors</h3>
+<p>Once I felt the model is safe enough, I went to the next big change, making everything asynchronous.</p>
+<p><img src="/images/prezidig-img-2.png" width="800"/></p>
+<p>This took some hours, to be honest. But really, the core idea is only that the result must be a <code>Future[T]</code>, not <code>T</code>.</p>
+<p>So how do you refactor a code that was previously half synchronous, half asynchronous to achieve this? Let’s see an example! It will be the <em>key-pair mirror</em> as it is the smallest.</p>
+<p>Originally (with my ugly wrapping in the previous step) it looked like this:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1">  <span class="kw">override</span> <span class="kw">protected</span> <span class="kw">def</span> <span class="fu">fetch</span>(input: SimpleParsedInput, context: Context): Seq[KeyPair] =</a>
+<a class="sourceLine" id="cb4-2" title="2">    <span class="kw">try</span> {</a>
+<a class="sourceLine" id="cb4-3" title="3">      <span class="kw">val</span> futureResult = <span class="fu">byHandlingThrottling</span>(</a>
+<a class="sourceLine" id="cb4-4" title="4">        <span class="fu">buildClient</span>(AmazonEC2ClientBuilder.<span class="fu">standard</span>()).<span class="fu">describeKeyPairs</span>(</a>
+<a class="sourceLine" id="cb4-5" title="5">          <span class="kw">new</span> <span class="fu">DescribeKeyPairsRequest</span>().<span class="fu">withKeyNames</span>(input.<span class="fu">id</span>)</a>
+<a class="sourceLine" id="cb4-6" title="6">        ))</a>
+<a class="sourceLine" id="cb4-7" title="7"></a>
+<a class="sourceLine" id="cb4-8" title="8">      <span class="kw">val</span> result = Await.<span class="fu">result</span>(futureResult, <span class="fl">10.</span>seconds)</a>
+<a class="sourceLine" id="cb4-9" title="9">      result.<span class="fu">getKeyPairs</span>.<span class="fu">asScala</span>.<span class="fu">map</span>(info =&gt; KeyPair(info, region)).<span class="fu">seq</span></a>
+<a class="sourceLine" id="cb4-10" title="10">        .<span class="fu">map</span>(keypair =&gt; keypair.<span class="fu">withFutureChildren</span>(<span class="fu">LaunchConfigurationMirror</span>(region, actorSystem).<span class="fu">apply</span>(context.<span class="fu">withInput</span>(keypair.<span class="fu">description</span>.<span class="fu">getKeyName</span>))))</a>
+<a class="sourceLine" id="cb4-11" title="11">    } <span class="kw">catch</span> {</a>
+<a class="sourceLine" id="cb4-12" title="12">      <span class="kw">case</span> _: AmazonEC2Exception =&gt; Seq()</a>
+<a class="sourceLine" id="cb4-13" title="13">    }</a></code></pre></div>
+<p>So as you can see fetching the key pairs by name was a synchronous request, but then the <em>launch configurations</em> are fetched asynchronously and are being updated back the result model in a mutable way. We want to transform this function so it does not have any side effects, just performs a chain of asynchronous operations and in the end have a fully fetched <em>key pair</em> with the related <em>launch configurations</em>.</p>
+<p>In every case the only thing needed was a combination of <code>map</code> and <code>flatMap</code> on futures, and of course the <em>for syntax</em> can also be used to make the code more readable:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"> <span class="kw">private</span> <span class="kw">def</span> <span class="fu">fetchKeyPair</span>(client: AmazonEC2, context: Context, info: KeyPairInfo): Future[KeyPair] = {</a>
+<a class="sourceLine" id="cb5-2" title="2">    <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb5-3" title="3">      launchConfigurations &lt;- <span class="fu">LaunchConfigurationMirror</span>(region, actorSystem).<span class="fu">apply</span>(context.<span class="fu">withInput</span>(info.<span class="fu">getKeyName</span>))</a>
+<a class="sourceLine" id="cb5-4" title="4">    } <span class="kw">yield</span> KeyPair(</a>
+<a class="sourceLine" id="cb5-5" title="5">      description = info,</a>
+<a class="sourceLine" id="cb5-6" title="6">      region = region,</a>
+<a class="sourceLine" id="cb5-7" title="7">      children = launchConfigurations</a>
+<a class="sourceLine" id="cb5-8" title="8">    )</a>
+<a class="sourceLine" id="cb5-9" title="9">  }</a>
+<a class="sourceLine" id="cb5-10" title="10"></a>
+<a class="sourceLine" id="cb5-11" title="11">  <span class="kw">override</span> <span class="kw">protected</span> <span class="kw">def</span> <span class="fu">fetch</span>(input: SimpleParsedInput, context: Context): Future[List[KeyPair]] = {</a>
+<a class="sourceLine" id="cb5-12" title="12">    <span class="kw">val</span> client = <span class="fu">buildClient</span>(AmazonEC2ClientBuilder.<span class="fu">standard</span>())</a>
+<a class="sourceLine" id="cb5-13" title="13"></a>
+<a class="sourceLine" id="cb5-14" title="14">    <span class="fu">byHandlingThrottling</span>(client.<span class="fu">describeKeyPairs</span>(<span class="kw">new</span> <span class="fu">DescribeKeyPairsRequest</span>().<span class="fu">withKeyNames</span>(input.<span class="fu">id</span>))).<span class="fu">flatMap</span> { result =&gt;</a>
+<a class="sourceLine" id="cb5-15" title="15">      Future.<span class="fu">sequence</span>(</a>
+<a class="sourceLine" id="cb5-16" title="16">        result.<span class="fu">getKeyPairs</span>.<span class="fu">asScala</span>.<span class="fu">toList</span>.<span class="fu">map</span>(<span class="fu">fetchKeyPair</span>(client, context, _))</a>
+<a class="sourceLine" id="cb5-17" title="17">      )</a>
+<a class="sourceLine" id="cb5-18" title="18">    }.<span class="fu">recover</span> {</a>
+<a class="sourceLine" id="cb5-19" title="19">      <span class="kw">case</span> _: AmazonEC2Exception =&gt; List() <span class="co">// TODO: log?</span></a>
+<a class="sourceLine" id="cb5-20" title="20">    }</a>
+<a class="sourceLine" id="cb5-21" title="21">  }</a></code></pre></div>
+<p>Note that the <code>Future.sequence</code> function is quite useful in these scenarios, as it makes a <code>Future[List[T]]</code> from <code>List[Future[T]]</code>.</p>
+<p>Of course the code became more verbose because of all this chaining, this is the price of this transformation. And why I don’t like to express complex logic with a chain of futures, rather with some higher level abstraction such as actors (or for this use case, streams would fit even better).</p>
+<p>But I wanted to make iterative changes, so I did this transformation on all the mirrors and eventually got a <code>Future[List[Model]]</code> in the main function that I could await for. I also thrown out the global atomic integer that counted the running stuff for completion, as in this model the completion of the composed future should mark the end of the whole computation.</p>
+<p>So did I succeed at this point? Of course not. Actually this whole thing is a big deadlock :)</p>
+<h2 id="caching-and-circular-references">Caching and circular references</h2>
+<p>It was not immediately obvious what causes the deadlock. In a system like this it can happen in different ways. For example I knew that there are global singleton caches in the code, protected by <strong>locks</strong>. This <em>could</em> cause deadlocks if all the executors got blocked and no new threads can be spawned by the active executor. I did not know if this is happening, but would not have been surprised at all, as much more things were happening in parallel because of the previous refactoring step.</p>
+<p>And circular references in the huge chained future graph can also lead to this. Let’s consider this simplified example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">trait</span> Cache { </a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="kw">def</span> <span class="fu">get</span>(key: String): Future[Work]</a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="kw">def</span> <span class="fu">put</span>(key: String, compute: () =&gt; Future[Work]): Unit</a>
+<a class="sourceLine" id="cb6-4" title="4">}</a>
+<a class="sourceLine" id="cb6-5" title="5"></a>
+<a class="sourceLine" id="cb6-6" title="6"><span class="kw">val</span> cache: Cache = ???</a>
+<a class="sourceLine" id="cb6-7" title="7"><span class="kw">val</span> work1: Future[Work] = cache.<span class="fu">get</span>(<span class="st">&quot;work2&quot;</span>).<span class="fu">map</span> { w2 =&gt; <span class="fu">Work</span>(s<span class="st">&quot;Hello $w2&quot;</span>)) }</a>
+<a class="sourceLine" id="cb6-8" title="8"><span class="kw">val</span> work2: Future[Work] = cache.<span class="fu">get</span>(<span class="st">&quot;work1&quot;</span>).<span class="fu">map</span> { w1 =&gt; <span class="fu">Work</span>(s<span class="st">&quot;Hello $w1&quot;</span>)) }</a>
+<a class="sourceLine" id="cb6-9" title="9"></a>
+<a class="sourceLine" id="cb6-10" title="10">cache.<span class="fu">put</span>(work1)</a>
+<a class="sourceLine" id="cb6-11" title="11">cache.<span class="fu">put</span>(work2)</a>
+<a class="sourceLine" id="cb6-12" title="12"></a>
+<a class="sourceLine" id="cb6-13" title="13"><span class="fu">println</span>(Await.<span class="fu">result</span>(work1), <span class="fl">1.</span>second)</a></code></pre></div>
+<p>This can never work. If you think about what <strong>prezidig</strong> does, you will have a feeling that this happens. A lot.</p>
+<p>But let’s go in order.</p>
+<h3 id="non-blocking-cache">Non-blocking cache</h3>
+<p>First I wanted to get rid of the global, lock-protected mutable maps used as caches, and have a non-blocking implementation with more control and better performance and safety. This is the kind of job that an <strong>actor</strong> can model nicely, so I created a <em>model cache actor</em> that is spawned for <em>each mirror</em> and can store and retrieve lists of AWS models for a given key.</p>
+<p>I won’t list the whole actor’s code here, let’s see the messages it consumes:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1">  <span class="kw">sealed</span> <span class="kw">trait</span> ModelCacheMessage[M &lt;: Model]</a>
+<a class="sourceLine" id="cb7-2" title="2"></a>
+<a class="sourceLine" id="cb7-3" title="3">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> Put[M &lt;: Model](key: String, value: List[M])</a>
+<a class="sourceLine" id="cb7-4" title="4">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-5" title="5"></a>
+<a class="sourceLine" id="cb7-6" title="6">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> FetchFailed[M &lt;: Model](key: String, failure: Failure[_])</a>
+<a class="sourceLine" id="cb7-7" title="7">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-8" title="8"></a>
+<a class="sourceLine" id="cb7-9" title="9">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> GetOrFetch[M &lt;: Model](key: String, fetch: () =&gt; Future[List[M]], respondTo: ActorRef[Try[List[M]]])</a>
+<a class="sourceLine" id="cb7-10" title="10">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-11" title="11"></a>
+<a class="sourceLine" id="cb7-12" title="12">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> GetRefOrFetch[M &lt;: Model](key: String, fetch: () =&gt; Future[List[M]], respondTo: ActorRef[ModelRef[M]])</a>
+<a class="sourceLine" id="cb7-13" title="13">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-14" title="14"></a>
+<a class="sourceLine" id="cb7-15" title="15">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> Dump[M &lt;: Model](respondTo: ActorRef[Map[String, List[M]]])</a>
+<a class="sourceLine" id="cb7-16" title="16">    <span class="kw">extends</span> ModelCacheMessage[M]</a></code></pre></div>
+<p>This cache itself is responsible for executing the <em>fetch function</em> only if needed, when the value for the given key is not cached yet. It is done by using the <strong>pipe pattern</strong>: it starts the asynchronous fetch function on a configured worker executor (which can be the actor system, or a fix thread pool, etc.) and registers an <code>onFinish</code> callback for the future which <em>pipes back</em> the future’s result to the actor as actor messages (<code>Put</code> and <code>FetchFailed</code>).</p>
+<p>I will talk about references and cache dumps in the next section.</p>
+<p>There was one more big problem with the existing code that prevented introducing these cache actors: that the mirrors were not really singletons but some mirrors created new instances of existing mirrors (without any difference to the ones created in the main function). These shared the singleton mutable lock-protected cache map in the original version, that’s why it worked. But in the new implementation each mirror spawned its own cache actor, so it was no longer allowed to create multiple instances of the same thing.</p>
+<p>So in this step I collected all the mirrors to a class called <code>Mirrors</code>, which later became the collection of all the resources needed to perform the “dig”, so in the final version it is called <code>DigSite</code>.</p>
+<p>With this change the caching could be replaced, and with the <strong>ask pattern</strong> I was able to fit it to the chain of futures created in the previous step.</p>
+<p>Did it solve the deadlock? No, of course not</p>
+<h3 id="circular-references">Circular references</h3>
+<p>But now it was obvious that there are some circular references. And by simply drawing it, I could see that this is actually the core concept of the whole thing :)</p>
+<p>Let me show you <em>the drawing</em>:</p>
+<p><img src="/images/prezidig-img-3.png" width="800"/></p>
+<p>So everything refers back to everything, not a surprise that this chained-together code cannot finish.</p>
+<p>To be honest, I was not sure how exactly did it work in the original version, whether the boundary of sync and async calls were carefully designed to make this work or just accidentally, whatever.</p>
+<p>I wanted to have a solution where you don’t have to think about it so nobody will fuck it up next time when it has to be modified.</p>
+<p>The chosen solution can be summarized in the following way:</p>
+<ul>
+<li>The <em>models</em> are only storing <strong>references to other models</strong> encoded by the <code>ModelRef</code> type. A reference is basically selecting a mirror (by its <em>cache</em>) and an item in it by its <em>key</em></li>
+<li>When fetching a model, you immediately get back a <em>model reference</em> from the cache so it can be stored in the owner model, even with circular references. The real data is still fetched and cached as before.</li>
+<li>This works because nobody uses the actual child models until the <strong>rendering</strong> of the output. So we have the asynchronous, parallel fetching of all the models, and then a completely separate, non-async step where we need the real connections to actually render the output based on the templates. I could change how the rendering works to query the model references from the cache, but I did not want to touch that part. So I introduced a middle step where all the <em>model cache actors</em> <strong>dump</strong> their state to simple immutable maps, and then the model gets <em>updated</em> by selecting the referenced models from this map and changing a field. Yes, a mutable field. It is a non-threadsafe operation that has a single, well defined place to be called, and this way the whole third part (rendering the output) could remain untouched.</li>
+<li>Because of decoupling the actual fetching from the result future (it is completed earlier, as it only needs the references!), I had to have something that keeps track of the ongoing tasks ran by the cache actors, so there is also a <em>work monitor actor</em> that notifies the main logic once everything is complete.</li>
+</ul>
+<p>Considering all this, the main steps before starting to render the output looks like this:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">val</span> result = <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb8-2" title="2">    models &lt;- <span class="fu">runRelevantMirrors</span>(digSite.<span class="fu">allMirrors</span>, Context.<span class="fu">initial</span>(input))</a>
+<a class="sourceLine" id="cb8-3" title="3">    fetchingDone &lt;- digSite.<span class="fu">workMonitor</span> ? WorkMonitor.<span class="fu">WaitForReady</span></a>
+<a class="sourceLine" id="cb8-4" title="4">    cacheDumps &lt;- CacheDumps.<span class="fu">fromMirrors</span>(digSite.<span class="fu">allMirrors</span>)</a>
+<a class="sourceLine" id="cb8-5" title="5">    _ = models.<span class="fu">foreach</span>(_.<span class="fu">resolveChildren</span>(cacheDumps)) <span class="co">// side effect!</span></a>
+<a class="sourceLine" id="cb8-6" title="6">} <span class="kw">yield</span> models</a></code></pre></div>
+<h2 id="anyone-else-blocking">Anyone else blocking?</h2>
+<p>At this point the tool started to work again and produce results. So I went back checking if any other blocking code remained that can be implemented in other ways. The progress tracker was like that, it had mutable state and locks, so I converted that to an actor too. It was quite simple, and on the usage side almost nothing changed compared to the original.</p>
+<h2 id="and-what-about-the-throttling">And what about the throttling?</h2>
+<p>Ok so at this point I refactored the whole stuff but still did not solve the throttling issue, right?</p>
+<p>Right.</p>
+<p>But now finally I knew how to do it!</p>
+<p>I already wrapped all AWS calls with that specific function (and at this point it was really <em>all</em> calls, not just <em>almost)</em>. So I just had to write it in a better way.</p>
+<p>I wanted to:</p>
+<ul>
+<li>Have control on how many AWS requests are we doing in parallel</li>
+<li>In case of throttling errors delay <strong>everything</strong> as soon as possible</li>
+</ul>
+<p>This can be achieved easily by some standard patterns like treating AWS as an encapsulated resource and putting some circuit breaking logic in it, and explicitly distributing the work among multiple workers.</p>
+<p>Let’s see the designed solution on a drawing:</p>
+<p><img src="/images/prezidig-img-4.png" width="800"/></p>
+<p><strong>Note</strong>: the <em>classic Akka</em> has built-in support for this routing and circuit breaking, but I prefer <em>Akka-typed</em> because of its type safety, where there are no official reusable higher level components like this yet. The one I implemented here is quite specific, later could be refactored to be built from more reusable typed actor components.</p>
+<p>So how does this work?</p>
+<ul>
+<li>There is a single coordinator actor called <strong>AWS</strong> and multiple (32 by default) worker actors called <strong>AWS Worker</strong>.</li>
+<li>The number of worker actors control the maximum number of parallel AWS operations, because each worker actor is guaranteed to run maximum one such operation at the same time. All the other incoming requests are distributed among the workers and gets enqueued.</li>
+<li>The AWS calls are executed on a different thread pool, not blocking the actors. Their result is sent back by the already mentioned <em>pipe to</em> pattern</li>
+<li>AWS throttling errors are detected on the worker nodes, and the worker node immediately switches to <strong>open circuit state</strong> in which it does not start any new AWS command. The length of the open state increases with every throttling error, and gets reseted after a number of successful requests.</li>
+<li>Opening the circuit breaker on one worker node is immediately followed by opening it on <strong>all other</strong> worker nodes too, to stop overloading AWS.</li>
+</ul>
+<p>This could be further improved with more advanced logic but I believe it is good enough for our current purposes, and now we can use <strong>prezidig</strong> again!</p>
 ]]></summary>
 </entry>
 <entry>

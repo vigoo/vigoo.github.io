@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>AWS rate limits vs prezidig</title>
+        
+        <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
+        
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>AWS rate limits vs prezidig</h1>
+
+            <div class="info">
+    Posted on September 21, 2018
+    
+</div>
+
+<p>At <a href="https://prezi.com">Prezi</a>, we have an internal tool called <strong>prezidig</strong> for discovering AWS resources. I like it a lot so I was quite annoyed recently that it always fails with a <em>throttling exception</em> because of our increased use of the AWS API. It made it completely unusable, so I decided to try to fix this.</p>
+<p>Then I decided to write the story in this blog post, as the steps I had to made to achieve the results I aimed for can be useful for writing maintainable, fast and safe Scala code in the future.</p>
+<p>I will describe the phases as they happened, as I did not really know anything about this codebase so the path to the success was not exactly clear immediately.</p>
+<h2 id="wrapping-the-calls">Wrapping the calls</h2>
+<p>So my initial thought was to just find the AWS API calls and wrap them in a helper function which catches the throttling error and retries with an increasing delay.</p>
+<p>I basically wrote this in the base class of all the <em>mirrors</em> (the classes which are responsible for fetching AWS and other resource data for <strong>prezidig</strong>):</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"> <span class="kw">protected</span> <span class="kw">def</span> byHandlingThrottling[T](awsCall: =&gt; T): Future[T] = {</a>
+<a class="sourceLine" id="cb1-2" title="2">    <span class="kw">def</span> <span class="fu">call</span>(remainingTries: Int, wait: FiniteDuration): Future[T] = {</a>
+<a class="sourceLine" id="cb1-3" title="3">      Future(<span class="fu">Try</span>(awsCall)).<span class="fu">flatMap</span> {</a>
+<a class="sourceLine" id="cb1-4" title="4">        <span class="kw">case</span> <span class="fu">Success</span>(result) =&gt; Future.<span class="fu">successful</span>(result)</a>
+<a class="sourceLine" id="cb1-5" title="5">        <span class="kw">case</span> <span class="fu">Failure</span>(awsException: AmazonServiceException) <span class="kw">if</span> awsException.<span class="fu">getErrorCode</span> == <span class="st">&quot;Throttling&quot;</span> &amp;&amp; remainingTries &gt; <span class="dv">0</span> =&gt;</a>
+<a class="sourceLine" id="cb1-6" title="6">          akka.<span class="fu">pattern</span>.<span class="fu">after</span>(wait, actorSystem.<span class="fu">scheduler</span>) {</a>
+<a class="sourceLine" id="cb1-7" title="7">            <span class="fu">call</span>(remainingTries - <span class="dv">1</span>, wait * <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb1-8" title="8">          }</a>
+<a class="sourceLine" id="cb1-9" title="9">        <span class="kw">case</span> <span class="fu">Failure</span>(reason) =&gt; Future.<span class="fu">failed</span>(reason)</a>
+<a class="sourceLine" id="cb1-10" title="10">      }</a>
+<a class="sourceLine" id="cb1-11" title="11">    }</a>
+<a class="sourceLine" id="cb1-12" title="12">     <span class="fu">call</span>(<span class="dv">10</span>, <span class="fl">100.</span>millis) <span class="co">// TODO: make configurable</span></a>
+<a class="sourceLine" id="cb1-13" title="13">  }</a></code></pre></div>
+<p>Then the only thing I had to do was to was wrapping all the existing AWS calls with this. Then I realized that this won’t be this simple, as these calls were not always asynchronous, just sometimes. To see an example, for an <em>ElasticBeanstalk application</em>, it fetches the <em>application metadata</em> with synchronous call, then fetches the related <em>EB environments</em> asynchronously. The whole thing might be wrapped in another future somewhere else, but that’s a different story.</p>
+<p>While making these discoveries I also found several synchronization points, like the code waiting for some futures to complete in a blocking way. Also that the model is mutable. So… just for trying this out, I <em>still <strong>wrapped</strong></em> all the AWS calls with this stuff, by converting the future back to a synchronous call by immediately blocking on it.</p>
+<p>What did I achieve with this? Well, some throttling errors were fixed, the code became extremely ugly, and I could not even wrap everything so the errors remained, and because of the tons of blocking, timeouts, etc. it was basically impossible to understand whether this would work or deadlock or just be slow.</p>
+<p>That was the point I decided to do this properly</p>
+<h2 id="reflection">Reflection</h2>
+<p>Before solving the real problem I found that the mirrors are initialized via reflection, something like this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">def</span> buildMirrors[A &lt;: RegionAwareAWSMirror[_, _]](<span class="kw">implicit</span> mf: Manifest[A]): Seq[A] =</a>
+<a class="sourceLine" id="cb2-2" title="2">    Config.<span class="fu">regions</span>.<span class="fu">map</span>(region =&gt; mf.<span class="fu">runtimeClass</span>.<span class="fu">getConstructor</span>(classOf[String]).<span class="fu">newInstance</span>(region).<span class="fu">asInstanceOf</span>[A])</a></code></pre></div>
+<p>This is something that you should avoid, as it leads to problems that are not detected by the compiler, only at runtime, every time you refactor something around these classes. There are some use cases where this may be required, like dynamically loading plugins or stuff like this, but to just have a factory for something, it is must simple to use… <strong>functions</strong>!</p>
+<p>So I could not hold myself back and quickly changed this to:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">def</span> buildMirrors[A &lt;: RegionAwareAWSMirror[_, _]](factory: (String, ActorSystem) =&gt; A)</a>
+<a class="sourceLine" id="cb3-2" title="2">    Config.<span class="fu">regions</span>.<span class="fu">map</span>(region =&gt; <span class="fu">factory</span>(region, system))</a></code></pre></div>
+<p>(Since then even this has disappeared, but don’t run that much forward).</p>
+<h2 id="async-fetching">Async fetching</h2>
+<p>Ok so the first obvious step was to refactor the whole fetching code in a way that it is just a chain of <strong>futures</strong>. By making everything async in the process, the AWS calls would be simply replaceable with the throttling function above or anything more sophisticated!</p>
+<p>But I knew that I cannot safely do this while the model we are building itself is mutable - there is no way I want to debug what happens with it once all the steps are really becoming parallel!</p>
+<h3 id="immutable-model">Immutable model</h3>
+<p>I believe the following GitHub diff captures the core change of this step:</p>
+<p><img src="../images/prezidig-img-1.png" width="800" /></p>
+<p>Of course I had to change all the subtypes of Model, and I went through the code looking for</p>
+<ul>
+<li><strong>var</strong>s</li>
+<li>mutable collections</li>
+</ul>
+<p>and got rid of them. Except for the caching constructs, because I planned to refactor those in the next step, so for now I left them alone.</p>
+<h3 id="async-mirrors">Async mirrors</h3>
+<p>Once I felt the model is safe enough, I went to the next big change, making everything asynchronous.</p>
+<p><img src="../images/prezidig-img-2.png" width="800" /></p>
+<p>This took some hours, to be honest. But really, the core idea is only that the result must be a <code>Future[T]</code>, not <code>T</code>.</p>
+<p>So how do you refactor a code that was previously half synchronous, half asynchronous to achieve this? Let’s see an example! It will be the <em>key-pair mirror</em> as it is the smallest.</p>
+<p>Originally (with my ugly wrapping in the previous step) it looked like this:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1">  <span class="kw">override</span> <span class="kw">protected</span> <span class="kw">def</span> <span class="fu">fetch</span>(input: SimpleParsedInput, context: Context): Seq[KeyPair] =</a>
+<a class="sourceLine" id="cb4-2" title="2">    <span class="kw">try</span> {</a>
+<a class="sourceLine" id="cb4-3" title="3">      <span class="kw">val</span> futureResult = <span class="fu">byHandlingThrottling</span>(</a>
+<a class="sourceLine" id="cb4-4" title="4">        <span class="fu">buildClient</span>(AmazonEC2ClientBuilder.<span class="fu">standard</span>()).<span class="fu">describeKeyPairs</span>(</a>
+<a class="sourceLine" id="cb4-5" title="5">          <span class="kw">new</span> <span class="fu">DescribeKeyPairsRequest</span>().<span class="fu">withKeyNames</span>(input.<span class="fu">id</span>)</a>
+<a class="sourceLine" id="cb4-6" title="6">        ))</a>
+<a class="sourceLine" id="cb4-7" title="7"></a>
+<a class="sourceLine" id="cb4-8" title="8">      <span class="kw">val</span> result = Await.<span class="fu">result</span>(futureResult, <span class="fl">10.</span>seconds)</a>
+<a class="sourceLine" id="cb4-9" title="9">      result.<span class="fu">getKeyPairs</span>.<span class="fu">asScala</span>.<span class="fu">map</span>(info =&gt; KeyPair(info, region)).<span class="fu">seq</span></a>
+<a class="sourceLine" id="cb4-10" title="10">        .<span class="fu">map</span>(keypair =&gt; keypair.<span class="fu">withFutureChildren</span>(<span class="fu">LaunchConfigurationMirror</span>(region, actorSystem).<span class="fu">apply</span>(context.<span class="fu">withInput</span>(keypair.<span class="fu">description</span>.<span class="fu">getKeyName</span>))))</a>
+<a class="sourceLine" id="cb4-11" title="11">    } <span class="kw">catch</span> {</a>
+<a class="sourceLine" id="cb4-12" title="12">      <span class="kw">case</span> _: AmazonEC2Exception =&gt; Seq()</a>
+<a class="sourceLine" id="cb4-13" title="13">    }</a></code></pre></div>
+<p>So as you can see fetching the key pairs by name was a synchronous request, but then the <em>launch configurations</em> are fetched asynchronously and are being updated back the result model in a mutable way. We want to transform this function so it does not have any side effects, just performs a chain of asynchronous operations and in the end have a fully fetched <em>key pair</em> with the related <em>launch configurations</em>.</p>
+<p>In every case the only thing needed was a combination of <code>map</code> and <code>flatMap</code> on futures, and of course the <em>for syntax</em> can also be used to make the code more readable:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"> <span class="kw">private</span> <span class="kw">def</span> <span class="fu">fetchKeyPair</span>(client: AmazonEC2, context: Context, info: KeyPairInfo): Future[KeyPair] = {</a>
+<a class="sourceLine" id="cb5-2" title="2">    <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb5-3" title="3">      launchConfigurations &lt;- <span class="fu">LaunchConfigurationMirror</span>(region, actorSystem).<span class="fu">apply</span>(context.<span class="fu">withInput</span>(info.<span class="fu">getKeyName</span>))</a>
+<a class="sourceLine" id="cb5-4" title="4">    } <span class="kw">yield</span> KeyPair(</a>
+<a class="sourceLine" id="cb5-5" title="5">      description = info,</a>
+<a class="sourceLine" id="cb5-6" title="6">      region = region,</a>
+<a class="sourceLine" id="cb5-7" title="7">      children = launchConfigurations</a>
+<a class="sourceLine" id="cb5-8" title="8">    )</a>
+<a class="sourceLine" id="cb5-9" title="9">  }</a>
+<a class="sourceLine" id="cb5-10" title="10"></a>
+<a class="sourceLine" id="cb5-11" title="11">  <span class="kw">override</span> <span class="kw">protected</span> <span class="kw">def</span> <span class="fu">fetch</span>(input: SimpleParsedInput, context: Context): Future[List[KeyPair]] = {</a>
+<a class="sourceLine" id="cb5-12" title="12">    <span class="kw">val</span> client = <span class="fu">buildClient</span>(AmazonEC2ClientBuilder.<span class="fu">standard</span>())</a>
+<a class="sourceLine" id="cb5-13" title="13"></a>
+<a class="sourceLine" id="cb5-14" title="14">    <span class="fu">byHandlingThrottling</span>(client.<span class="fu">describeKeyPairs</span>(<span class="kw">new</span> <span class="fu">DescribeKeyPairsRequest</span>().<span class="fu">withKeyNames</span>(input.<span class="fu">id</span>))).<span class="fu">flatMap</span> { result =&gt;</a>
+<a class="sourceLine" id="cb5-15" title="15">      Future.<span class="fu">sequence</span>(</a>
+<a class="sourceLine" id="cb5-16" title="16">        result.<span class="fu">getKeyPairs</span>.<span class="fu">asScala</span>.<span class="fu">toList</span>.<span class="fu">map</span>(<span class="fu">fetchKeyPair</span>(client, context, _))</a>
+<a class="sourceLine" id="cb5-17" title="17">      )</a>
+<a class="sourceLine" id="cb5-18" title="18">    }.<span class="fu">recover</span> {</a>
+<a class="sourceLine" id="cb5-19" title="19">      <span class="kw">case</span> _: AmazonEC2Exception =&gt; List() <span class="co">// TODO: log?</span></a>
+<a class="sourceLine" id="cb5-20" title="20">    }</a>
+<a class="sourceLine" id="cb5-21" title="21">  }</a></code></pre></div>
+<p>Note that the <code>Future.sequence</code> function is quite useful in these scenarios, as it makes a <code>Future[List[T]]</code> from <code>List[Future[T]]</code>.</p>
+<p>Of course the code became more verbose because of all this chaining, this is the price of this transformation. And why I don’t like to express complex logic with a chain of futures, rather with some higher level abstraction such as actors (or for this use case, streams would fit even better).</p>
+<p>But I wanted to make iterative changes, so I did this transformation on all the mirrors and eventually got a <code>Future[List[Model]]</code> in the main function that I could await for. I also thrown out the global atomic integer that counted the running stuff for completion, as in this model the completion of the composed future should mark the end of the whole computation.</p>
+<p>So did I succeed at this point? Of course not. Actually this whole thing is a big deadlock :)</p>
+<h2 id="caching-and-circular-references">Caching and circular references</h2>
+<p>It was not immediately obvious what causes the deadlock. In a system like this it can happen in different ways. For example I knew that there are global singleton caches in the code, protected by <strong>locks</strong>. This <em>could</em> cause deadlocks if all the executors got blocked and no new threads can be spawned by the active executor. I did not know if this is happening, but would not have been surprised at all, as much more things were happening in parallel because of the previous refactoring step.</p>
+<p>And circular references in the huge chained future graph can also lead to this. Let’s consider this simplified example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">trait</span> Cache { </a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="kw">def</span> <span class="fu">get</span>(key: String): Future[Work]</a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="kw">def</span> <span class="fu">put</span>(key: String, compute: () =&gt; Future[Work]): Unit</a>
+<a class="sourceLine" id="cb6-4" title="4">}</a>
+<a class="sourceLine" id="cb6-5" title="5"></a>
+<a class="sourceLine" id="cb6-6" title="6"><span class="kw">val</span> cache: Cache = ???</a>
+<a class="sourceLine" id="cb6-7" title="7"><span class="kw">val</span> work1: Future[Work] = cache.<span class="fu">get</span>(<span class="st">&quot;work2&quot;</span>).<span class="fu">map</span> { w2 =&gt; <span class="fu">Work</span>(s<span class="st">&quot;Hello $w2&quot;</span>)) }</a>
+<a class="sourceLine" id="cb6-8" title="8"><span class="kw">val</span> work2: Future[Work] = cache.<span class="fu">get</span>(<span class="st">&quot;work1&quot;</span>).<span class="fu">map</span> { w1 =&gt; <span class="fu">Work</span>(s<span class="st">&quot;Hello $w1&quot;</span>)) }</a>
+<a class="sourceLine" id="cb6-9" title="9"></a>
+<a class="sourceLine" id="cb6-10" title="10">cache.<span class="fu">put</span>(work1)</a>
+<a class="sourceLine" id="cb6-11" title="11">cache.<span class="fu">put</span>(work2)</a>
+<a class="sourceLine" id="cb6-12" title="12"></a>
+<a class="sourceLine" id="cb6-13" title="13"><span class="fu">println</span>(Await.<span class="fu">result</span>(work1), <span class="fl">1.</span>second)</a></code></pre></div>
+<p>This can never work. If you think about what <strong>prezidig</strong> does, you will have a feeling that this happens. A lot.</p>
+<p>But let’s go in order.</p>
+<h3 id="non-blocking-cache">Non-blocking cache</h3>
+<p>First I wanted to get rid of the global, lock-protected mutable maps used as caches, and have a non-blocking implementation with more control and better performance and safety. This is the kind of job that an <strong>actor</strong> can model nicely, so I created a <em>model cache actor</em> that is spawned for <em>each mirror</em> and can store and retrieve lists of AWS models for a given key.</p>
+<p>I won’t list the whole actor’s code here, let’s see the messages it consumes:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1">  <span class="kw">sealed</span> <span class="kw">trait</span> ModelCacheMessage[M &lt;: Model]</a>
+<a class="sourceLine" id="cb7-2" title="2"></a>
+<a class="sourceLine" id="cb7-3" title="3">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> Put[M &lt;: Model](key: String, value: List[M])</a>
+<a class="sourceLine" id="cb7-4" title="4">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-5" title="5"></a>
+<a class="sourceLine" id="cb7-6" title="6">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> FetchFailed[M &lt;: Model](key: String, failure: Failure[_])</a>
+<a class="sourceLine" id="cb7-7" title="7">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-8" title="8"></a>
+<a class="sourceLine" id="cb7-9" title="9">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> GetOrFetch[M &lt;: Model](key: String, fetch: () =&gt; Future[List[M]], respondTo: ActorRef[Try[List[M]]])</a>
+<a class="sourceLine" id="cb7-10" title="10">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-11" title="11"></a>
+<a class="sourceLine" id="cb7-12" title="12">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> GetRefOrFetch[M &lt;: Model](key: String, fetch: () =&gt; Future[List[M]], respondTo: ActorRef[ModelRef[M]])</a>
+<a class="sourceLine" id="cb7-13" title="13">    <span class="kw">extends</span> ModelCacheMessage[M]</a>
+<a class="sourceLine" id="cb7-14" title="14"></a>
+<a class="sourceLine" id="cb7-15" title="15">  <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> Dump[M &lt;: Model](respondTo: ActorRef[Map[String, List[M]]])</a>
+<a class="sourceLine" id="cb7-16" title="16">    <span class="kw">extends</span> ModelCacheMessage[M]</a></code></pre></div>
+<p>This cache itself is responsible for executing the <em>fetch function</em> only if needed, when the value for the given key is not cached yet. It is done by using the <strong>pipe pattern</strong>: it starts the asynchronous fetch function on a configured worker executor (which can be the actor system, or a fix thread pool, etc.) and registers an <code>onFinish</code> callback for the future which <em>pipes back</em> the future’s result to the actor as actor messages (<code>Put</code> and <code>FetchFailed</code>).</p>
+<p>I will talk about references and cache dumps in the next section.</p>
+<p>There was one more big problem with the existing code that prevented introducing these cache actors: that the mirrors were not really singletons but some mirrors created new instances of existing mirrors (without any difference to the ones created in the main function). These shared the singleton mutable lock-protected cache map in the original version, that’s why it worked. But in the new implementation each mirror spawned its own cache actor, so it was no longer allowed to create multiple instances of the same thing.</p>
+<p>So in this step I collected all the mirrors to a class called <code>Mirrors</code>, which later became the collection of all the resources needed to perform the “dig”, so in the final version it is called <code>DigSite</code>.</p>
+<p>With this change the caching could be replaced, and with the <strong>ask pattern</strong> I was able to fit it to the chain of futures created in the previous step.</p>
+<p>Did it solve the deadlock? No, of course not</p>
+<h3 id="circular-references">Circular references</h3>
+<p>But now it was obvious that there are some circular references. And by simply drawing it, I could see that this is actually the core concept of the whole thing :)</p>
+<p>Let me show you <em>the drawing</em>:</p>
+<p><img src="../images/prezidig-img-3.png" width="800" /></p>
+<p>So everything refers back to everything, not a surprise that this chained-together code cannot finish.</p>
+<p>To be honest, I was not sure how exactly did it work in the original version, whether the boundary of sync and async calls were carefully designed to make this work or just accidentally, whatever.</p>
+<p>I wanted to have a solution where you don’t have to think about it so nobody will fuck it up next time when it has to be modified.</p>
+<p>The chosen solution can be summarized in the following way:</p>
+<ul>
+<li>The <em>models</em> are only storing <strong>references to other models</strong> encoded by the <code>ModelRef</code> type. A reference is basically selecting a mirror (by its <em>cache</em>) and an item in it by its <em>key</em></li>
+<li>When fetching a model, you immediately get back a <em>model reference</em> from the cache so it can be stored in the owner model, even with circular references. The real data is still fetched and cached as before.</li>
+<li>This works because nobody uses the actual child models until the <strong>rendering</strong> of the output. So we have the asynchronous, parallel fetching of all the models, and then a completely separate, non-async step where we need the real connections to actually render the output based on the templates. I could change how the rendering works to query the model references from the cache, but I did not want to touch that part. So I introduced a middle step where all the <em>model cache actors</em> <strong>dump</strong> their state to simple immutable maps, and then the model gets <em>updated</em> by selecting the referenced models from this map and changing a field. Yes, a mutable field. It is a non-threadsafe operation that has a single, well defined place to be called, and this way the whole third part (rendering the output) could remain untouched.</li>
+<li>Because of decoupling the actual fetching from the result future (it is completed earlier, as it only needs the references!), I had to have something that keeps track of the ongoing tasks ran by the cache actors, so there is also a <em>work monitor actor</em> that notifies the main logic once everything is complete.</li>
+</ul>
+<p>Considering all this, the main steps before starting to render the output looks like this:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">val</span> result = <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb8-2" title="2">    models &lt;- <span class="fu">runRelevantMirrors</span>(digSite.<span class="fu">allMirrors</span>, Context.<span class="fu">initial</span>(input))</a>
+<a class="sourceLine" id="cb8-3" title="3">    fetchingDone &lt;- digSite.<span class="fu">workMonitor</span> ? WorkMonitor.<span class="fu">WaitForReady</span></a>
+<a class="sourceLine" id="cb8-4" title="4">    cacheDumps &lt;- CacheDumps.<span class="fu">fromMirrors</span>(digSite.<span class="fu">allMirrors</span>)</a>
+<a class="sourceLine" id="cb8-5" title="5">    _ = models.<span class="fu">foreach</span>(_.<span class="fu">resolveChildren</span>(cacheDumps)) <span class="co">// side effect!</span></a>
+<a class="sourceLine" id="cb8-6" title="6">} <span class="kw">yield</span> models</a></code></pre></div>
+<h2 id="anyone-else-blocking">Anyone else blocking?</h2>
+<p>At this point the tool started to work again and produce results. So I went back checking if any other blocking code remained that can be implemented in other ways. The progress tracker was like that, it had mutable state and locks, so I converted that to an actor too. It was quite simple, and on the usage side almost nothing changed compared to the original.</p>
+<h2 id="and-what-about-the-throttling">And what about the throttling?</h2>
+<p>Ok so at this point I refactored the whole stuff but still did not solve the throttling issue, right?</p>
+<p>Right.</p>
+<p>But now finally I knew how to do it!</p>
+<p>I already wrapped all AWS calls with that specific function (and at this point it was really <em>all</em> calls, not just <em>almost)</em>. So I just had to write it in a better way.</p>
+<p>I wanted to:</p>
+<ul>
+<li>Have control on how many AWS requests are we doing in parallel</li>
+<li>In case of throttling errors delay <strong>everything</strong> as soon as possible</li>
+</ul>
+<p>This can be achieved easily by some standard patterns like treating AWS as an encapsulated resource and putting some circuit breaking logic in it, and explicitly distributing the work among multiple workers.</p>
+<p>Let’s see the designed solution on a drawing:</p>
+<p><img src="../images/prezidig-img-4.png" width="800" /></p>
+<p><strong>Note</strong>: the <em>classic Akka</em> has built-in support for this routing and circuit breaking, but I prefer <em>Akka-typed</em> because of its type safety, where there are no official reusable higher level components like this yet. The one I implemented here is quite specific, later could be refactored to be built from more reusable typed actor components.</p>
+<p>So how does this work?</p>
+<ul>
+<li>There is a single coordinator actor called <strong>AWS</strong> and multiple (32 by default) worker actors called <strong>AWS Worker</strong>.</li>
+<li>The number of worker actors control the maximum number of parallel AWS operations, because each worker actor is guaranteed to run maximum one such operation at the same time. All the other incoming requests are distributed among the workers and gets enqueued.</li>
+<li>The AWS calls are executed on a different thread pool, not blocking the actors. Their result is sent back by the already mentioned <em>pipe to</em> pattern</li>
+<li>AWS throttling errors are detected on the worker nodes, and the worker node immediately switches to <strong>open circuit state</strong> in which it does not start any new AWS command. The length of the open state increases with every throttling error, and gets reseted after a number of successful requests.</li>
+<li>Opening the circuit breaker on one worker node is immediately followed by opening it on <strong>all other</strong> worker nodes too, to stop overloading AWS.</li>
+</ul>
+<p>This could be further improved with more advanced logic but I believe it is good enough for our current purposes, and now we can use <strong>prezidig</strong> again!</p>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>

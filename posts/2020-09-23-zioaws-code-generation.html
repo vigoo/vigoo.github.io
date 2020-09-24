@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>Code generation in ZIO-AWS</title>
+        
+        <link rel="alternate" type="application/atom+xml" title="vigoo's software development blog" href="./atom.xml" />
+        
+        <link rel="stylesheet" type="text/css" href="../css/haskell.org.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+        
+        <!-- zoomingbox -->
+        <script src="../js/jquery-1.11.0.min.js"></script>
+        <script src="../js/jquery.zoomingbox.min.js"></script>
+        <link href="../css/zoomingbox.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>Code generation in ZIO-AWS</h1>
+
+            <div class="info">
+    Posted on September 23, 2020
+    
+</div>
+
+<p>I have recently published a set of libraries, <a href="https://github.com/vigoo/zio-aws"><strong>zio-aws</strong></a>, aiming to provide a better interface for working with <em>AWS services</em> from <a href="https://zio.dev/">ZIO</a> applications. For more information about how the ZIO <em>interface</em> works and how to get started with these libraries, read the repository’s README. In this post, I will focus on how these libraries are generated from the schema provided by the <a href="https://github.com/aws/aws-sdk-java-v2">AWS Java SDK v2</a>.</p>
+<h2 id="generating-code">Generating code</h2>
+<p>I wanted to cover <em>all</em> AWS services at once. This means client libraries for more than 200 services, so the only possible approach was to <em>generate</em> these libraries on top of a small hand-written core.</p>
+<h3 id="schema">Schema</h3>
+<p>The first thing we need for generating code is a source schema. This is the model that we use to create the source code from. It is usually constructed by some kind of DSL or more directly described by a JSON or YAML or similar data model. In the case of <strong>zio-aws</strong> this was already defined in the <a href="https://github.com/aws/aws-sdk-java-v2">AWS Java SDK v2</a> project. The way it works is:</p>
+<ul>
+<li>There is a <code>codegen</code> project, published in the <code>software.amazon.awssdk</code> group among the client libraries, that contains the Java classes used for generating the Java SDK itself. This contains the data model classes for parsing the actual schema as well.</li>
+<li>In the AWS Java SDK v2 repository, the schema is located in the subdirectory called <a href="https://github.com/aws/aws-sdk-java-v2/tree/master/services"><code>services</code></a>. There is a directory for each AWS service and it contains among other things some relevant <em>JSON</em> schema files:
+<ul>
+<li><code>service-2.json</code> is the main schema of the service, describing the data structures and operations</li>
+<li><code>paginators-1.json</code> describes the operations that the Java SDK creates a <em>paginator interface</em> for</li>
+<li><code>customization.config</code> contains extra information, including changes to be applied on top of the service model</li>
+</ul></li>
+<li>Fortunately, these are also embedded in the generated <em>AWS Java SDK</em> libraries as resources, so getting <em>all client libraries</em> on the classpath gives us an easy way to get the corresponding schemas as well</li>
+</ul>
+<p>I decided to use the low-level data classes from the AWS <code>codegen</code> library to parse these files and using that build a higher-level model that can be then used as an input for the <em>code generator</em>.</p>
+<p>This is encapsulated in a <em>ZIO layer</em> called <code>Loader</code>, which has two functions:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">def</span> <span class="fu">findModels</span>(): ZIO[Blocking, Throwable, Set[ModelId]]</a>
+<a class="sourceLine" id="cb1-2" title="2"><span class="kw">def</span> <span class="fu">loadCodegenModel</span>(id: ModelId): ZIO[Blocking, Throwable, C2jModels]</a></code></pre></div>
+<p>The first one, <code>findModels</code> uses the <code>ClassLoader</code> to enumerate all <code>codegen-resources</code> folders on the <em>classpath</em> and just returns a set of <code>ModelId</code>s. <code>ModelId</code> is a pair of a model name (such as <code>s3</code>) and an optional submodule name (for example <code>dynamodb:dynamodbstreams</code>).</p>
+<p>Then for each detected model we can load it with the <code>loadCodegenModel</code> function, <code>C2jModels</code> is a class from the AWS <code>codegen</code> library.</p>
+<p>Figuring out how to interpret these data structures, and how to map them to the generated Java API was the hardest part, but it’s out of scope for this post. Our next topic here is how we generate code from our <em>model</em>.</p>
+<h3 id="scalameta">Scalameta</h3>
+<p>There are several possibilities to generate source code and I tried many of them during the past years. Let’s see some examples:</p>
+<ul>
+<li>Using a general-purpose text template engine. An example we used at <a href="https://prezi.com">Prezi</a> is the <a href="https://github.com/bkiers/Liqp">Java implementation of the Liquid templating engine</a>. Another example is the <a href="https://github.com/OpenAPITools/openapi-generator">OpenAPI generator project</a> that uses <a href="https://mustache.github.io/">Mustache</a> templates to generate server and client code from OpenAPI specifications.</li>
+<li>Generating from code with some general-purpose pretty-printing library. With this approach, we are using the pretty-printer library’s composability features to create source code building blocks, and map the code generator model to these constructs. It is easier to express complex logic in this case, as we don’t have to encode it in a limited dynamic template model. On the other hand, reading the code generator’s source and imagining the output is not easy, and nothing enforces that the pretty-printer building blocks are actually creating valid source code.</li>
+<li>If the target language has an AST with a pretty-printing feature, we can map the model to the AST directly and just pretty print at the end. With this, we get a much more efficient development cycle, as the generated code is at least guaranteed to be syntactically correct. But the AST can be far from how the target language’s textual representation looks like, which makes it difficult to read and write this code.</li>
+<li>With a library that supports building ASTs with <em>quasiquotes</em>, we can build the AST fragments with a syntax that is very close to the generated target language. For <em>Scala</em>, a library that supports this and is used in a lot of tooling projects is <a href="https://scalameta.org/">Scalameta</a></li>
+</ul>
+<p>I wanted to try using <em>Scalameta</em> ever since I met Devon Stewart and he mentioned how he uses it in <a href="https://github.com/twilio/guardrail/">guardrail</a>. Finally, this was a perfect use case to do so!</p>
+<p>To get an understanding of what kind of Scala language constructs can be built with <em>quasiquotes</em> with <em>Scalameta</em>, check <a href="https://scalameta.org/docs/trees/quasiquotes.html">the list of them in the official documentation</a>.</p>
+<p>We get a good mix of both worlds with this. It is possible to express complex template logic in real code, creating higher-level constructs, taking advantage of the full power of Scala. On the other hand, the actual <em>quasiquoted</em> fragments are still close to the code generator’s target language (which is in this case also Scala).</p>
+<p>Let’s see a short example of this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">private</span> <span class="kw">def</span> <span class="fu">generateMap</span>(m: Model): ZIO[GeneratorContext, GeneratorFailure, ModelWrapper] = {</a>
+<a class="sourceLine" id="cb2-2" title="2">  <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb2-3" title="3">    keyModel &lt;- <span class="fu">get</span>(m.<span class="fu">shape</span>.<span class="fu">getMapKeyType</span>.<span class="fu">getShape</span>)</a>
+<a class="sourceLine" id="cb2-4" title="4">    valueModel &lt;- <span class="fu">get</span>(m.<span class="fu">shape</span>.<span class="fu">getMapValueType</span>.<span class="fu">getShape</span>)</a>
+<a class="sourceLine" id="cb2-5" title="5">    keyT &lt;- TypeMapping.<span class="fu">toWrappedType</span>(keyModel)</a>
+<a class="sourceLine" id="cb2-6" title="6">    valueT &lt;- TypeMapping.<span class="fu">toWrappedType</span>(valueModel)</a>
+<a class="sourceLine" id="cb2-7" title="7">  } <span class="kw">yield</span> <span class="fu">ModelWrapper</span>(</a>
+<a class="sourceLine" id="cb2-8" title="8">    code = List(q<span class="st">&quot;&quot;&quot;type ${m.asType} = Map[$keyT, $valueT]&quot;&quot;&quot;</span>)</a>
+<a class="sourceLine" id="cb2-9" title="9">  )</a>
+<a class="sourceLine" id="cb2-10" title="10">}</a></code></pre></div>
+<p>For each <em>AWS</em> service-specific <em>model type</em> we generate some kind of wrapper code into the ZIO service client library. This is done by processing the schema model to an intermediate format where for each such wrapper, we have a <code>ModelWrapper</code> value that already has the <em>Scalameta AST</em> for that particular wrapper. The above code fragment creates this for <em>map types</em>, which is a simple type alias for a Scala <code>Map</code>. It’s a <code>ZIO</code> function, taking advantage of passing around the context in the <em>environment</em> and safely handling generator failures, while the actual generated code part in the <code>q&quot;&quot;&quot;...&quot;&quot;&quot;</code> remained quite readable.</p>
+<p>Then the whole <em>model package</em> can be expressed like this:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb3-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb3-3" title="3">  primitiveModels &lt;- ZIO.<span class="fu">foreach</span>(primitiveModels.<span class="fu">toList</span>.<span class="fu">sortBy</span>(_.<span class="fu">name</span>))(generateModel)</a>
+<a class="sourceLine" id="cb3-4" title="4">  models &lt;- ZIO.<span class="fu">foreach</span>(complexModels.<span class="fu">toList</span>.<span class="fu">sortBy</span>(_.<span class="fu">name</span>))(generateModel)</a>
+<a class="sourceLine" id="cb3-5" title="5">} <span class="kw">yield</span> q<span class="st">&quot;&quot;&quot;package $fullPkgName {</span></a>
+<a class="sourceLine" id="cb3-6" title="6"></a>
+<a class="sourceLine" id="cb3-7" title="7">            <span class="kw">import</span> scala.<span class="fu">jdk</span>.<span class="fu">CollectionConverters</span>._</a>
+<a class="sourceLine" id="cb3-8" title="8">            <span class="kw">import</span> java.<span class="fu">time</span>.<span class="fu">Instant</span></a>
+<a class="sourceLine" id="cb3-9" title="9">            <span class="kw">import</span> zio.{Chunk, ZIO}</a>
+<a class="sourceLine" id="cb3-10" title="10">            <span class="kw">import</span> software.<span class="fu">amazon</span>.<span class="fu">awssdk</span>.<span class="fu">core</span>.<span class="fu">SdkBytes</span></a>
+<a class="sourceLine" id="cb3-11" title="11"></a>
+<a class="sourceLine" id="cb3-12" title="12">            ..$parentModuleImport</a>
+<a class="sourceLine" id="cb3-13" title="13"></a>
+<a class="sourceLine" id="cb3-14" title="14">            <span class="kw">package</span> <span class="kw">object</span> model {</a>
+<a class="sourceLine" id="cb3-15" title="15">              <span class="kw">object</span> primitives {</a>
+<a class="sourceLine" id="cb3-16" title="16">                ..${primitiveModels.<span class="fu">flatMap</span>(_.<span class="fu">code</span>)}</a>
+<a class="sourceLine" id="cb3-17" title="17">              }</a>
+<a class="sourceLine" id="cb3-18" title="18"></a>
+<a class="sourceLine" id="cb3-19" title="19">              ..${models.<span class="fu">flatMap</span>(_.<span class="fu">code</span>)}</a>
+<a class="sourceLine" id="cb3-20" title="20">            }}<span class="st">&quot;&quot;&quot;</span></a></code></pre></div>
+<p>This can be then <em>pretty printed</em> simply with<code>.toString</code> and saved to a <code>.scala</code> file.</p>
+<h2 id="building-the-libraries">Building the libraries</h2>
+<p>We have a way to collect the service models and generate source code from that, but we still have to use that generated code somehow. In <code>zio-aws</code> the goal was to generate a separate <em>client library</em> for each AWS service. At the time of writing, there were <strong>235</strong> such services. The generated libraries have to be built and published to <em>Sonatype</em>.</p>
+<h3 id="first-version">First version</h3>
+<p>In the first version I simply wired together the above described <code>loader</code> and <code>generator</code> module into a <code>ZIO</code> <em>command line</em> app, using <a href="https://vigoo.github.io/clipp/docs/">clipp</a> for command line parsing. It’s <code>main</code> was really just something like the following:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">val</span> app = <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb4-2" title="2">  svcs &lt;- config.<span class="fu">parameters</span>[Parameters].<span class="fu">map</span>(_.<span class="fu">serviceList</span>)</a>
+<a class="sourceLine" id="cb4-3" title="3">  ids &lt;- svcs <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb4-4" title="4">    <span class="kw">case</span> Some(ids) =&gt; ZIO.<span class="fu">succeed</span>(ids.<span class="fu">toSet</span>)</a>
+<a class="sourceLine" id="cb4-5" title="5">    <span class="kw">case</span> None =&gt; loader.<span class="fu">findModels</span>().<span class="fu">mapError</span>(ReflectionError)</a>
+<a class="sourceLine" id="cb4-6" title="6">  }</a>
+<a class="sourceLine" id="cb4-7" title="7">  _ &lt;- ZIO.<span class="fu">foreachPar</span>(ids) { id =&gt;</a>
+<a class="sourceLine" id="cb4-8" title="8">    <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb4-9" title="9">      model &lt;- loader.<span class="fu">loadCodegenModel</span>(id).<span class="fu">mapError</span>(ReflectionError)</a>
+<a class="sourceLine" id="cb4-10" title="10">      _ &lt;- generator.<span class="fu">generateServiceCode</span>(id, model).<span class="fu">mapError</span>(GeneratorError)</a>
+<a class="sourceLine" id="cb4-11" title="11">    } <span class="kw">yield</span> ()</a>
+<a class="sourceLine" id="cb4-12" title="12">  }</a>
+<a class="sourceLine" id="cb4-13" title="13">  _ &lt;- generator.<span class="fu">generateBuildSbt</span>(ids).<span class="fu">mapError</span>(GeneratorError)</a>
+<a class="sourceLine" id="cb4-14" title="14">  _ &lt;- generator.<span class="fu">copyCoreProject</span>().<span class="fu">mapError</span>(GeneratorError)</a>
+<a class="sourceLine" id="cb4-15" title="15">} <span class="kw">yield</span> ExitCode.<span class="fu">success</span></a>
+<a class="sourceLine" id="cb4-16" title="16"></a>
+<a class="sourceLine" id="cb4-17" title="17"><span class="kw">val</span> cfg = config.<span class="fu">fromArgsWithUsageInfo</span>(args, Parameters.<span class="fu">spec</span>).<span class="fu">mapError</span>(ParserError)</a>
+<a class="sourceLine" id="cb4-18" title="18"><span class="kw">val</span> modules = loader.<span class="fu">live</span> ++ (cfg &gt;+&gt; generator.<span class="fu">live</span>)</a>
+<a class="sourceLine" id="cb4-19" title="19">app.<span class="fu">provideCustomLayer</span>(modules)</a></code></pre></div>
+<p>Then created a <em>multi-module</em> <code>sbt</code> project with the following modules:</p>
+<ul>
+<li><code>zio-aws-codegen</code> the CLI code generator we were talking about so far</li>
+<li><code>zio-aws-core</code> holding the common part of all AWS service wrapper libraries. This contains things like how to translate AWS pagination into <code>ZStream</code> etc.</li>
+<li><code>zio-aws-akka-http</code>, <code>zio-aws-http4s</code> and <code>zio-aws-netty</code> are the supported <em>HTTP layers</em>, all depend on <code>zio-aws-core</code></li>
+</ul>
+<p>I also created a first <em>example</em> project in a separate <code>sbt</code> project, that demonstrated the use of some of the generated AWS client libraries. With this primitive setup, building everything from scratch and running the example took the following steps:</p>
+<ol type="1">
+<li><code>sbt compile</code> the root project</li>
+<li>manually running <code>zio-aws-codegen</code> to generate <em>all client libs at once</em> to a separate directory, with a corresponding <code>build.sbt</code> including all these projects in a single <code>sbt</code> project</li>
+<li><code>sbt publishLocal</code> in the generated <code>sbt</code> project</li>
+<li><code>sbt run</code> in the <em>examples</em> project</li>
+</ol>
+<p>For the second, manual step I created some <em>custom sbt tasks</em> called <code>generateAll</code>, <code>buildAll</code>, and <code>publishLocalAll</code>, that downloaded an <code>sbt-launch-*.jar</code> and used it to run the code generator and fork an <code>sbt</code> to build the generated project.</p>
+<p>The <code>generateAll</code> task was quite simple:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1">generateAll := Def.<span class="fu">taskDyn</span> {</a>
+<a class="sourceLine" id="cb5-2" title="2">  <span class="kw">val</span> root = baseDirectory.<span class="fu">value</span>.<span class="fu">getAbsolutePath</span></a>
+<a class="sourceLine" id="cb5-3" title="3">  Def.<span class="fu">task</span> {</a>
+<a class="sourceLine" id="cb5-4" title="4">    (codegen / Compile / run).<span class="fu">toTask</span>(s<span class="st">&quot; --target-root ${root}/generated --source-root ${root} --version $zioAwsVersion --zio-version $zioVersion --zio-rs-version $zioReactiveStreamsInteropVersion&quot;</span>).<span class="fu">value</span></a>
+<a class="sourceLine" id="cb5-5" title="5">  }</a>
+<a class="sourceLine" id="cb5-6" title="6">}.<span class="fu">value</span></a></code></pre></div>
+<p>Launching a second <code>sbt</code> took more effort:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1">buildAll := Def.<span class="fu">taskDyn</span> {</a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="kw">val</span> _ = generateAll.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="kw">val</span> generatedRoot = baseDirectory.<span class="fu">value</span> / <span class="st">&quot;generated&quot;</span></a>
+<a class="sourceLine" id="cb6-4" title="4">  <span class="kw">val</span> launcherVersion = sbtVersion.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb6-5" title="5">  <span class="kw">val</span> launcher = s<span class="st">&quot;sbt-launch-$launcherVersion.jar&quot;</span></a>
+<a class="sourceLine" id="cb6-6" title="6">  <span class="kw">val</span> launcherFile = generatedRoot / launcher</a>
+<a class="sourceLine" id="cb6-7" title="7"></a>
+<a class="sourceLine" id="cb6-8" title="8">  Def.<span class="fu">task</span>[Unit] {</a>
+<a class="sourceLine" id="cb6-9" title="9">    <span class="kw">if</span> (!launcherFile.<span class="fu">exists</span>) {</a>
+<a class="sourceLine" id="cb6-10" title="10">      <span class="kw">val</span> u = <span class="fu">url</span>(s<span class="st">&quot;https://oss.sonatype.org/content/repositories/public/org/scala-sbt/sbt-launch/$launcherVersion/sbt-launch-$launcherVersion.jar&quot;</span>)</a>
+<a class="sourceLine" id="cb6-11" title="11">      sbt.<span class="fu">io</span>.<span class="fu">Using</span>.<span class="fu">urlInputStream</span>(u) { inputStream =&gt;</a>
+<a class="sourceLine" id="cb6-12" title="12">        IO.<span class="fu">transfer</span>(inputStream, launcherFile)</a>
+<a class="sourceLine" id="cb6-13" title="13">      }</a>
+<a class="sourceLine" id="cb6-14" title="14">    }</a>
+<a class="sourceLine" id="cb6-15" title="15">    <span class="kw">val</span> fork = <span class="kw">new</span> <span class="fu">ForkRun</span>(<span class="fu">ForkOptions</span>()</a>
+<a class="sourceLine" id="cb6-16" title="16">      .<span class="fu">withWorkingDirectory</span>(generatedRoot))</a>
+<a class="sourceLine" id="cb6-17" title="17">    fork.<span class="fu">run</span>(</a>
+<a class="sourceLine" id="cb6-18" title="18">      <span class="st">&quot;xsbt.boot.Boot&quot;</span>,</a>
+<a class="sourceLine" id="cb6-19" title="19">      classpath = launcherFile :: Nil,</a>
+<a class="sourceLine" id="cb6-20" title="20">      options = <span class="st">&quot;compile&quot;</span> :: Nil,</a>
+<a class="sourceLine" id="cb6-21" title="21">      log = streams.<span class="fu">value</span>.<span class="fu">log</span></a>
+<a class="sourceLine" id="cb6-22" title="22">    )</a>
+<a class="sourceLine" id="cb6-23" title="23">  }</a>
+<a class="sourceLine" id="cb6-24" title="24">}.<span class="fu">value</span></a></code></pre></div>
+<p>With these extra tasks, I released the first version of the library manually, but there was a lot of annoying difficulties:</p>
+<ul>
+<li>Having to switch between various <code>sbt</code> projects</li>
+<li>The need to <code>publishLocal</code> the generated artifacts in order to build the examples, or any kind of integration tests that I planned to add</li>
+<li>The only way to build only those client libraries that are needed for the examples/tests was to build and publish them manually, as this dependency was not tracked at all between the unrelated <code>sbt</code> projects</li>
+<li>Because the generated <code>sbt</code> project could not refer to the outer <code>zio-aws-core</code> project, it has to be copied into the generated project in the code generator step</li>
+<li>Building and publishing all the <strong>235</strong> projects at once required about <strong>16Gb</strong> memory and hours of compilation time. It was too big to run on any of the (freely available) CI systems.</li>
+</ul>
+<h3 id="proper-solution">Proper solution</h3>
+<p>When I mentioned this, <em>Itamar Ravid</em> recommended trying to make it an <em>sbt code generator</em>. <code>sbt</code> has built-in support for generating source code, as described <a href="https://www.scala-sbt.org/1.0/docs/Howto-Generating-Files.html">on it’s documentation page</a>. This alone though would not be enough to cover our use case, as in <code>zio-aws</code> even the <em>set of projects</em> is dynamic and comes from the enumeration of schema models. Fortunately, there is support for that in too, through the <code>extraProjects</code> property of <code>sbt</code> <em>plugins</em>.</p>
+<p>With these two tools, the new project layout became the following:</p>
+<ul>
+<li><code>zio-aws-codegen</code> is an sbt <strong>plugin</strong>, having it’s own <code>sbt</code> project in a subdirectory</li>
+<li>the <code>zio-aws-core</code> and the HTTP libraries are all in the top-level project as before</li>
+<li>examples and integration tests are also part of the top-level project</li>
+<li>the <code>zio-aws-codegen</code> plugin is referenced using a <code>ProjectRef</code> from the outer project</li>
+<li>the plugin adds all the <em>AWS service client wrapper libraries</em> to the top-level project</li>
+<li>these projects generate their source on-demand</li>
+</ul>
+<p>In this setup, it is possible to build any subset of the generated libraries without the need to process and compile all of them, so it needs much less memory. It is also much simpler to run tests or build examples on top of them, as the test and example projects can directly depend on the generated libraries as <code>sbt</code> submodules. And even developing the <em>code generator</em> itself is convenient - although for editing it, it has to be opened as in a separate IDE session, but otherwise, <code>sbt reload</code> on the top level project automatically recompiles the plugin when needed.</p>
+<p>Let’s see piece by piece how we can achieve this!</p>
+<h4 id="project-as-a-source-dependency">Project as a source dependency</h4>
+<p>The first thing I wanted to do is having the <code>zio-aws-codegen</code> project converted to an <code>sbt</code> plugin, but still having it in the same repository and be able to use it without having to install to a local repository. Although the whole code generator code could have been added to the top level <code>sbt</code> project’s <code>project</code> source, I wanted to keep it as a separate module to be able to publish it as a library or a CLI tool in the future if needed.</p>
+<p>This can be achieved by putting it in a subdirectory of the top level project, with a separate <code>build.sbt</code> that contains the</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1">sbtPlugin := <span class="kw">true</span></a></code></pre></div>
+<p>(beside the usual ones). Then it can be referenced in the top level project’s <code>project/plugins.sbt</code> in the following way:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">lazy</span> <span class="kw">val</span> codegen = project</a>
+<a class="sourceLine" id="cb8-2" title="2">  .<span class="fu">in</span>(<span class="fu">file</span>(<span class="st">&quot;.&quot;</span>))</a>
+<a class="sourceLine" id="cb8-3" title="3">  .<span class="fu">dependsOn</span>(<span class="fu">ProjectRef</span>(<span class="fu">file</span>(<span class="st">&quot;../zio-aws-codegen&quot;</span>), <span class="st">&quot;zio-aws-codegen&quot;</span>))</a></code></pre></div>
+<p>and enabled in the <code>build.sbt</code> as</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="fu">enablePlugins</span>(ZioAwsCodegenPlugin)</a></code></pre></div>
+<h4 id="dynamically-generating-projects">Dynamically generating projects</h4>
+<p>To generate the subprojects dynamically, we need the <code>Set[ModelId]</code> coming from the <code>loader</code> module. It is a <code>ZIO</code> module, so from the <code>sbt</code> plugin we have to use <code>Runtime.default.unsafeRun</code> to execute it.</p>
+<p>As the code generator project is now an <code>sbt</code> plugin, all the <code>sbt</code> data structures are directly available, so we can just write a function that maps the <code>ModelId</code>s to <code>Project</code>s:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">protected</span> <span class="kw">def</span> <span class="fu">generateSbtSubprojects</span>(ids: Set[ModelId]): Seq[Project] = ???</a></code></pre></div>
+<p>One interesting part here is that some of the subprojects are depending on each other. This happens with AWS service <em>submodules</em>, indicated by the second parameter of <code>ModelId</code>. An example is <code>dynamodbstreams</code> that depends on <code>dynamodb</code>. When creating the <code>Project</code> values, we have to be able to <code>dependOn</code> on some other already generated projects, and they have to be generated in the correct order to do so.</p>
+<p>We could do a full topological sort, but it is not necessary, here we know that the maximum depth of dependencies is 1, so it is enough to put the submodules at the end of the sequence:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1"><span class="kw">val</span> map = ids</a>
+<a class="sourceLine" id="cb11-2" title="2">  .<span class="fu">toSeq</span></a>
+<a class="sourceLine" id="cb11-3" title="3">  .<span class="fu">sortWith</span> { <span class="kw">case</span> (a, b) =&gt;</a>
+<a class="sourceLine" id="cb11-4" title="4">    <span class="kw">val</span> aIsDependent = a.<span class="fu">subModuleName</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb11-5" title="5">      <span class="kw">case</span> Some(value) <span class="kw">if</span> value != a.<span class="fu">name</span> =&gt; <span class="kw">true</span></a>
+<a class="sourceLine" id="cb11-6" title="6">      <span class="kw">case</span> _ =&gt; <span class="kw">false</span></a>
+<a class="sourceLine" id="cb11-7" title="7">    }</a>
+<a class="sourceLine" id="cb11-8" title="8">    <span class="kw">val</span> bIsDependent = b.<span class="fu">subModuleName</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb11-9" title="9">      <span class="kw">case</span> Some(value) <span class="kw">if</span> value != b.<span class="fu">name</span> =&gt; <span class="kw">true</span></a>
+<a class="sourceLine" id="cb11-10" title="10">      <span class="kw">case</span> _ =&gt; <span class="kw">false</span></a>
+<a class="sourceLine" id="cb11-11" title="11">    }</a>
+<a class="sourceLine" id="cb11-12" title="12">    bIsDependent || (!aIsDependent &amp;&amp; a.<span class="fu">toString</span> &lt; b.<span class="fu">toString</span>)</a>
+<a class="sourceLine" id="cb11-13" title="13">  }</a></code></pre></div>
+<p>Then in order to be able get the dependencies, we do a <em>fold</em> on the ordered <code>ModelId</code>s:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1">  .<span class="fu">foldLeft</span>(Map.<span class="fu">empty</span>[ModelId, Project]) { (mapping, id) =&gt;</a>
+<a class="sourceLine" id="cb12-2" title="2">      <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb12-3" title="3">      <span class="kw">val</span> deps = id.<span class="fu">subModule</span> <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb12-4" title="4">        <span class="kw">case</span> Some(value) <span class="kw">if</span> value != id.<span class="fu">name</span> =&gt;</a>
+<a class="sourceLine" id="cb12-5" title="5">          Seq(<span class="fu">ClasspathDependency</span>(<span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-core&quot;</span>), None),</a>
+<a class="sourceLine" id="cb12-6" title="6">              <span class="fu">ClasspathDependency</span>(<span class="fu">mapping</span>(<span class="fu">ModelId</span>(id.<span class="fu">name</span>, Some(id.<span class="fu">name</span>))), None))</a>
+<a class="sourceLine" id="cb12-7" title="7">        <span class="kw">case</span> _ =&gt;</a>
+<a class="sourceLine" id="cb12-8" title="8">          Seq(<span class="fu">ClasspathDependency</span>(<span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-core&quot;</span>), None))</a>
+<a class="sourceLine" id="cb12-9" title="9">      }      </a>
+<a class="sourceLine" id="cb12-10" title="10">      <span class="kw">val</span> project = <span class="fu">Project</span>(fullName, <span class="fu">file</span>(<span class="st">&quot;generated&quot;</span>) / name)</a>
+<a class="sourceLine" id="cb12-11" title="11">        .<span class="fu">settings</span>(</a>
+<a class="sourceLine" id="cb12-12" title="12">          libraryDependencies += <span class="st">&quot;software.amazon.awssdk&quot;</span> % id.<span class="fu">name</span> % awsLibraryVersion.<span class="fu">value</span>,</a>
+<a class="sourceLine" id="cb12-13" title="13">          <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb12-14" title="14">        .<span class="fu">dependsOn</span>(deps: _*)</a>
+<a class="sourceLine" id="cb12-15" title="15"></a>
+<a class="sourceLine" id="cb12-16" title="16">      mapping.<span class="fu">updated</span>(id, project)</a>
+<a class="sourceLine" id="cb12-17" title="17">  }</a></code></pre></div>
+<p>To make it easier to work with the generated projects, we also create a project named <code>all</code> that aggregates all the ones generated above.</p>
+<h4 id="applying-settings-to-the-generated-projects">Applying settings to the generated projects</h4>
+<p>The code generator only sets the basic settings for the generated projects: name, path and dependencies. We need a lot more, setting organization and version, all the publishing options, controlling the Scala version, etc.</p>
+<p>I decided to keep these settings outside of the code generator plugin, in the top-level <code>sbt</code> project. By creating an <code>AutoPlugin</code> end enabling it for all projects, we can inject all the common settings for both the hand-written and the generated projects:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">object</span> Common <span class="kw">extends</span> AutoPlugin {</a>
+<a class="sourceLine" id="cb13-2" title="2"></a>
+<a class="sourceLine" id="cb13-3" title="3">  <span class="kw">object</span> autoImport {</a>
+<a class="sourceLine" id="cb13-4" title="4">    <span class="kw">val</span> scala212Version = <span class="st">&quot;2.12.12&quot;</span></a>
+<a class="sourceLine" id="cb13-5" title="5">    <span class="kw">val</span> scala213Version = <span class="st">&quot;2.13.3&quot;</span></a>
+<a class="sourceLine" id="cb13-6" title="6">    <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-7" title="7">  }</a>
+<a class="sourceLine" id="cb13-8" title="8">  <span class="kw">import</span> autoImport._</a>
+<a class="sourceLine" id="cb13-9" title="9">    </a>
+<a class="sourceLine" id="cb13-10" title="10">  <span class="kw">override</span> <span class="kw">val</span> trigger = allRequirements</a>
+<a class="sourceLine" id="cb13-11" title="11">  <span class="kw">override</span> <span class="kw">val</span> <span class="kw">requires</span> = Sonatype</a>
+<a class="sourceLine" id="cb13-12" title="12"></a>
+<a class="sourceLine" id="cb13-13" title="13">  <span class="kw">override</span> <span class="kw">lazy</span> <span class="kw">val</span> projectSettings =</a>
+<a class="sourceLine" id="cb13-14" title="14">    Seq(</a>
+<a class="sourceLine" id="cb13-15" title="15">      scalaVersion := scala213Version,</a>
+<a class="sourceLine" id="cb13-16" title="16">      crossScalaVersions := List(scala212Version, scala213Version),</a>
+<a class="sourceLine" id="cb13-17" title="17">      <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb13-18" title="18">    )</a>
+<a class="sourceLine" id="cb13-19" title="19">}</a></code></pre></div>
+<h4 id="source-generator-task">Source generator task</h4>
+<p>At this point, we could also add the already existing <em>source code generation</em> to the initialization of the plugin, and just generate all the subproject’s all source files every time the <code>sbt</code> project is loaded. With this number of generated projects though, it would have been a very big startup overhead and would not allow us to split the build (at least not the code generation part) on CI, to solve the memory and build time issues.</p>
+<p>As <code>sbt</code> has built-in support for defining <em>source generator tasks</em>, we can do much better!</p>
+<p>Instead of generating the source codes in one step, we define a <code>generateSources</code> task and add it to each <em>generated subproject</em> as a <em>source generator</em>:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1">Compile / sourceGenerators += generateSources.<span class="fu">taskValue</span>,</a>
+<a class="sourceLine" id="cb14-2" title="2">awsLibraryId := id.<span class="fu">toString</span></a></code></pre></div>
+<p>The <code>awsLibraryId</code> is a custom property that we the <code>generateSources</code> task can use to determine which schema to use for the code generation.</p>
+<p>The first part of this task is to gather the information from the project it got applied on, including the custom <code>awsLibraryId</code> property:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb15-1" title="1"><span class="kw">lazy</span> <span class="kw">val</span> generateSources =</a>
+<a class="sourceLine" id="cb15-2" title="2">  Def.<span class="fu">task</span> {</a>
+<a class="sourceLine" id="cb15-3" title="3">    <span class="kw">val</span> log = streams.<span class="fu">value</span>.<span class="fu">log</span></a>
+<a class="sourceLine" id="cb15-4" title="4"></a>
+<a class="sourceLine" id="cb15-5" title="5">    <span class="kw">val</span> idStr = awsLibraryId.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-6" title="6">    <span class="kw">val</span> id = ModelId.<span class="fu">parse</span>(idStr) <span class="kw">match</span> {</a>
+<a class="sourceLine" id="cb15-7" title="7">      <span class="kw">case</span> <span class="fu">Left</span>(failure) =&gt; sys.<span class="fu">error</span>(failure)</a>
+<a class="sourceLine" id="cb15-8" title="8">      <span class="kw">case</span> <span class="fu">Right</span>(value) =&gt; value</a>
+<a class="sourceLine" id="cb15-9" title="9">    }</a>
+<a class="sourceLine" id="cb15-10" title="10"></a>
+<a class="sourceLine" id="cb15-11" title="11">    <span class="kw">val</span> targetRoot = (sourceManaged in Compile).<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-12" title="12">    <span class="kw">val</span> travisSrc = travisSource.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-13" title="13">    <span class="kw">val</span> travisDst = travisTarget.<span class="fu">value</span></a>
+<a class="sourceLine" id="cb15-14" title="14">    <span class="kw">val</span> parallelJobs = travisParallelJobs.<span class="fu">value</span></a></code></pre></div>
+<p>From these, we create a <code>Parameters</code> data structure to pass to the <code>generator</code> module. This is what we used to construct with <code>clipp</code> from CLI arguments:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1">    <span class="kw">val</span> params = <span class="fu">Parameters</span>(</a>
+<a class="sourceLine" id="cb16-2" title="2">      targetRoot = Path.<span class="fu">fromJava</span>(targetRoot.<span class="fu">toPath</span>),</a>
+<a class="sourceLine" id="cb16-3" title="3">      travisSource = Path.<span class="fu">fromJava</span>(travisSrc.<span class="fu">toPath</span>),</a>
+<a class="sourceLine" id="cb16-4" title="4">      travisTarget = Path.<span class="fu">fromJava</span>(travisDst.<span class="fu">toPath</span>),</a>
+<a class="sourceLine" id="cb16-5" title="5">      parallelTravisJobs = parallelJobs</a>
+<a class="sourceLine" id="cb16-6" title="6">    )</a></code></pre></div>
+<p>And finally, construct the <code>ZIO</code> environment, load a <strong>single</strong> schema model, and generate the library’s source code:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb17-1" title="1">    zio.<span class="fu">Runtime</span>.<span class="fu">default</span>.<span class="fu">unsafeRun</span> {</a>
+<a class="sourceLine" id="cb17-2" title="2">      <span class="kw">val</span> cfg = ZLayer.<span class="fu">succeed</span>(params)</a>
+<a class="sourceLine" id="cb17-3" title="3">      <span class="kw">val</span> env = loader.<span class="fu">live</span> ++ (cfg &gt;+&gt; generator.<span class="fu">live</span>)</a>
+<a class="sourceLine" id="cb17-4" title="4">      <span class="kw">val</span> task =</a>
+<a class="sourceLine" id="cb17-5" title="5">        <span class="kw">for</span> {</a>
+<a class="sourceLine" id="cb17-6" title="6">          _ &lt;- ZIO.<span class="fu">effect</span>(log.<span class="fu">info</span>(s<span class="st">&quot;Generating sources for $id&quot;</span>))</a>
+<a class="sourceLine" id="cb17-7" title="7">          model &lt;- loader.<span class="fu">loadCodegenModel</span>(id)</a>
+<a class="sourceLine" id="cb17-8" title="8">          files &lt;- generator.<span class="fu">generateServiceCode</span>(id, model)</a>
+<a class="sourceLine" id="cb17-9" title="9">        } <span class="kw">yield</span> files.<span class="fu">toSeq</span></a>
+<a class="sourceLine" id="cb17-10" title="10">      task.<span class="fu">provideCustomLayer</span>(env).<span class="fu">catchAll</span> { generatorError =&gt;</a>
+<a class="sourceLine" id="cb17-11" title="11">        ZIO.<span class="fu">effect</span>(log.<span class="fu">error</span>(s<span class="st">&quot;Code generator failure: ${generatorError}&quot;</span>)).<span class="fu">as</span>(Seq.<span class="fu">empty</span>)</a>
+<a class="sourceLine" id="cb17-12" title="12">      }</a>
+<a class="sourceLine" id="cb17-13" title="13">    }</a>
+<a class="sourceLine" id="cb17-14" title="14">  }</a></code></pre></div>
+<p>The <code>generateServiceCode</code> function returns a <code>Set[File]</code> value containing all the generated source files. This is the result of the <em>source generator task</em>, and <code>sbt</code> uses this information to add the generated files to the compilation.</p>
+<h4 id="referencing-the-generated-projects">Referencing the generated projects</h4>
+<p>When defining downstream projects in the <code>build.sbt</code>, such as integration tests and other examples, we have to refer to the generated projects somehow. There is no value of type <code>Project</code> in scope to do so, but we can do it easily by name using <code>LocalProject</code>. The following example shows how the <code>example1</code> subproject does this:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb18-1" title="1"><span class="kw">lazy</span> <span class="kw">val</span> example1 = <span class="fu">Project</span>(<span class="st">&quot;example1&quot;</span>, <span class="fu">file</span>(<span class="st">&quot;examples&quot;</span>) / <span class="st">&quot;example1&quot;</span>)</a>
+<a class="sourceLine" id="cb18-2" title="2">  .<span class="fu">dependsOn</span>(</a>
+<a class="sourceLine" id="cb18-3" title="3">    core,</a>
+<a class="sourceLine" id="cb18-4" title="4">    http4s,</a>
+<a class="sourceLine" id="cb18-5" title="5">    netty,</a>
+<a class="sourceLine" id="cb18-6" title="6">    <span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-elasticbeanstalk&quot;</span>),</a>
+<a class="sourceLine" id="cb18-7" title="7">    <span class="fu">LocalProject</span>(<span class="st">&quot;zio-aws-ec2&quot;</span>)</a>
+<a class="sourceLine" id="cb18-8" title="8">  )</a></code></pre></div>
+<h4 id="parallel-build-on-travis-ci">Parallel build on Travis CI</h4>
+<p>The last thing that I wanted to solve is building the full <code>zio-aws</code> suite on a CI. I am using <a href="https://travis-ci.org/">Travis CI</a> for my private projects, so that’s what I built it for. The idea is to split the set of <em>service client libraries</em> to chunks and create <a href="https://docs.travis-ci.com/user/build-matrix/">build matrix</a> to run those in parallel. The tricky part is that the set of generated service libraries is dynamic, collected by the code generator.</p>
+<p>To solve this, I started to generate the <code>.travis.yml</code> build descriptor as well. The <em>hand-written</em> part has been moved to <code>.travis.base.yml</code>:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode yaml"><code class="sourceCode yaml"><a class="sourceLine" id="cb19-1" title="1"><span class="fu">language:</span><span class="at"> scala</span></a>
+<a class="sourceLine" id="cb19-2" title="2"><span class="fu">services:</span></a>
+<a class="sourceLine" id="cb19-3" title="3">  <span class="kw">-</span> docker</a>
+<a class="sourceLine" id="cb19-4" title="4"><span class="fu">scala:</span></a>
+<a class="sourceLine" id="cb19-5" title="5">  <span class="kw">-</span> <span class="fl">2.12.12</span></a>
+<a class="sourceLine" id="cb19-6" title="6">  <span class="kw">-</span> <span class="fl">2.13.3</span></a>
+<a class="sourceLine" id="cb19-7" title="7"></a>
+<a class="sourceLine" id="cb19-8" title="8"><span class="fu">cache:</span></a>
+<a class="sourceLine" id="cb19-9" title="9">  <span class="fu">directories:</span></a>
+<a class="sourceLine" id="cb19-10" title="10">    <span class="kw">-</span> $HOME/.cache/coursier</a>
+<a class="sourceLine" id="cb19-11" title="11">    <span class="kw">-</span> $HOME/.ivy2/cache</a>
+<a class="sourceLine" id="cb19-12" title="12">    <span class="kw">-</span> $HOME/.sbt</a>
+<a class="sourceLine" id="cb19-13" title="13"></a>
+<a class="sourceLine" id="cb19-14" title="14"><span class="fu">env:</span></a>
+<a class="sourceLine" id="cb19-15" title="15">  <span class="kw">-</span> COMMANDS=<span class="st">&quot;clean zio-aws-core/test zio-aws-akka-http/test zio-aws-http4s/test zio-aws-netty/test&quot;</span></a>
+<a class="sourceLine" id="cb19-16" title="16">  <span class="kw">-</span> COMMANDS=<span class="st">&quot;clean examples/compile&quot;</span></a>
+<a class="sourceLine" id="cb19-17" title="17">  <span class="kw">-</span> COMMANDS=<span class="st">&quot;clean integtests/test&quot;</span></a>
+<a class="sourceLine" id="cb19-18" title="18"></a>
+<a class="sourceLine" id="cb19-19" title="19"><span class="fu">before_install:</span></a>
+<a class="sourceLine" id="cb19-20" title="20">  <span class="kw">-</span> if <span class="kw">[</span> <span class="st">&quot;$COMMANDS&quot;</span> = <span class="st">&quot;clean integtests/test&quot;</span> <span class="kw">]</span>; then docker pull localstack/localstack; fi</a>
+<a class="sourceLine" id="cb19-21" title="21">  <span class="kw">-</span> if <span class="kw">[</span> <span class="st">&quot;$COMMANDS&quot;</span> = <span class="st">&quot;clean integtests/test&quot;</span> <span class="kw">]</span>; then docker run -d -p 4566:4566 --env SERVICES=s3,dynamodb --env START_WEB=0 localstack/localstack; fi</a>
+<a class="sourceLine" id="cb19-22" title="22"></a>
+<a class="sourceLine" id="cb19-23" title="23"><span class="fu">script:</span></a>
+<a class="sourceLine" id="cb19-24" title="24">  <span class="kw">-</span> sbt ++$TRAVIS_SCALA_VERSION -jvm-opts travis/jvmopts $COMMANDS</a></code></pre></div>
+<p>I use the <code>COMMANDS</code> environment variable to define the parallel sets of <code>sbt</code> commands here. There are three predefined sets: building <code>zio-aws-core</code> and the HTTP implementations, building the <em>example projects</em> and running the <em>integration test</em>. The last two involve generating actual service client code and building them - but only the few that are necessary, so it is not an issue to do that redundantly.</p>
+<p>The real <code>.travis.yml</code> file is then generated by running a task <em>manually</em>, <code>sbt generateTravisYaml</code>. It is implemented in the <code>zio-aws-codegen</code> plugin and it loads the <code>.travis.base.yml</code> file and extends the <code>env</code> section with a set of <code>COMMANDS</code> variants, each compiling a subset of the generated subprojects.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Travis CI can now build <code>zio-aws</code> and run its integration tests. A build runs for hours, but it is stable, and consists of 22 parallel jobs to build all the libraries for both Scala 2.12 and 2.13. At the same time, developing the code generator and the other subprojects and tests became really convenient.</p>
+
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+        /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+        var disqus_shortname = 'vigoo'; // required: replace example with your forum shortname
+
+        /* * * DON'T EDIT BELOW THIS LINE * * */
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+        </div>
+        <div id="footer">
+            Daniel Vigovszky <a href="https://github.com/vigoo">github.com/vigoo</a>
+        </div>
+    </body>
+    <script type="text/javascript">
+      $('.zimg').zoomingBox();
+    </script>
+</html>
