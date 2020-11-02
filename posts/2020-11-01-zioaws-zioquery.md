@@ -103,7 +103,7 @@ def runAll(requests: Chunk[Chunk[A]]): ZIO[R, Nothing, CompletedRequestMap]
 
 Here `A` is the _request type_ specific to a given data source (extending `Request[E, A]`, and the returned `CompletedRequestMap` will store an `Either[E, A]` result for each request. The two nested chunks model sequential and parallel execution: the requests in the inner chunks can be executed in parallel, while these batches contained by the outer chunk must be performed sequentially. In practice we won't implement this method but use `DataSource.Batched` that is a simplified version that can perform requests in parallel but does not make further optimizations on the requests to be performed sequentially.
 
-What should belong to one data source?  It could be a single data source for the all AWS queries, or one per service, or one per resource type. The best choice in this case is to have one for each resource type, for the following reasons:
+What should belong to one data source?  It could be a single data source for all the AWS queries, or one per service, or one per resource type. The best choice in this case is to have one for each resource type, for the following reasons:
 
 - There are no opportunities to do any cross-resource-type caching. For example when we are querying EC2 instances, we won't fetch auto scaling groups as a side effect.
 - If all requests are about the same data type, implementing the data source is much simpler
