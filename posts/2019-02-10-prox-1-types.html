@@ -49,121 +49,120 @@
 <li>Processes without redirected output can be piped to processes without a redirected input</li>
 </ul>
 <p>In prox <em>0.2.1</em> a single system process is described by the following type:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">class</span> Process[Out, Err, OutResult, ErrResult, </a>
-<a class="sourceLine" id="cb1-2" title="2">              IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState](</a>
-<a class="sourceLine" id="cb1-3" title="3">    <span class="kw">val</span> command: String,</a>
-<a class="sourceLine" id="cb1-4" title="4">    <span class="kw">val</span> arguments: List[String],</a>
-<a class="sourceLine" id="cb1-5" title="5">    <span class="kw">val</span> workingDirectory: Option[Path],</a>
-<a class="sourceLine" id="cb1-6" title="6">    <span class="kw">val</span> inputSource: ProcessInputSource,</a>
-<a class="sourceLine" id="cb1-7" title="7">    <span class="kw">val</span> outputTarget: ProcessOutputTarget[Out, OutResult],</a>
-<a class="sourceLine" id="cb1-8" title="8">    <span class="kw">val</span> errorTarget: ProcessErrorTarget[Err, ErrResult],</a>
-<a class="sourceLine" id="cb1-9" title="9">    <span class="kw">val</span> environmentVariables: Map[String, String])</a>
-<a class="sourceLine" id="cb1-10" title="10">    <span class="kw">extends</span> ProcessNode[Out, Err, IRS, ORS, ERS] {</a>
-<a class="sourceLine" id="cb1-11" title="11">        <span class="co">// ...</span></a>
-<a class="sourceLine" id="cb1-12" title="12">}</a></code></pre></div>
-<p>but let’s focus first on the requirement to be able to redirect one of the streams <em>maximum once</em>. This is encoded by the <code>IRS</code>, <code>ORS</code> and <code>ERS</code> type parameters, which are all have to be subtypes of <code>RedirectionState</code>. <code>RedirectionState</code> is a <strong>phantom type</strong>; there are no values ever created of this type, it is only used in type signatures to encode whether one of the three streams are already redirected or not:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="co">/**</span> Phantom type representing the redirection state of a process <span class="co">*/</span></a>
-<a class="sourceLine" id="cb2-2" title="2"><span class="kw">sealed</span> <span class="kw">trait</span> RedirectionState</a>
-<a class="sourceLine" id="cb2-3" title="3"></a>
-<a class="sourceLine" id="cb2-4" title="4"><span class="co">/**</span> Indicates that the given channel is not redirected yet <span class="co">*/</span></a>
-<a class="sourceLine" id="cb2-5" title="5"><span class="kw">trait</span> NotRedirected <span class="kw">extends</span> RedirectionState</a>
-<a class="sourceLine" id="cb2-6" title="6"></a>
-<a class="sourceLine" id="cb2-7" title="7"><span class="co">/**</span> Indicates that the given channel has already been redirected <span class="co">*/</span></a>
-<a class="sourceLine" id="cb2-8" title="8"><span class="kw">trait</span> Redirected <span class="kw">extends</span> RedirectionState</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="ex">Process</span><span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> OutResult<span class="op">,</span> ErrResult<span class="op">,</span> </span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>              IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">](</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> command<span class="op">:</span> <span class="ex">String</span><span class="op">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> arguments<span class="op">:</span> <span class="ex">List</span><span class="op">[</span><span class="ex">String</span><span class="op">],</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> workingDirectory<span class="op">:</span> <span class="ex">Option</span><span class="op">[</span>Path<span class="op">],</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> inputSource<span class="op">:</span> ProcessInputSource<span class="op">,</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> outputTarget<span class="op">:</span> ProcessOutputTarget<span class="op">[</span>Out<span class="op">,</span> OutResult<span class="op">],</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> errorTarget<span class="op">:</span> ProcessErrorTarget<span class="op">[</span>Err<span class="op">,</span> ErrResult<span class="op">],</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> environmentVariables<span class="op">:</span> <span class="ex">Map</span><span class="op">[</span><span class="ex">String</span><span class="op">,</span> <span class="ex">String</span><span class="op">])</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">extends</span> ProcessNode<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ...</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>but let’s focus first on the requirement to be able to redirect one of the streams <em>maximum once</em>.
+This is encoded by the <code>IRS</code>, <code>ORS</code> and <code>ERS</code> type parameters, which are all have to be subtypes of <code>RedirectionState</code>. <code>RedirectionState</code> is a <strong>phantom type</strong>; there are no values ever created of this type, it is only used in type signatures to encode whether one of the three streams are already redirected or not:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span> Phantom type representing the redirection state of a process <span class="co">*/</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sealed</span> <span class="kw">trait</span> RedirectionState</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span> Indicates that the given channel is not redirected yet <span class="co">*/</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">trait</span> NotRedirected <span class="kw">extends</span> RedirectionState</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span> Indicates that the given channel has already been redirected <span class="co">*/</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">trait</span> Redirected <span class="kw">extends</span> RedirectionState</span></code></pre></div>
 <p>So for example with a simplified model of a <em>process</em>, <code>Process[IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]</code>, using the output redirection operator <code>&gt;</code> would change the types in the following way:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">val</span> p1: Process[NotRedirected, NotRedirected, NotRedirected] = ???</a>
-<a class="sourceLine" id="cb3-2" title="2"><span class="kw">val</span> p2: Process[NotRedirected, Redirected, NotRedirected] = p1 &gt; (home / <span class="st">&quot;tmp&quot;</span> / <span class="st">&quot;out.txt&quot;</span>)</a>
-<a class="sourceLine" id="cb3-3" title="3"><span class="kw">val</span> p3 = p2 &gt; (home / <span class="st">&quot;tmp&quot;</span> / <span class="st">&quot;another.txt&quot;</span>) <span class="co">// THIS MUST NOT COMPILE</span></a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> p1<span class="op">:</span> <span class="ex">Process</span><span class="op">[</span>NotRedirected<span class="op">,</span> NotRedirected<span class="op">,</span> NotRedirected<span class="op">]</span> <span class="op">=</span> <span class="op">???</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> p2<span class="op">:</span> <span class="ex">Process</span><span class="op">[</span>NotRedirected<span class="op">,</span> Redirected<span class="op">,</span> NotRedirected<span class="op">]</span> <span class="op">=</span> p1 <span class="op">&gt;</span> <span class="op">(</span>home <span class="op">/</span> <span class="st">&quot;tmp&quot;</span> <span class="op">/</span> <span class="st">&quot;out.txt&quot;</span><span class="op">)</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> p3 <span class="op">=</span> p2 <span class="op">&gt;</span> <span class="op">(</span>home <span class="op">/</span> <span class="st">&quot;tmp&quot;</span> <span class="op">/</span> <span class="st">&quot;another.txt&quot;</span><span class="op">)</span> <span class="co">// THIS MUST NOT COMPILE</span></span></code></pre></div>
 <p>How can we restrict the redirect function to only work on <code>Process[_, NotRedirected, _]</code>? We can define it as an <strong>extension method</strong> with an implicit class (once again this is a simplified version focusing only on the <em>redirection state</em> handling):</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1">  <span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
-<a class="sourceLine" id="cb4-2" title="2">      IRS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb4-3" title="3">      ERS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb4-4" title="4">      PN &lt;: Process[IRS, NotRedirected, ERS]](process: PN) {</a>
-<a class="sourceLine" id="cb4-5" title="5"></a>
-<a class="sourceLine" id="cb4-6" title="6">    <span class="kw">def</span> &gt;[To](to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): Process[IRS, Redirected, ERS] = ???</a>
-<a class="sourceLine" id="cb4-7" title="7">  }</a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect<span class="op">[</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>      IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>      ERS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>      PN <span class="op">&lt;:</span> <span class="ex">Process</span><span class="op">[</span>IRS<span class="op">,</span> NotRedirected<span class="op">,</span> ERS<span class="op">]](</span>process<span class="op">:</span> PN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="op">&gt;[</span>To<span class="op">](</span>to<span class="op">:</span> To<span class="op">)(</span><span class="kw">implicit</span> target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">[</span>To<span class="op">]):</span> <span class="ex">Process</span><span class="op">[</span>IRS<span class="op">,</span> Redirected<span class="op">,</span> ERS<span class="op">]</span> <span class="op">=</span> <span class="op">???</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span></code></pre></div>
 <p>By forcing the <code>ORS</code> type parameter to be <code>NotRedirected</code> and setting it to <code>Redirected</code> in the result type we can guarantee that this function can only be called on a process that does not have their output redirected yet. The <em>target</em> of the redirection is extensible through the <code>CanBeProcessOutputTarget</code> type class, as we will see later.</p>
 <h2 id="dependent-types">Dependent types</h2>
 <p>Reality is much more complicated, because of <em>process piping</em> and because the process types encode the redirection result types too. Let’s get back to our <code>&gt;</code> function and see how we could modify it so it works with piped processes too. Anyway, how is process piping encoded in this library?</p>
 <p>Two processes connected through a pipe are represented by the <code>PipedProcess</code> class. Both <code>Procses</code> and <code>PipedProcess</code> implements the following trait:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">sealed</span> <span class="kw">trait</span> ProcessNode[Out, Err, IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]</a></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">sealed</span> <span class="kw">trait</span> ProcessNode<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">]</span></span></code></pre></div>
 <p>We’ve already seen <code>Process</code>. <code>PipedProcess</code> is a bit more complicated:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">class</span> PipedProcess[Out, Err, PN1Out, </a>
-<a class="sourceLine" id="cb6-2" title="2">                   PN1 &lt;: ProcessNode[_, _, _, _, _], </a>
-<a class="sourceLine" id="cb6-3" title="3">                   PN2 &lt;: ProcessNode[_, _, _, _, _], </a>
-<a class="sourceLine" id="cb6-4" title="4">                   IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]</a>
-<a class="sourceLine" id="cb6-5" title="5">    (<span class="kw">val</span> from: PN1, <span class="kw">val</span> createTo: PipeConstruction[PN1Out] =&gt; PN2)</a>
-<a class="sourceLine" id="cb6-6" title="6">    <span class="kw">extends</span> ProcessNode[Out, Err, IRS, ORS, ERS] {</a>
-<a class="sourceLine" id="cb6-7" title="7">        <span class="co">// ...</span></a>
-<a class="sourceLine" id="cb6-8" title="8">}</a></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PipedProcess<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> PN1Out<span class="op">,</span> </span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>                   PN1 <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span> </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>                   PN2 <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span> </span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>                   IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">]</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="kw">val</span> from<span class="op">:</span> PN1<span class="op">,</span> <span class="kw">val</span> createTo<span class="op">:</span> PipeConstruction<span class="op">[</span>PN1Out<span class="op">]</span> <span class="op">=&gt;</span> PN2<span class="op">)</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">extends</span> ProcessNode<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ...</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>To make <code>&gt;</code> work on both, we can start by modifying its definition to work on <em>any</em> <code>ProcessNode</code> not just <code>Process</code> (omitting the output type params for now):</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
-<a class="sourceLine" id="cb7-2" title="2">    IRS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb7-3" title="3">    ERS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb7-4" title="4">    PN &lt;: ProcessNode[IRS, NotRedirected, ERS]](process: PN) {</a>
-<a class="sourceLine" id="cb7-5" title="5"></a>
-<a class="sourceLine" id="cb7-6" title="6">  <span class="kw">def</span> &gt;[To](to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): ProcessNode[IRS, Redirected, ERS] = ???</a>
-<a class="sourceLine" id="cb7-7" title="7">}</a></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect<span class="op">[</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    ERS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>IRS<span class="op">,</span> NotRedirected<span class="op">,</span> ERS<span class="op">]](</span>process<span class="op">:</span> PN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> <span class="op">&gt;[</span>To<span class="op">](</span>to<span class="op">:</span> To<span class="op">)(</span><span class="kw">implicit</span> target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">[</span>To<span class="op">]):</span> ProcessNode<span class="op">[</span>IRS<span class="op">,</span> Redirected<span class="op">,</span> ERS<span class="op">]</span> <span class="op">=</span> <span class="op">???</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>This has a serious problem though. The output type is <code>ProcessNode</code> and not the “real” process type, which means that we lose type information and all the other dependent typed operations will not work. We have to make the result type <strong>depend</strong> on the input!</p>
 <p>We may try to use the <code>RedirectionOutput</code> type class like this:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
-<a class="sourceLine" id="cb8-2" title="2">    IRS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb8-3" title="3">    ERS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb8-4" title="4">    PN &lt;: ProcessNode[IRS, NotRedirected, ERS]](process: PN) {</a>
-<a class="sourceLine" id="cb8-5" title="5"></a>
-<a class="sourceLine" id="cb8-6" title="6">  <span class="kw">def</span> &gt;[To](to: To)</a>
-<a class="sourceLine" id="cb8-7" title="7">           (<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To],</a>
-<a class="sourceLine" id="cb8-8" title="8">            redirectOutput: RedirectOutput[PN, To]): redirectOutput.<span class="fu">Result</span> = <span class="fu">redirectOutput</span>(to)</a>
-<a class="sourceLine" id="cb8-9" title="9">}</a></code></pre></div>
-<p>Here the result (<code>redirectOutput.Result</code>) is a <em>path dependent type</em>. This may work in some simple cases but have two serious issues:</p>
-<ul>
-<li>It is not possible to use <code>redirectOutput.Result</code> in the <em>parameter block</em> of the function, so if another type class needed it as a type parameter we could not pass it.</li>
-<li>Further implicit resolutions and type level operations will quickly break as the compiler will not be able to unify the various path dependent types</li>
-</ul>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect<span class="op">[</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    ERS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>IRS<span class="op">,</span> NotRedirected<span class="op">,</span> ERS<span class="op">]](</span>process<span class="op">:</span> PN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> <span class="op">&gt;[</span>To<span class="op">](</span>to<span class="op">:</span> To<span class="op">)</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>           <span class="op">(</span><span class="kw">implicit</span> target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">[</span>To<span class="op">],</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            redirectOutput<span class="op">:</span> RedirectOutput<span class="op">[</span>PN<span class="op">,</span> To<span class="op">]):</span> redirectOutput<span class="op">.</span><span class="ex">Result</span> <span class="op">=</span> <span class="fu">redirectOutput</span><span class="op">(</span>to<span class="op">)</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Here the result (<code>redirectOutput.Result</code>) is a <em>path dependent type</em>. This may work in some simple cases but have two serious issues:
+- It is not possible to use <code>redirectOutput.Result</code> in the <em>parameter block</em> of the function, so if another type class needed it as a type parameter we could not pass it.
+- Further implicit resolutions and type level operations will quickly break as the compiler will not be able to unify the various path dependent types</p>
 <p>The <strong>Aux pattern</strong>, used heavily in the <a href="https://github.com/milessabin/shapeless">shapeless</a> library provides a nice pattern for fixing both problems. We start by defining a <em>type class</em> for describing the operation, in this case <em>redirecting the output channel of a process</em>:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">trait</span> RedirectOutput[PN &lt;: ProcessNode[_, NotRedirected, _], To] {</a>
-<a class="sourceLine" id="cb9-2" title="2">    <span class="kw">type</span> Result &lt;: ProcessNode[_, Redirected, _]</a>
-<a class="sourceLine" id="cb9-3" title="3"></a>
-<a class="sourceLine" id="cb9-4" title="4">    <span class="kw">def</span> <span class="fu">apply</span>(process: PN, to: To)(<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To]): Result</a>
-<a class="sourceLine" id="cb9-5" title="5">}</a>
-<a class="sourceLine" id="cb9-6" title="6"></a>
-<a class="sourceLine" id="cb9-7" title="7"><span class="kw">object</span> RedirectOutput {</a>
-<a class="sourceLine" id="cb9-8" title="8">    <span class="kw">type</span> Aux[PN &lt;: ProcessNode[_, NotRedirected, _], To, Result0] = </a>
-<a class="sourceLine" id="cb9-9" title="9">        RedirectOutput[PN, To] { <span class="kw">type</span> Result = Result0 }</a>
-<a class="sourceLine" id="cb9-10" title="10"></a>
-<a class="sourceLine" id="cb9-11" title="11">    <span class="co">// ... type class instances</span></a>
-<a class="sourceLine" id="cb9-12" title="12">}</a></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">trait</span> RedirectOutput<span class="op">[</span>PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> NotRedirected<span class="op">,</span> _<span class="op">],</span> To<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">type</span> <span class="ex">Result</span> <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> Redirected<span class="op">,</span> _<span class="op">]</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">apply</span><span class="op">(</span>process<span class="op">:</span> PN<span class="op">,</span> to<span class="op">:</span> To<span class="op">)(</span><span class="kw">implicit</span> target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">[</span>To<span class="op">]):</span> <span class="ex">Result</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">object</span> RedirectOutput <span class="op">{</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">type</span> Aux<span class="op">[</span>PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> NotRedirected<span class="op">,</span> _<span class="op">],</span> To<span class="op">,</span> Result0<span class="op">]</span> <span class="op">=</span> </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        RedirectOutput<span class="op">[</span>PN<span class="op">,</span> To<span class="op">]</span> <span class="op">{</span> <span class="kw">type</span> <span class="ex">Result</span> <span class="op">=</span> Result0 <span class="op">}</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... type class instances</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>The type class itself is straightforward. We have to implement it for both <code>Process</code> and <code>PipedProcess</code> and set the <code>Result</code> type accordingly, then implement <code>apply</code> that sets up the actual redirection. But what the <code>Aux</code> type is for?</p>
 <p>It solves the problems with the <em>path dependent</em> version if we use it like this:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[</a>
-<a class="sourceLine" id="cb10-2" title="2">    IRS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb10-3" title="3">    ERS &lt;: RedirectionState, </a>
-<a class="sourceLine" id="cb10-4" title="4">    PN &lt;: ProcessNode[IRS, NotRedirected, ERS]](process: PN) {</a>
-<a class="sourceLine" id="cb10-5" title="5"></a>
-<a class="sourceLine" id="cb10-6" title="6">  <span class="kw">def</span> &gt;[To, Result &lt;: ProcessNode[_, Redirected, _]](to: To)</a>
-<a class="sourceLine" id="cb10-7" title="7">           (<span class="kw">implicit</span> target: CanBeProcessOutputTarget[To],</a>
-<a class="sourceLine" id="cb10-8" title="8">            redirectOutput: RedirectOutput.<span class="fu">Aux</span>[PN, To, Result]): Result = <span class="fu">redirectOutput</span>(to)</a>
-<a class="sourceLine" id="cb10-9" title="9">}</a></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect<span class="op">[</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    ERS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> </span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>IRS<span class="op">,</span> NotRedirected<span class="op">,</span> ERS<span class="op">]](</span>process<span class="op">:</span> PN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> <span class="op">&gt;[</span>To<span class="op">,</span> <span class="ex">Result</span> <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> Redirected<span class="op">,</span> _<span class="op">]](</span>to<span class="op">:</span> To<span class="op">)</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>           <span class="op">(</span><span class="kw">implicit</span> target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">[</span>To<span class="op">],</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>            redirectOutput<span class="op">:</span> RedirectOutput<span class="op">.</span>Aux<span class="op">[</span>PN<span class="op">,</span> To<span class="op">,</span> <span class="ex">Result</span><span class="op">]):</span> <span class="ex">Result</span> <span class="op">=</span> <span class="fu">redirectOutput</span><span class="op">(</span>to<span class="op">)</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>By lifting the <code>Result</code> from the type class instance to a type parameter the compiler can now “extract” the calculated type from <code>redirectOutput.Result</code> to the <code>&gt;</code> function’s <code>Result</code> type parameter and use it directly, both for other further type requirements or as we do here, in the result type.</p>
 <p>This is the basic pattern used for <em>all</em> the operations in prox. You can check <a href="http://gigiigig.github.io/posts/2015/09/13/aux-pattern.html">Luigi’s short introduction to the <code>Aux</code> pattern</a> for a more detailed explanation.</p>
 <h2 id="starting-the-processes">Starting the processes</h2>
 <p>So far we just combined purely functional data structures in a complicated way. The result value may encode the launching of several system processes that are connected via pipes to each other and possibly other streams as we will see.</p>
 <p>When we eventually decide to <em>start</em> these processes, we need a way to observe their status, wait for them to stop, get their exit code, and to access the data sent to the output streams if they were redirected. And we need this <em>per process</em>, while launching the whole process graph in a <em>single step</em>.</p>
 <p>First let’s model a single <em>running process</em>:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1"><span class="kw">trait</span> RunningProcess[Out, OutResult, ErrResult] {</a>
-<a class="sourceLine" id="cb11-2" title="2">    <span class="kw">def</span> isAlive: IO[Boolean]</a>
-<a class="sourceLine" id="cb11-3" title="3">    <span class="kw">def</span> <span class="fu">waitForExit</span>(): IO[ProcessResult[OutResult, ErrResult]]</a>
-<a class="sourceLine" id="cb11-4" title="4">    <span class="kw">def</span> <span class="fu">terminate</span>(): IO[ProcessResult[OutResult, ErrResult]]</a>
-<a class="sourceLine" id="cb11-5" title="5">}</a></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">trait</span> RunningProcess<span class="op">[</span>Out<span class="op">,</span> OutResult<span class="op">,</span> ErrResult<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> isAlive<span class="op">:</span> IO<span class="op">[</span><span class="ex">Boolean</span><span class="op">]</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">waitForExit</span><span class="op">():</span> IO<span class="op">[</span>ProcessResult<span class="op">[</span>OutResult<span class="op">,</span> ErrResult<span class="op">]]</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">terminate</span><span class="op">():</span> IO<span class="op">[</span>ProcessResult<span class="op">[</span>OutResult<span class="op">,</span> ErrResult<span class="op">]]</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>and <code>ProcessResult</code> that represents an already <em>terminated process</em>:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1"><span class="kw">case</span> <span class="kw">class</span> ProcessResult[OutResult, ErrResult](</a>
-<a class="sourceLine" id="cb12-2" title="2">    exitCode: Int, </a>
-<a class="sourceLine" id="cb12-3" title="3">    fullOutput: OutResult, </a>
-<a class="sourceLine" id="cb12-4" title="4">    fullError: ErrResult</a>
-<a class="sourceLine" id="cb12-5" title="5">)</a></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">case</span> <span class="kw">class</span> ProcessResult<span class="op">[</span>OutResult<span class="op">,</span> ErrResult<span class="op">](</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    exitCode<span class="op">:</span> <span class="bu">Int</span><span class="op">,</span> </span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    fullOutput<span class="op">:</span> OutResult<span class="op">,</span> </span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    fullError<span class="op">:</span> ErrResult</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="op">)</span></span></code></pre></div>
 <p>Now we need to define a <code>start</code> extension method on <code>ProcessNode</code> that returns somehow one well typed <code>RunningProcess</code> for <em>each</em> system process that it starts.</p>
 <p>Let’s forget for a second about having multiple processes piped together and just consider the single process case. For that, we would need somehing like this (the <code>Out</code> parameter is needed only for piping so I omitted it):</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">def</span> start: IO[RunningProcess[OutResult, ErrResult]]</a></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> start<span class="op">:</span> IO<span class="op">[</span>RunningProcess<span class="op">[</span>OutResult<span class="op">,</span> ErrResult<span class="op">]]</span></span></code></pre></div>
 <p>Now we can see why <code>Process</code> has those additional type paramters. It is not enough to encode whether the output and error channels were redirected or not, we also have to encode the expected <em>result type</em> of redirecting these. By storing these types in type parameters of <code>Process</code> we can easily imagine that by using the pattern described in the previous section, the <em>result type</em> can <strong>depend</strong> on what we redirected the process to.</p>
 <p>Let’s see some examples of what this means!</p>
 <table>
@@ -201,56 +200,56 @@
 </tbody>
 </table>
 <p>The <code>CanBeProcessOutputTarget</code> type class we’ve seen earlier defines both the stream element type and the result type:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1"><span class="kw">trait</span> CanBeProcessOutputTarget[To] {</a>
-<a class="sourceLine" id="cb14-2" title="2">  <span class="co">/**</span> Output stream element type <span class="co">*/</span></a>
-<a class="sourceLine" id="cb14-3" title="3">  <span class="kw">type</span> Out</a>
-<a class="sourceLine" id="cb14-4" title="4">  <span class="co">/**</span> Result type of running the output stream <span class="co">*/</span></a>
-<a class="sourceLine" id="cb14-5" title="5">  <span class="kw">type</span> OutResult</a>
-<a class="sourceLine" id="cb14-6" title="6"></a>
-<a class="sourceLine" id="cb14-7" title="7">  <span class="kw">def</span> <span class="fu">apply</span>(to: To): ProcessOutputTarget[Out, OutResult]</a>
-<a class="sourceLine" id="cb14-8" title="8">}</a></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">trait</span> CanBeProcessOutputTarget<span class="op">[</span>To<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">/**</span> Output stream element type <span class="co">*/</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> Out</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">/**</span> Result type of running the output stream <span class="co">*/</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> OutResult</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> <span class="fu">apply</span><span class="op">(</span>to<span class="op">:</span> To<span class="op">):</span> ProcessOutputTarget<span class="op">[</span>Out<span class="op">,</span> OutResult<span class="op">]</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p><code>ProcessOutputTarget</code> contains the actual IO code to build the redirection of the streams, I won’t get into details in this post. Note that there are similar type classes for <em>error</em> and <em>input</em> redirection too.</p>
 <p>For two processes piped together we have to provide <em>two</em> <code>RunningProcess</code> instances with the proper result type parameters. So we can see that it is not enough that the <em>redirection</em> stores the result type in the process type, the <em>start</em> method must be dependent typed too.</p>
 <p>One way to encode this in the type system would be something like this (simplified):</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb15-1" title="1"><span class="kw">val</span> p1 = Process()</a>
-<a class="sourceLine" id="cb15-2" title="2"><span class="kw">val</span> p2 = Process()</a>
-<a class="sourceLine" id="cb15-3" title="3"><span class="kw">val</span> p3 = Process()</a>
-<a class="sourceLine" id="cb15-4" title="4"></a>
-<a class="sourceLine" id="cb15-5" title="5"><span class="kw">val</span> rp1: IO[RunningProcess] = p1.<span class="fu">start</span></a>
-<a class="sourceLine" id="cb15-6" title="6"><span class="kw">val</span> rp2: IO[(RunningProcess, RunningProcess)] = (p1 | p2).<span class="fu">start</span></a>
-<a class="sourceLine" id="cb15-7" title="7"><span class="kw">val</span> rp3: IO[(RunningProcess, RunningProcess, RunningProcess)] = (p1 | p2 | p3).<span class="fu">start</span></a></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> p1 <span class="op">=</span> <span class="ex">Process</span><span class="op">()</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> p2 <span class="op">=</span> <span class="ex">Process</span><span class="op">()</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> p3 <span class="op">=</span> <span class="ex">Process</span><span class="op">()</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> rp1<span class="op">:</span> IO<span class="op">[</span>RunningProcess<span class="op">]</span> <span class="op">=</span> p1<span class="op">.</span>start</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> rp2<span class="op">:</span> IO<span class="op">[(</span>RunningProcess<span class="op">,</span> RunningProcess<span class="op">)]</span> <span class="op">=</span> <span class="op">(</span>p1 <span class="op">|</span> p2<span class="op">).</span>start</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> rp3<span class="op">:</span> IO<span class="op">[(</span>RunningProcess<span class="op">,</span> RunningProcess<span class="op">,</span> RunningProcess<span class="op">)]</span> <span class="op">=</span> <span class="op">(</span>p1 <span class="op">|</span> p2 <span class="op">|</span> p3<span class="op">).</span>start</span></code></pre></div>
 <p>We encode piped processes with tuples of <code>RunningProcess</code> and single process with a single <code>RunningProcess</code>. To implement this we can make use of the <a href="https://github.com/milessabin/shapeless">shapeless</a> library’s <code>HList</code> implementation.</p>
 <p>HLists are heterogeneous lists; basically similar to a tuple, but with all the “usual” list-like functions implemented as dependent typed functions. It’s type describes the types of all its elements, and you can split it to head/tail, append two, etc. And we can do it both on the <em>type level</em> (computing the result type of appending two <code>HList</code>’s, for example) and on the <em>value leve</em> (appending the two values creating a third <code>HList</code> value).</p>
 <p>We can implement the <code>start</code> method more easily by building a <code>HList</code>, while still keep the desired interface as <a href="https://github.com/milessabin/shapeless">shapeless</a> implements a conversion from <code>HList</code> to tuples.</p>
 <p>We can define two separate <em>start functions</em>, one producing <code>HList</code> and another the tuples (IO releated parameters omitted):</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb16-1" title="1"><span class="kw">def</span> start[RP](<span class="kw">implicit</span> start: Start.<span class="fu">Aux</span>[PN, RP, _]]): IO[RP] = ???</a>
-<a class="sourceLine" id="cb16-2" title="2"><span class="kw">def</span> startHL[RPL &lt;: HList](<span class="kw">implicit</span> start: Start.<span class="fu">Aux</span>[PN, _, RP[IO]): IO[RPL] = ???</a></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> start<span class="op">[</span>RP<span class="op">](</span><span class="kw">implicit</span> start<span class="op">:</span> Start<span class="op">.</span>Aux<span class="op">[</span>PN<span class="op">,</span> RP<span class="op">,</span> _<span class="op">]]):</span> IO<span class="op">[</span>RP<span class="op">]</span> <span class="op">=</span> <span class="op">???</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> startHL<span class="op">[</span>RPL <span class="op">&lt;:</span> HList<span class="op">](</span><span class="kw">implicit</span> start<span class="op">:</span> Start<span class="op">.</span>Aux<span class="op">[</span>PN<span class="op">,</span> _<span class="op">,</span> RP<span class="op">[</span>IO<span class="op">]):</span> IO<span class="op">[</span>RPL<span class="op">]</span> <span class="op">=</span> <span class="op">???</span></span></code></pre></div>
 <p>The <code>Start</code> type class calculates both the tupled and the <code>HList</code> version’s result type. The implementation’s responsibility is to start the actual system processes and wire the streams together.</p>
 <p>The interesting part is how we use <em>type level calculations</em> from <a href="https://github.com/milessabin/shapeless">shapeless</a> to calculte the tuple and <code>HList</code> types for piped processes. This is all done using the technique I described earlier, but may look a bit shocking first. Let’s take a look!</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb17-1" title="1"><span class="kw">implicit</span> <span class="kw">def</span> startPipedProcess[</a>
-<a class="sourceLine" id="cb17-2" title="2">  Out, Err,</a>
-<a class="sourceLine" id="cb17-3" title="3">  PN1 &lt;: ProcessNode[_, _, _, _, _],</a>
-<a class="sourceLine" id="cb17-4" title="4">  PN2 &lt;: ProcessNode[_, _, _, _, _],</a>
-<a class="sourceLine" id="cb17-5" title="5">  IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState,</a>
-<a class="sourceLine" id="cb17-6" title="6">  RP1, RPL1 &lt;: HList, RP1Last &lt;: RunningProcess[_, _, _],</a>
-<a class="sourceLine" id="cb17-7" title="7">  RP2, RPL2 &lt;: HList, RP2Head &lt;: RunningProcess[_, _, _], RP2Tail &lt;: HList,</a>
-<a class="sourceLine" id="cb17-8" title="8">  RPT, RPL &lt;: HList]</a>
-<a class="sourceLine" id="cb17-9" title="9">  (<span class="kw">implicit</span></a>
-<a class="sourceLine" id="cb17-10" title="10">   start1: Start.<span class="fu">Aux</span>[PN1, RP1, RPL1],</a>
-<a class="sourceLine" id="cb17-11" title="11">   start2: Start.<span class="fu">Aux</span>[PN2, RP2, RPL2],</a>
-<a class="sourceLine" id="cb17-12" title="12">   last1: Last.<span class="fu">Aux</span>[RPL1, RP1Last],</a>
-<a class="sourceLine" id="cb17-13" title="13">   rp1LastType: RP1Last &lt;:&lt; RunningProcess[Byte, _, _],</a>
-<a class="sourceLine" id="cb17-14" title="14">   hcons2: IsHCons.<span class="fu">Aux</span>[RPL2, RP2Head, RP2Tail],</a>
-<a class="sourceLine" id="cb17-15" title="15">   prepend: Prepend.<span class="fu">Aux</span>[RPL1, RPL2, RPL],</a>
-<a class="sourceLine" id="cb17-16" title="16">   tupler: Tupler.<span class="fu">Aux</span>[RPL, RPT]):</a>
-<a class="sourceLine" id="cb17-17" title="17">  Aux[PipedProcess[Out, Err, Byte, PN1, PN2, IRS, ORS, ERS], RPT, RPL] =</a>
-<a class="sourceLine" id="cb17-18" title="18"></a>
-<a class="sourceLine" id="cb17-19" title="19">    <span class="kw">new</span> Start[PipedProcess[Out, Err, Byte, PN1, PN2, IRS, ORS, ERS]] {</a>
-<a class="sourceLine" id="cb17-20" title="20">      <span class="kw">override</span> <span class="kw">type</span> RunningProcesses = RPT</a>
-<a class="sourceLine" id="cb17-21" title="21">      <span class="kw">override</span> <span class="kw">type</span> RunningProcessList = RPL</a>
-<a class="sourceLine" id="cb17-22" title="22"></a>
-<a class="sourceLine" id="cb17-23" title="23">      <span class="co">// ...</span></a>
-<a class="sourceLine" id="cb17-24" title="24">    }</a></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">implicit</span> <span class="kw">def</span> startPipedProcess<span class="op">[</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  Out<span class="op">,</span> Err<span class="op">,</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  PN1 <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  PN2 <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  RP1<span class="op">,</span> RPL1 <span class="op">&lt;:</span> HList<span class="op">,</span> RP1Last <span class="op">&lt;:</span> RunningProcess<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  RP2<span class="op">,</span> RPL2 <span class="op">&lt;:</span> HList<span class="op">,</span> RP2Head <span class="op">&lt;:</span> RunningProcess<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span> RP2Tail <span class="op">&lt;:</span> HList<span class="op">,</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  RPT<span class="op">,</span> RPL <span class="op">&lt;:</span> HList<span class="op">]</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>  <span class="op">(</span><span class="kw">implicit</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>   start1<span class="op">:</span> Start<span class="op">.</span>Aux<span class="op">[</span>PN1<span class="op">,</span> RP1<span class="op">,</span> RPL1<span class="op">],</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>   start2<span class="op">:</span> Start<span class="op">.</span>Aux<span class="op">[</span>PN2<span class="op">,</span> RP2<span class="op">,</span> RPL2<span class="op">],</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>   last1<span class="op">:</span> Last<span class="op">.</span>Aux<span class="op">[</span>RPL1<span class="op">,</span> RP1Last<span class="op">],</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>   rp1LastType<span class="op">:</span> RP1Last <span class="op">&lt;:&lt;</span> RunningProcess<span class="op">[</span><span class="ex">Byte</span><span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>   hcons2<span class="op">:</span> IsHCons<span class="op">.</span>Aux<span class="op">[</span>RPL2<span class="op">,</span> RP2Head<span class="op">,</span> RP2Tail<span class="op">],</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>   prepend<span class="op">:</span> Prepend<span class="op">.</span>Aux<span class="op">[</span>RPL1<span class="op">,</span> RPL2<span class="op">,</span> RPL<span class="op">],</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>   tupler<span class="op">:</span> Tupler<span class="op">.</span>Aux<span class="op">[</span>RPL<span class="op">,</span> RPT<span class="op">]):</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>  Aux<span class="op">[</span>PipedProcess<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> <span class="ex">Byte</span><span class="op">,</span> PN1<span class="op">,</span> PN2<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">],</span> RPT<span class="op">,</span> RPL<span class="op">]</span> <span class="op">=</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> Start<span class="op">[</span>PipedProcess<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> <span class="ex">Byte</span><span class="op">,</span> PN1<span class="op">,</span> PN2<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">]]</span> <span class="op">{</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>      <span class="kw">override</span> <span class="kw">type</span> RunningProcesses <span class="op">=</span> RPT</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>      <span class="kw">override</span> <span class="kw">type</span> RunningProcessList <span class="op">=</span> RPL</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>      <span class="co">// ...</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span></code></pre></div>
 <p>The way to parse this is to follow the type level computations performed through the <em>Aux types</em> in the implicit parameter list:</p>
 <ul>
 <li><code>PN1</code> and <code>PN2</code> are the types of the two processes piped together</li>

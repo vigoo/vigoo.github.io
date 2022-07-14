@@ -31,7 +31,9 @@
     
 </div>
 
-<p>I’ve released a <strong>new version (0.4)</strong> of <a href="https://github.com/prezi/gradle-haskell-plugin">gradle-haskell-plugin</a> today, with <strong>experimental stack support</strong>. It is not enabled by default, but I used it exclusively for months and it seems to get quite stable. To use it you need <a href="https://haskellstack.com">stack</a>, have it enabled with <code>-Puse-stack</code> and have to keep some rules in your <code>.cabal</code> file, as explained <a href="https://github.com/prezi/gradle-haskell-plugin#explanation-stack-mode">in the README</a>.</p>
+<p>I’ve released a <strong>new version (0.4)</strong> of <a href="https://github.com/prezi/gradle-haskell-plugin">gradle-haskell-plugin</a> today, with <strong>experimental stack support</strong>.
+It is not enabled by default, but I used it exclusively for months and it seems to get quite stable. To use it you need <a href="https://haskellstack.com">stack</a>,
+have it enabled with <code>-Puse-stack</code> and have to keep some rules in your <code>.cabal</code> file, as explained <a href="https://github.com/prezi/gradle-haskell-plugin#explanation-stack-mode">in the README</a>.</p>
 <h2 id="how-does-it-work">How does it work?</h2>
 <p>The core idea did not change <a href="http://vigoo.github.io/posts/2015-04-22-gradle-haskell-plugin.html">compared to the original, cabal based solution</a>.</p>
 <p>To support chaining the binary artifacts, I had to add a new option to <em>stack</em> called <a href="https://github.com/commercialhaskell/stack/pull/990">extra package databases</a>. The databases listed in this section are passed <em>after the global</em> but <strong>before</strong> the snapshot and the local databases, which means that the snapshot database cannot be used (the packages in the binary artifacts are not “seeing” them). This sounds bad, but <em>gradle-haskell-plugin</em> does a workaround; it <strong>generates</strong> the <code>stack.yaml</code> automatically, and in a way that:</p>

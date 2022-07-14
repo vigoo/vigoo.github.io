@@ -34,7 +34,7 @@
 <h2 id="intro">Intro</h2>
 <p>A few weeks ago I discovered <a href="https://code.visualstudio.com/">Visual Studio Code</a> and started using it for some of my work. <em>(Note: I’m using multiple editors/IDEs all the time, based on the task; Emacs, Sublime, Atom, IntelliJ, VS, etc.)</em> So far <em>Code</em> is my favourite among the set of similar editors, such as Atom. I was pleasently surprised how well it works with its integrated <a href="http://www.omnisharp.net/">OmniSharp</a> plugin on <a href="http://vigoo.github.io/bari/">bari’s</a> codebase, so I decided to try to write a <em>bari plugin</em> for it.</p>
 <p>Writing an extension for <em>Code</em> was a nice experience. The outcome is the <a href="https://marketplace.visualstudio.com/items/vigoo.bari">bari build management extension</a>, which I’ll demonstrate in the next section.</p>
-<h2 id="developing-.net-applications-with-visual-studio-code-and-bari">Developing .NET applications with Visual Studio Code and bari</h2>
+<h2 id="developing-net-applications-with-visual-studio-code-and-bari">Developing .NET applications with Visual Studio Code and bari</h2>
 <p>As <em>Code</em> is multiplatform, and <em>bari</em> also works with <a href="http://www.mono-project.com/">Mono</a>, I’ll demonstrate how you can use these tools to develop a .NET application (actually <em>bari</em> itself) on a Mac. The steps here (except installing Mono) would be the same on Windows or Linux as well.</p>
 <h3 id="installing-the-tools">Installing the tools</h3>
 <p>First, if you are not on Windows, you’ll have to install the latest <a href="http://www.mono-project.com/">Mono</a> framework. On OSX I recommed to use <a href="http://brew.sh/"><code>brew</code></a> to do that:</p>
@@ -42,17 +42,19 @@
 mono --version</code></pre>
 <p>Then get the latest <a href="https://code.visualstudio.com/">Visual Studio Code</a> version, either by downloading it from its homepage or with <a href="https://github.com/caskroom/homebrew-cask"><code>brew cask</code></a>:</p>
 <pre><code>brew cask install visual-studio-code</code></pre>
-<p>Get the latest <em>bari</em>. On Windows I recommend downloading and extracting the <a href="https://github.com/vigoo/bari/releases/latest">latest official release</a> and adding it to the <code>PATH</code>. On OSX, with <code>mono</code> we already have <code>nuget</code>, so let’s use that:</p>
+<p>Get the latest <em>bari</em>. On Windows I recommend downloading and extracting the <a href="https://github.com/vigoo/bari/releases/latest">latest official release</a> and adding it to the <code>PATH</code>.
+On OSX, with <code>mono</code> we already have <code>nuget</code>, so let’s use that:</p>
 <pre><code>cd /opt
 nuget install bari-mono
 ln -s bari-mono.1.0.2.2 bari</code></pre>
 <p>and create a script to execute it somewhere in your <code>PATH</code>:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb4-1" title="1"><span class="co">#!/bin/sh</span></a>
-<a class="sourceLine" id="cb4-2" title="2"><span class="ex">mono</span> /opt/bari/tools/bari.exe <span class="va">$@</span></a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/sh</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">mono</span> /opt/bari/tools/bari.exe <span class="va">$@</span></span></code></pre></div>
 <p>That’s it. Future versions of the <em>bari extension</em> will probably be able to install <em>bari</em> itself.</p>
 <p>Let’s start <em>Code</em> now!</p>
 <h3 id="installing-the-extension">Installing the extension</h3>
-<p>Open the <em>command palette</em> (F1, or ⇧⌘P) and type <code>ext install bari</code> <a href="../images/baricode1.png" class="zimg"><img width="600" src="../images/baricode1.png" alt="bari-code-1"></a></p>
+<p>Open the <em>command palette</em> (F1, or ⇧⌘P) and type <code>ext install bari</code>
+<a href="../images/baricode1.png" class="zimg"><img width="600" src="../images/baricode1.png" alt="bari-code-1"></a></p>
 <h3 id="loading-the-project">Loading the project</h3>
 <p>After that restart the editor. Have your bari-built project available somewhere. As we are going to develop bari itself, let’s clone its repository:</p>
 <pre><code>git clone https://github.com/vigoo/bari.git</code></pre>
@@ -80,38 +82,38 @@ ln -s bari-mono.1.0.2.2 bari</code></pre>
 <h2 id="implementation">Implementation</h2>
 <p>The implementation was really straightforward. The source code <a href="https://github.com/vigoo/bari-code">can be found here</a>. It’s basically a <em>JSON</em> defining how the plugin is integrated and some implementation code in <em>TypeScript</em>. It’s easy to run and debug the plugin from <em>Code</em> itself.</p>
 <p>For example the following section from the extension definition describes what events triggers the extension:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><a class="sourceLine" id="cb6-1" title="1"><span class="er">&quot;activationEvents&quot;:</span> <span class="ot">[</span></a>
-<a class="sourceLine" id="cb6-2" title="2">    <span class="st">&quot;onCommand:bari.build&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-3" title="3">    <span class="st">&quot;onCommand:bari.test&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-4" title="4">    <span class="st">&quot;onCommand:bari.vs&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-5" title="5">    <span class="st">&quot;onCommand:bari.openSuiteYaml&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-6" title="6">    <span class="st">&quot;onCommand:bari.selfUpdate&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-7" title="7">    <span class="st">&quot;onCommand:bari.goal.changeCurrentGoal&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-8" title="8">    <span class="st">&quot;onCommand:bari.goal.changeCurrentProduct&quot;</span><span class="ot">,</span></a>
-<a class="sourceLine" id="cb6-9" title="9">    <span class="st">&quot;workspaceContains:suite.yaml&quot;</span></a>
-<a class="sourceLine" id="cb6-10" title="10"><span class="ot">]</span><span class="er">,</span></a></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;activationEvents&quot;:</span> <span class="ot">[</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.build&quot;</span><span class="ot">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.test&quot;</span><span class="ot">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.vs&quot;</span><span class="ot">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.openSuiteYaml&quot;</span><span class="ot">,</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.selfUpdate&quot;</span><span class="ot">,</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.goal.changeCurrentGoal&quot;</span><span class="ot">,</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;onCommand:bari.goal.changeCurrentProduct&quot;</span><span class="ot">,</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;workspaceContains:suite.yaml&quot;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span><span class="er">,</span></span></code></pre></div>
 <p>It’s either done by invoking one of the defined commands from the <em>command palette</em>, or if the opened workspace contains a <code>suite.yaml</code>. The latter enables the extension to parse the suite definition and initialize the statusbar immediately one the suite has been opened.</p>
 <p>The package definition also specifies the provided configuration values, such as:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode json"><code class="sourceCode json"><a class="sourceLine" id="cb7-1" title="1"><span class="er">&quot;bari.commandLine&quot;:</span> <span class="fu">{</span></a>
-<a class="sourceLine" id="cb7-2" title="2">	<span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;string&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb7-3" title="3">	<span class="dt">&quot;default&quot;</span><span class="fu">:</span> <span class="st">&quot;bari&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb7-4" title="4">	<span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Command line to execute bari&quot;</span></a>
-<a class="sourceLine" id="cb7-5" title="5"><span class="fu">}</span><span class="er">,</span></a>
-<a class="sourceLine" id="cb7-6" title="6"><span class="er">&quot;bari.verboseOutput&quot;:</span> <span class="fu">{</span></a>
-<a class="sourceLine" id="cb7-7" title="7">	<span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;boolean&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb7-8" title="8">	<span class="dt">&quot;default&quot;</span><span class="fu">:</span> <span class="kw">false</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb7-9" title="9">	<span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Turns on verbose output for all the executed bari commands&quot;</span></a>
-<a class="sourceLine" id="cb7-10" title="10"><span class="fu">}</span></a></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;bari.commandLine&quot;:</span> <span class="fu">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>	<span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;string&quot;</span><span class="fu">,</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>	<span class="dt">&quot;default&quot;</span><span class="fu">:</span> <span class="st">&quot;bari&quot;</span><span class="fu">,</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>	<span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Command line to execute bari&quot;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span><span class="er">,</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;bari.verboseOutput&quot;:</span> <span class="fu">{</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>	<span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;boolean&quot;</span><span class="fu">,</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>	<span class="dt">&quot;default&quot;</span><span class="fu">:</span> <span class="kw">false</span><span class="fu">,</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>	<span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Turns on verbose output for all the executed bari commands&quot;</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p>The implementation itself is really simple, all the user interface elements involved such as the console output window, the command palette, the statusbar panels can be easily managed.</p>
 <p>For example the panel showing <code>bari</code>’s output is created by the following code snippet:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode javascript"><code class="sourceCode javascript"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">var</span> channel <span class="op">=</span> <span class="va">vscode</span>.<span class="va">window</span>.<span class="at">createOutputChannel</span>(<span class="st">'bari'</span>)<span class="op">;</span></a>
-<a class="sourceLine" id="cb8-2" title="2"><span class="va">channel</span>.<span class="at">show</span>()<span class="op">;</span></a></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">var</span> channel <span class="op">=</span> vscode<span class="op">.</span><span class="at">window</span><span class="op">.</span><span class="fu">createOutputChannel</span>(<span class="st">'bari'</span>)<span class="op">;</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>channel<span class="op">.</span><span class="fu">show</span>()<span class="op">;</span></span></code></pre></div>
 <p>Or to display the result of an operation:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode javascript"><code class="sourceCode javascript"><a class="sourceLine" id="cb9-1" title="1"><span class="va">vscode</span>.<span class="va">window</span>.<span class="at">showErrorMessage</span>(<span class="st">&quot;No suite.yaml in the current workspace!&quot;</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>vscode<span class="op">.</span><span class="at">window</span><span class="op">.</span><span class="fu">showErrorMessage</span>(<span class="st">&quot;No suite.yaml in the current workspace!&quot;</span>)</span></code></pre></div>
 <p>or to create the statusbar panel:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode javascript"><code class="sourceCode javascript"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">this</span>.<span class="at">goals</span> <span class="op">=</span> <span class="va">vscode</span>.<span class="va">window</span>.<span class="at">createStatusBarItem</span>(<span class="va">vscode</span>.<span class="va">StatusBarAlignment</span>.<span class="at">Right</span>)<span class="op">;</span></a>
-<a class="sourceLine" id="cb10-2" title="2"><span class="kw">this</span>.<span class="va">goals</span>.<span class="at">command</span> <span class="op">=</span> <span class="st">'bari.goal.changeCurrentGoal'</span><span class="op">;</span></a>
-<a class="sourceLine" id="cb10-3" title="3"><span class="kw">this</span>.<span class="va">goals</span>.<span class="at">show</span>()<span class="op">;</span></a></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">this</span><span class="op">.</span><span class="at">goals</span> <span class="op">=</span> vscode<span class="op">.</span><span class="at">window</span><span class="op">.</span><span class="fu">createStatusBarItem</span>(vscode<span class="op">.</span><span class="at">StatusBarAlignment</span><span class="op">.</span><span class="at">Right</span>)<span class="op">;</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">this</span><span class="op">.</span><span class="at">goals</span><span class="op">.</span><span class="at">command</span> <span class="op">=</span> <span class="st">'bari.goal.changeCurrentGoal'</span><span class="op">;</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">this</span><span class="op">.</span><span class="at">goals</span><span class="op">.</span><span class="fu">show</span>()<span class="op">;</span></span></code></pre></div>
 <p>This API is simple and well documented enough so basic integrations like this can be done in an hour.</p>
 
 

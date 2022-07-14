@@ -37,172 +37,172 @@
 <p>As WPF elements are not <em>cloneable</em>, I was using the method recommended many places, for example <a href="http://stackoverflow.com/questions/32541/how-can-you-clone-a-wpf-object">in this StackOverflow post</a>: saving the object tree to an in-memory XAML stream, and loading it back.</p>
 <p>This worked quite well.. until we discovered a bug, which I still cannot explain. In some cases which were easily reproducible for any developer, but the code running in those cases being exactly the same as in other, working cases, the clone method simply stopped working.</p>
 <p>Stopped working here means that the following code:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode cs"><code class="sourceCode cs"><a class="sourceLine" id="cb1-1" title="1"><span class="dt">var</span> xaml = XamlWriter.<span class="fu">Save</span>(block);</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode cs"><code class="sourceCode cs"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> xaml <span class="op">=</span> XamlWriter<span class="op">.</span><span class="fu">Save</span><span class="op">(</span>block<span class="op">);</span></span></code></pre></div>
 <p>would write out the correct object hierarchy, but without any properties (no attributes, no content properties, nothing but the element names)! In the same time the objects in the memory were untouched and still had all the relevant properties set.</p>
 <p>I also tried to write my own XAML serializer based on the code found <a href="http://go4answers.webhost4life.com/Example/xaml-serialization-replacement-75133.aspx">at this site</a>, but this was only good to find out that the problem lies deep within the <code>MarkupWriter</code> class, which is the same what the <code>XamlWriter</code> uses internally. When the <code>XamlWriter</code> failed, my own code could not find any properties using the returned <a href="http://msdn.microsoft.com/en-us/library/system.windows.markup.primitives.markupobject.aspx">MarkupObject</a>:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode cs"><code class="sourceCode cs"><a class="sourceLine" id="cb2-1" title="1">MarkupObject markupObj = MarkupWriter.<span class="fu">GetMarkupObjectFor</span>(obj);</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode cs"><code class="sourceCode cs"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>MarkupObject markupObj <span class="op">=</span> MarkupWriter<span class="op">.</span><span class="fu">GetMarkupObjectFor</span><span class="op">(</span>obj<span class="op">);</span></span></code></pre></div>
 <p>For the same object, in the working scenarios it returned a markup object with a working <code>Properties</code> collection.</p>
 <p>So here is the final <em>“solution”</em> which I’m not really proud of, but solved the problem. Maybe with some modifications it is useful for someone struggling with the framework:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode cs"><code class="sourceCode cs"><a class="sourceLine" id="cb3-1" title="1"><span class="co">/// </span><span class="kw">&lt;summary&gt;</span></a>
-<a class="sourceLine" id="cb3-2" title="2"><span class="co">/// Horrible ugly clone hack to issues where XamlWriter/XamlReader based</span></a>
-<a class="sourceLine" id="cb3-3" title="3"><span class="co">/// clone method did not work.</span></a>
-<a class="sourceLine" id="cb3-4" title="4"><span class="co">/// </span><span class="kw">&lt;/summary&gt;</span></a>
-<a class="sourceLine" id="cb3-5" title="5"><span class="kw">public</span> <span class="kw">static</span> <span class="kw">class</span> CloneHelper</a>
-<a class="sourceLine" id="cb3-6" title="6">{</a>
-<a class="sourceLine" id="cb3-7" title="7">    <span class="kw">public</span> <span class="kw">static</span> Block Clone&lt;t&gt;(<span class="kw">this</span> T block)</a>
-<a class="sourceLine" id="cb3-8" title="8">        where T : Block</a>
-<a class="sourceLine" id="cb3-9" title="9">    {</a>
-<a class="sourceLine" id="cb3-10" title="10">        <span class="dt">var</span> result = (T)<span class="fu">DeepClone</span>(block);</a>
-<a class="sourceLine" id="cb3-11" title="11"></a>
-<a class="sourceLine" id="cb3-12" title="12">        <span class="kw">return</span> result;</a>
-<a class="sourceLine" id="cb3-13" title="13">    }</a>
-<a class="sourceLine" id="cb3-14" title="14"></a>
-<a class="sourceLine" id="cb3-15" title="15">    <span class="kw">private</span> <span class="kw">static</span> <span class="dt">object</span> <span class="fu">DeepClone</span>(<span class="dt">object</span> obj)</a>
-<a class="sourceLine" id="cb3-16" title="16">    {</a>
-<a class="sourceLine" id="cb3-17" title="17">        <span class="kw">if</span> (obj != <span class="kw">null</span>)</a>
-<a class="sourceLine" id="cb3-18" title="18">        {</a>
-<a class="sourceLine" id="cb3-19" title="19">            <span class="co">// Replacing ResourceDictionary and Style values with null. </span></a>
-<a class="sourceLine" id="cb3-20" title="20">            <span class="co">// In this particular use case it is correct to do</span></a>
-<a class="sourceLine" id="cb3-21" title="21">            <span class="kw">if</span> (obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span>(ResourceDictionary) ||</a>
-<a class="sourceLine" id="cb3-22" title="22">                obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span>(Style))</a>
-<a class="sourceLine" id="cb3-23" title="23">            {</a>
-<a class="sourceLine" id="cb3-24" title="24">                <span class="kw">return</span> <span class="kw">null</span>;</a>
-<a class="sourceLine" id="cb3-25" title="25">            }</a>
-<a class="sourceLine" id="cb3-26" title="26">            <span class="kw">else</span></a>
-<a class="sourceLine" id="cb3-27" title="27">            {</a>
-<a class="sourceLine" id="cb3-28" title="28">                <span class="co">// Value types and some special cases where we don't want to clone</span></a>
-<a class="sourceLine" id="cb3-29" title="29">                <span class="kw">if</span> (obj.<span class="fu">GetType</span>().<span class="fu">IsValueType</span> ||</a>
-<a class="sourceLine" id="cb3-30" title="30">                    obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span> (Cursor) ||</a>
-<a class="sourceLine" id="cb3-31" title="31">                    obj.<span class="fu">GetType</span>() == <span class="kw">typeof</span> (XmlLanguage))</a>
-<a class="sourceLine" id="cb3-32" title="32">                {</a>
-<a class="sourceLine" id="cb3-33" title="33">                    <span class="kw">return</span> obj;</a>
-<a class="sourceLine" id="cb3-34" title="34">                }</a>
-<a class="sourceLine" id="cb3-35" title="35">                <span class="kw">else</span></a>
-<a class="sourceLine" id="cb3-36" title="36">                {</a>
-<a class="sourceLine" id="cb3-37" title="37">                    <span class="co">// If it is cloneable, use it</span></a>
-<a class="sourceLine" id="cb3-38" title="38">                    <span class="dt">var</span> cloneable = obj <span class="kw">as</span> ICloneable;</a>
-<a class="sourceLine" id="cb3-39" title="39">                    <span class="kw">if</span> (cloneable != <span class="kw">null</span>)</a>
-<a class="sourceLine" id="cb3-40" title="40">                    {</a>
-<a class="sourceLine" id="cb3-41" title="41">                        <span class="kw">return</span> cloneable.<span class="fu">Clone</span>();</a>
-<a class="sourceLine" id="cb3-42" title="42">                    }</a>
-<a class="sourceLine" id="cb3-43" title="43">                    <span class="kw">else</span></a>
-<a class="sourceLine" id="cb3-44" title="44">                    {</a>
-<a class="sourceLine" id="cb3-45" title="45">                        <span class="co">// Creating the clone with reflection</span></a>
-<a class="sourceLine" id="cb3-46" title="46">                        <span class="dt">var</span> typ = obj.<span class="fu">GetType</span>();</a>
-<a class="sourceLine" id="cb3-47" title="47">                        <span class="dt">var</span> clone = Activator.<span class="fu">CreateInstance</span>(typ);                     </a>
-<a class="sourceLine" id="cb3-48" title="48"></a>
-<a class="sourceLine" id="cb3-49" title="49">                        <span class="co">// Property names which are known locally set </span></a>
-<a class="sourceLine" id="cb3-50" title="50">                        <span class="co">// dependency properties</span></a>
-<a class="sourceLine" id="cb3-51" title="51">                        <span class="dt">var</span> usedNames = <span class="kw">new</span> HashSet&lt;<span class="dt">string</span>&gt;();                        </a>
-<a class="sourceLine" id="cb3-52" title="52"></a>
-<a class="sourceLine" id="cb3-53" title="53">                        <span class="co">// Copying locally set dependency properties from the </span></a>
-<a class="sourceLine" id="cb3-54" title="54">                        <span class="co">// source to the target</span></a>
-<a class="sourceLine" id="cb3-55" title="55">                        <span class="dt">var</span> dobjSource = obj <span class="kw">as</span> DependencyObject;</a>
-<a class="sourceLine" id="cb3-56" title="56">                        <span class="dt">var</span> dobjTarget = clone <span class="kw">as</span> DependencyObject;</a>
-<a class="sourceLine" id="cb3-57" title="57">                        <span class="kw">if</span> (dobjSource != <span class="kw">null</span> &amp;&amp; dobjTarget != <span class="kw">null</span>)</a>
-<a class="sourceLine" id="cb3-58" title="58">                        {</a>
-<a class="sourceLine" id="cb3-59" title="59">                            <span class="dt">var</span> locallySetProperties = </a>
-<a class="sourceLine" id="cb3-60" title="60">                                dobjSource.<span class="fu">GetLocalValueEnumerator</span>();</a>
-<a class="sourceLine" id="cb3-61" title="61">                            <span class="kw">while</span> (locallySetProperties.<span class="fu">MoveNext</span>())</a>
-<a class="sourceLine" id="cb3-62" title="62">                            {</a>
-<a class="sourceLine" id="cb3-63" title="63">                                DependencyProperty dp = </a>
-<a class="sourceLine" id="cb3-64" title="64">                                    locallySetProperties.<span class="fu">Current</span>.<span class="fu">Property</span>;</a>
-<a class="sourceLine" id="cb3-65" title="65">                                <span class="kw">if</span> (!dp.<span class="fu">ReadOnly</span>)</a>
-<a class="sourceLine" id="cb3-66" title="66">                                {</a>
-<a class="sourceLine" id="cb3-67" title="67">                                    dobjTarget.<span class="fu">SetValue</span>(dp, dobjSource.<span class="fu">GetValue</span>(dp));</a>
-<a class="sourceLine" id="cb3-68" title="68">                                    usedNames.<span class="fu">Add</span>(dp.<span class="fu">Name</span>);</a>
-<a class="sourceLine" id="cb3-69" title="69">                                }</a>
-<a class="sourceLine" id="cb3-70" title="70">                            }</a>
-<a class="sourceLine" id="cb3-71" title="71">                        }                        </a>
-<a class="sourceLine" id="cb3-72" title="72"></a>
-<a class="sourceLine" id="cb3-73" title="73">                        <span class="co">// Getting all the public, non-static properties of the source</span></a>
-<a class="sourceLine" id="cb3-74" title="74">                        <span class="kw">foreach</span> (<span class="dt">var</span> pi <span class="kw">in</span> typ.<span class="fu">GetProperties</span>(</a>
-<a class="sourceLine" id="cb3-75" title="75">                                            BindingFlags.<span class="fu">Instance</span> | </a>
-<a class="sourceLine" id="cb3-76" title="76">                                            BindingFlags.<span class="fu">Public</span> | </a>
-<a class="sourceLine" id="cb3-77" title="77">                                            BindingFlags.<span class="fu">FlattenHierarchy</span>))</a>
-<a class="sourceLine" id="cb3-78" title="78">                        {</a>
-<a class="sourceLine" id="cb3-79" title="79">                            <span class="co">// If it is not a dependency property </span></a>
-<a class="sourceLine" id="cb3-80" title="80">                            <span class="co">// and not the default property...</span></a>
-<a class="sourceLine" id="cb3-81" title="81">                            <span class="kw">if</span> (pi.<span class="fu">CanRead</span> &amp;&amp;</a>
-<a class="sourceLine" id="cb3-82" title="82">                                !usedNames.<span class="fu">Contains</span>(pi.<span class="fu">Name</span>) &amp;&amp;</a>
-<a class="sourceLine" id="cb3-83" title="83">                                !<span class="fu">IsDependencyProperty</span>(dobjSource, pi) &amp;&amp;</a>
-<a class="sourceLine" id="cb3-84" title="84">                                pi.<span class="fu">Name</span> != <span class="st">&quot;Item&quot;</span>)</a>
-<a class="sourceLine" id="cb3-85" title="85">                            {                                    </a>
-<a class="sourceLine" id="cb3-86" title="86">                                <span class="dt">var</span> val = pi.<span class="fu">GetValue</span>(obj, <span class="kw">null</span>);</a>
-<a class="sourceLine" id="cb3-87" title="87"></a>
-<a class="sourceLine" id="cb3-88" title="88">                                <span class="co">// ..and it is writeable, then we recursively clone </span></a>
-<a class="sourceLine" id="cb3-89" title="89">                                <span class="co">// the value and set the property:</span></a>
-<a class="sourceLine" id="cb3-90" title="90">                                <span class="kw">if</span> (pi.<span class="fu">CanWrite</span>)</a>
-<a class="sourceLine" id="cb3-91" title="91">                                {                                        </a>
-<a class="sourceLine" id="cb3-92" title="92">                                    pi.<span class="fu">SetValue</span>(clone, <span class="fu">DeepClone</span>(val), <span class="kw">null</span>);</a>
-<a class="sourceLine" id="cb3-93" title="93">                                }</a>
-<a class="sourceLine" id="cb3-94" title="94">                                <span class="kw">else</span></a>
-<a class="sourceLine" id="cb3-95" title="95">                                {</a>
-<a class="sourceLine" id="cb3-96" title="96">                                    <span class="co">// ..otherwise if it is a readonly list property, </span></a>
-<a class="sourceLine" id="cb3-97" title="97">                                    <span class="co">// go through each item,  clone it and add to </span></a>
-<a class="sourceLine" id="cb3-98" title="98">                                    <span class="co">// the clone's list property</span></a>
-<a class="sourceLine" id="cb3-99" title="99">                                    <span class="kw">if</span> (pi.<span class="fu">PropertyType</span></a>
-<a class="sourceLine" id="cb3-100" title="100">                                          .<span class="fu">GetInterfaces</span>()</a>
-<a class="sourceLine" id="cb3-101" title="101">                                          .<span class="fu">Contains</span>(<span class="kw">typeof</span> (IList)))</a>
-<a class="sourceLine" id="cb3-102" title="102">                                    {</a>
-<a class="sourceLine" id="cb3-103" title="103">                                        <span class="dt">var</span> source = val <span class="kw">as</span> IList;</a>
-<a class="sourceLine" id="cb3-104" title="104">                                        <span class="dt">var</span> target = pi.<span class="fu">GetValue</span>(clone, <span class="kw">null</span>) <span class="kw">as</span> IList;</a>
-<a class="sourceLine" id="cb3-105" title="105"></a>
-<a class="sourceLine" id="cb3-106" title="106">                                        <span class="kw">if</span> (source != <span class="kw">null</span> &amp;&amp; target != <span class="kw">null</span>)</a>
-<a class="sourceLine" id="cb3-107" title="107">                                        {</a>
-<a class="sourceLine" id="cb3-108" title="108">                                            <span class="kw">foreach</span> (<span class="dt">var</span> item <span class="kw">in</span> source)</a>
-<a class="sourceLine" id="cb3-109" title="109">                                                target.<span class="fu">Add</span>(<span class="fu">DeepClone</span>(item));</a>
-<a class="sourceLine" id="cb3-110" title="110">                                        }</a>
-<a class="sourceLine" id="cb3-111" title="111">                                    }</a>
-<a class="sourceLine" id="cb3-112" title="112">                                }</a>
-<a class="sourceLine" id="cb3-113" title="113">                            }</a>
-<a class="sourceLine" id="cb3-114" title="114">                        }                        </a>
-<a class="sourceLine" id="cb3-115" title="115"></a>
-<a class="sourceLine" id="cb3-116" title="116">                        <span class="kw">return</span> clone;</a>
-<a class="sourceLine" id="cb3-117" title="117">                    }</a>
-<a class="sourceLine" id="cb3-118" title="118">                }</a>
-<a class="sourceLine" id="cb3-119" title="119">            }</a>
-<a class="sourceLine" id="cb3-120" title="120">        }</a>
-<a class="sourceLine" id="cb3-121" title="121">        <span class="kw">else</span></a>
-<a class="sourceLine" id="cb3-122" title="122">        {</a>
-<a class="sourceLine" id="cb3-123" title="123">            <span class="kw">return</span> <span class="kw">null</span>;</a>
-<a class="sourceLine" id="cb3-124" title="124">        }</a>
-<a class="sourceLine" id="cb3-125" title="125">    }    </a>
-<a class="sourceLine" id="cb3-126" title="126"></a>
-<a class="sourceLine" id="cb3-127" title="127">    <span class="co">/// </span><span class="kw">&lt;summary&gt;</span></a>
-<a class="sourceLine" id="cb3-128" title="128">    <span class="co">/// Tries to determine if a property is a dependency property, by reflection and </span></a>
-<a class="sourceLine" id="cb3-129" title="129">    <span class="co">/// naming convention</span></a>
-<a class="sourceLine" id="cb3-130" title="130">    <span class="co">/// </span><span class="kw">&lt;/summary&gt;</span></a>
-<a class="sourceLine" id="cb3-131" title="131">    <span class="co">/// </span><span class="kw">&lt;param</span><span class="ot"> name=</span><span class="dt">&quot;dobj&quot;</span><span class="kw">&gt;</span><span class="co">Dependency object</span></a>
-<a class="sourceLine" id="cb3-132" title="132">    <span class="co">/// </span><span class="kw">&lt;param</span><span class="ot"> name=</span><span class="dt">&quot;pi&quot;</span><span class="kw">&gt;</span><span class="co">Property info</span></a>
-<a class="sourceLine" id="cb3-133" title="133">    <span class="co">/// </span><span class="kw">&lt;returns&gt;</span><span class="co">Returns </span><span class="kw">&lt;c&gt;</span><span class="co">true</span><span class="kw">&lt;/c&gt;</span><span class="co"> if the given property seems to be a </span></a>
-<a class="sourceLine" id="cb3-134" title="134">    <span class="co">///          CLR access property for a dependency property.</span><span class="kw">&lt;/returns&gt;</span></a>
-<a class="sourceLine" id="cb3-135" title="135">    <span class="kw">private</span> <span class="kw">static</span> <span class="dt">bool</span> <span class="fu">IsDependencyProperty</span>(DependencyObject dobj, PropertyInfo pi)</a>
-<a class="sourceLine" id="cb3-136" title="136">    {</a>
-<a class="sourceLine" id="cb3-137" title="137">        <span class="kw">if</span> (dobj != <span class="kw">null</span>)</a>
-<a class="sourceLine" id="cb3-138" title="138">        {</a>
-<a class="sourceLine" id="cb3-139" title="139">            <span class="dt">var</span> dpProp = dobj.<span class="fu">GetType</span>().<span class="fu">GetProperty</span>(pi.<span class="fu">Name</span> + <span class="st">&quot;Property&quot;</span>, </a>
-<a class="sourceLine" id="cb3-140" title="140">                                                    BindingFlags.<span class="fu">Static</span> |</a>
-<a class="sourceLine" id="cb3-141" title="141">                                                    BindingFlags.<span class="fu">Public</span> |</a>
-<a class="sourceLine" id="cb3-142" title="142">                                                    BindingFlags.<span class="fu">FlattenHierarchy</span>);</a>
-<a class="sourceLine" id="cb3-143" title="143">            <span class="kw">if</span> (dpProp != <span class="kw">null</span> &amp;&amp; dpProp.<span class="fu">PropertyType</span> == <span class="kw">typeof</span> (DependencyProperty))</a>
-<a class="sourceLine" id="cb3-144" title="144">                <span class="kw">return</span> <span class="kw">true</span>;</a>
-<a class="sourceLine" id="cb3-145" title="145">            <span class="kw">else</span></a>
-<a class="sourceLine" id="cb3-146" title="146">            {</a>
-<a class="sourceLine" id="cb3-147" title="147">                <span class="dt">var</span> dpField = dobj.<span class="fu">GetType</span>().<span class="fu">GetField</span>(pi.<span class="fu">Name</span> + <span class="st">&quot;Property&quot;</span>, </a>
-<a class="sourceLine" id="cb3-148" title="148">                                                      BindingFlags.<span class="fu">Static</span> | </a>
-<a class="sourceLine" id="cb3-149" title="149">                                                      BindingFlags.<span class="fu">Public</span> | </a>
-<a class="sourceLine" id="cb3-150" title="150">                                                      BindingFlags.<span class="fu">FlattenHierarchy</span>);</a>
-<a class="sourceLine" id="cb3-151" title="151">                <span class="kw">if</span> (dpField != <span class="kw">null</span> &amp;&amp; </a>
-<a class="sourceLine" id="cb3-152" title="152">                    dpField.<span class="fu">FieldType</span> == <span class="kw">typeof</span> (DependencyProperty) &amp;&amp; </a>
-<a class="sourceLine" id="cb3-153" title="153">                    dpField.<span class="fu">IsInitOnly</span> &amp;&amp; dpField.<span class="fu">IsStatic</span>)</a>
-<a class="sourceLine" id="cb3-154" title="154">                    <span class="kw">return</span> <span class="kw">true</span>;</a>
-<a class="sourceLine" id="cb3-155" title="155">            }</a>
-<a class="sourceLine" id="cb3-156" title="156">        }        </a>
-<a class="sourceLine" id="cb3-157" title="157"></a>
-<a class="sourceLine" id="cb3-158" title="158">        <span class="kw">return</span> <span class="kw">false</span>;</a>
-<a class="sourceLine" id="cb3-159" title="159">    }</a>
-<a class="sourceLine" id="cb3-160" title="160">}</a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode cs"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">/// </span><span class="kw">&lt;summary&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">/// Horrible ugly clone hack to issues where XamlWriter/XamlReader based</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">/// clone method did not work.</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">/// </span><span class="kw">&lt;/summary&gt;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> <span class="kw">class</span> CloneHelper</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="kw">static</span> Block Clone<span class="op">&lt;</span>t<span class="op">&gt;(</span><span class="kw">this</span> T block<span class="op">)</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        where T <span class="op">:</span> Block</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> result <span class="op">=</span> <span class="op">(</span>T<span class="op">)</span><span class="fu">DeepClone</span><span class="op">(</span>block<span class="op">);</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> result<span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="kw">static</span> <span class="dt">object</span> <span class="fu">DeepClone</span><span class="op">(</span><span class="dt">object</span> obj<span class="op">)</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span>obj <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>            <span class="co">// Replacing ResourceDictionary and Style values with null. </span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>            <span class="co">// In this particular use case it is correct to do</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>            <span class="kw">if</span> <span class="op">(</span>obj<span class="op">.</span><span class="fu">GetType</span><span class="op">()</span> <span class="op">==</span> <span class="kw">typeof</span><span class="op">(</span>ResourceDictionary<span class="op">)</span> <span class="op">||</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>                obj<span class="op">.</span><span class="fu">GetType</span><span class="op">()</span> <span class="op">==</span> <span class="kw">typeof</span><span class="op">(</span>Style<span class="op">))</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>            <span class="op">{</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>                <span class="kw">return</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>            <span class="kw">else</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            <span class="op">{</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>                <span class="co">// Value types and some special cases where we don't want to clone</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>                <span class="kw">if</span> <span class="op">(</span>obj<span class="op">.</span><span class="fu">GetType</span><span class="op">().</span><span class="fu">IsValueType</span> <span class="op">||</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>                    obj<span class="op">.</span><span class="fu">GetType</span><span class="op">()</span> <span class="op">==</span> <span class="kw">typeof</span> <span class="op">(</span>Cursor<span class="op">)</span> <span class="op">||</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>                    obj<span class="op">.</span><span class="fu">GetType</span><span class="op">()</span> <span class="op">==</span> <span class="kw">typeof</span> <span class="op">(</span>XmlLanguage<span class="op">))</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>                <span class="op">{</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">return</span> obj<span class="op">;</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>                <span class="kw">else</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>                <span class="op">{</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>                    <span class="co">// If it is cloneable, use it</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>                    <span class="dt">var</span> cloneable <span class="op">=</span> obj <span class="kw">as</span> ICloneable<span class="op">;</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">if</span> <span class="op">(</span>cloneable <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>                    <span class="op">{</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>                        <span class="kw">return</span> cloneable<span class="op">.</span><span class="fu">Clone</span><span class="op">();</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>                    <span class="op">}</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">else</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>                    <span class="op">{</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>                        <span class="co">// Creating the clone with reflection</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>                        <span class="dt">var</span> typ <span class="op">=</span> obj<span class="op">.</span><span class="fu">GetType</span><span class="op">();</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>                        <span class="dt">var</span> clone <span class="op">=</span> Activator<span class="op">.</span><span class="fu">CreateInstance</span><span class="op">(</span>typ<span class="op">);</span>                     </span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>                        <span class="co">// Property names which are known locally set </span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>                        <span class="co">// dependency properties</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>                        <span class="dt">var</span> usedNames <span class="op">=</span> <span class="kw">new</span> HashSet<span class="op">&lt;</span><span class="dt">string</span><span class="op">&gt;();</span>                        </span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>                        <span class="co">// Copying locally set dependency properties from the </span></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>                        <span class="co">// source to the target</span></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>                        <span class="dt">var</span> dobjSource <span class="op">=</span> obj <span class="kw">as</span> DependencyObject<span class="op">;</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>                        <span class="dt">var</span> dobjTarget <span class="op">=</span> clone <span class="kw">as</span> DependencyObject<span class="op">;</span></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>                        <span class="kw">if</span> <span class="op">(</span>dobjSource <span class="op">!=</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> dobjTarget <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>                        <span class="op">{</span></span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>                            <span class="dt">var</span> locallySetProperties <span class="op">=</span> </span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>                                dobjSource<span class="op">.</span><span class="fu">GetLocalValueEnumerator</span><span class="op">();</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>                            <span class="kw">while</span> <span class="op">(</span>locallySetProperties<span class="op">.</span><span class="fu">MoveNext</span><span class="op">())</span></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>                            <span class="op">{</span></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>                                DependencyProperty dp <span class="op">=</span> </span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>                                    locallySetProperties<span class="op">.</span><span class="fu">Current</span><span class="op">.</span><span class="fu">Property</span><span class="op">;</span></span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">if</span> <span class="op">(!</span>dp<span class="op">.</span><span class="fu">ReadOnly</span><span class="op">)</span></span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>                                <span class="op">{</span></span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>                                    dobjTarget<span class="op">.</span><span class="fu">SetValue</span><span class="op">(</span>dp<span class="op">,</span> dobjSource<span class="op">.</span><span class="fu">GetValue</span><span class="op">(</span>dp<span class="op">));</span></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>                                    usedNames<span class="op">.</span><span class="fu">Add</span><span class="op">(</span>dp<span class="op">.</span><span class="fu">Name</span><span class="op">);</span></span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>                                <span class="op">}</span></span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>                            <span class="op">}</span></span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>                        <span class="op">}</span>                        </span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>                        <span class="co">// Getting all the public, non-static properties of the source</span></span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>                        <span class="kw">foreach</span> <span class="op">(</span><span class="dt">var</span> pi <span class="kw">in</span> typ<span class="op">.</span><span class="fu">GetProperties</span><span class="op">(</span></span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>                                            BindingFlags<span class="op">.</span><span class="fu">Instance</span> <span class="op">|</span> </span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>                                            BindingFlags<span class="op">.</span><span class="fu">Public</span> <span class="op">|</span> </span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>                                            BindingFlags<span class="op">.</span><span class="fu">FlattenHierarchy</span><span class="op">))</span></span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>                        <span class="op">{</span></span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>                            <span class="co">// If it is not a dependency property </span></span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>                            <span class="co">// and not the default property...</span></span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>                            <span class="kw">if</span> <span class="op">(</span>pi<span class="op">.</span><span class="fu">CanRead</span> <span class="op">&amp;&amp;</span></span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>                                <span class="op">!</span>usedNames<span class="op">.</span><span class="fu">Contains</span><span class="op">(</span>pi<span class="op">.</span><span class="fu">Name</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>                                <span class="op">!</span><span class="fu">IsDependencyProperty</span><span class="op">(</span>dobjSource<span class="op">,</span> pi<span class="op">)</span> <span class="op">&amp;&amp;</span></span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>                                pi<span class="op">.</span><span class="fu">Name</span> <span class="op">!=</span> <span class="st">&quot;Item&quot;</span><span class="op">)</span></span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>                            <span class="op">{</span>                                    </span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>                                <span class="dt">var</span> val <span class="op">=</span> pi<span class="op">.</span><span class="fu">GetValue</span><span class="op">(</span>obj<span class="op">,</span> <span class="kw">null</span><span class="op">);</span></span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>                                <span class="co">// ..and it is writeable, then we recursively clone </span></span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>                                <span class="co">// the value and set the property:</span></span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">if</span> <span class="op">(</span>pi<span class="op">.</span><span class="fu">CanWrite</span><span class="op">)</span></span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a>                                <span class="op">{</span>                                        </span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>                                    pi<span class="op">.</span><span class="fu">SetValue</span><span class="op">(</span>clone<span class="op">,</span> <span class="fu">DeepClone</span><span class="op">(</span>val<span class="op">),</span> <span class="kw">null</span><span class="op">);</span></span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a>                                <span class="op">}</span></span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">else</span></span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>                                <span class="op">{</span></span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>                                    <span class="co">// ..otherwise if it is a readonly list property, </span></span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a>                                    <span class="co">// go through each item,  clone it and add to </span></span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>                                    <span class="co">// the clone's list property</span></span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>                                    <span class="kw">if</span> <span class="op">(</span>pi<span class="op">.</span><span class="fu">PropertyType</span></span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>                                          <span class="op">.</span><span class="fu">GetInterfaces</span><span class="op">()</span></span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a>                                          <span class="op">.</span><span class="fu">Contains</span><span class="op">(</span><span class="kw">typeof</span> <span class="op">(</span>IList<span class="op">)))</span></span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>                                    <span class="op">{</span></span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>                                        <span class="dt">var</span> source <span class="op">=</span> val <span class="kw">as</span> IList<span class="op">;</span></span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>                                        <span class="dt">var</span> target <span class="op">=</span> pi<span class="op">.</span><span class="fu">GetValue</span><span class="op">(</span>clone<span class="op">,</span> <span class="kw">null</span><span class="op">)</span> <span class="kw">as</span> IList<span class="op">;</span></span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>                                        <span class="kw">if</span> <span class="op">(</span>source <span class="op">!=</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> target <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span></span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>                                        <span class="op">{</span></span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a>                                            <span class="kw">foreach</span> <span class="op">(</span><span class="dt">var</span> item <span class="kw">in</span> source<span class="op">)</span></span>
+<span id="cb3-109"><a href="#cb3-109" aria-hidden="true" tabindex="-1"></a>                                                target<span class="op">.</span><span class="fu">Add</span><span class="op">(</span><span class="fu">DeepClone</span><span class="op">(</span>item<span class="op">));</span></span>
+<span id="cb3-110"><a href="#cb3-110" aria-hidden="true" tabindex="-1"></a>                                        <span class="op">}</span></span>
+<span id="cb3-111"><a href="#cb3-111" aria-hidden="true" tabindex="-1"></a>                                    <span class="op">}</span></span>
+<span id="cb3-112"><a href="#cb3-112" aria-hidden="true" tabindex="-1"></a>                                <span class="op">}</span></span>
+<span id="cb3-113"><a href="#cb3-113" aria-hidden="true" tabindex="-1"></a>                            <span class="op">}</span></span>
+<span id="cb3-114"><a href="#cb3-114" aria-hidden="true" tabindex="-1"></a>                        <span class="op">}</span>                        </span>
+<span id="cb3-115"><a href="#cb3-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-116"><a href="#cb3-116" aria-hidden="true" tabindex="-1"></a>                        <span class="kw">return</span> clone<span class="op">;</span></span>
+<span id="cb3-117"><a href="#cb3-117" aria-hidden="true" tabindex="-1"></a>                    <span class="op">}</span></span>
+<span id="cb3-118"><a href="#cb3-118" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span></span>
+<span id="cb3-119"><a href="#cb3-119" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb3-120"><a href="#cb3-120" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb3-121"><a href="#cb3-121" aria-hidden="true" tabindex="-1"></a>        <span class="kw">else</span></span>
+<span id="cb3-122"><a href="#cb3-122" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb3-123"><a href="#cb3-123" aria-hidden="true" tabindex="-1"></a>            <span class="kw">return</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb3-124"><a href="#cb3-124" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb3-125"><a href="#cb3-125" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span>    </span>
+<span id="cb3-126"><a href="#cb3-126" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-127"><a href="#cb3-127" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// </span><span class="kw">&lt;summary&gt;</span></span>
+<span id="cb3-128"><a href="#cb3-128" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// Tries to determine if a property is a dependency property, by reflection and </span></span>
+<span id="cb3-129"><a href="#cb3-129" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// naming convention</span></span>
+<span id="cb3-130"><a href="#cb3-130" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// </span><span class="kw">&lt;/summary&gt;</span></span>
+<span id="cb3-131"><a href="#cb3-131" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// </span><span class="kw">&lt;param</span><span class="ot"> name=</span><span class="dt">&quot;dobj&quot;</span><span class="kw">&gt;</span><span class="co">Dependency object</span></span>
+<span id="cb3-132"><a href="#cb3-132" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// </span><span class="kw">&lt;param</span><span class="ot"> name=</span><span class="dt">&quot;pi&quot;</span><span class="kw">&gt;</span><span class="co">Property info</span></span>
+<span id="cb3-133"><a href="#cb3-133" aria-hidden="true" tabindex="-1"></a>    <span class="co">/// </span><span class="kw">&lt;returns&gt;</span><span class="co">Returns </span><span class="kw">&lt;c&gt;</span><span class="co">true</span><span class="kw">&lt;/c&gt;</span><span class="co"> if the given property seems to be a </span></span>
+<span id="cb3-134"><a href="#cb3-134" aria-hidden="true" tabindex="-1"></a>    <span class="co">///          CLR access property for a dependency property.</span><span class="kw">&lt;/returns&gt;</span></span>
+<span id="cb3-135"><a href="#cb3-135" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="kw">static</span> <span class="dt">bool</span> <span class="fu">IsDependencyProperty</span><span class="op">(</span>DependencyObject dobj<span class="op">,</span> PropertyInfo pi<span class="op">)</span></span>
+<span id="cb3-136"><a href="#cb3-136" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb3-137"><a href="#cb3-137" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span>dobj <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span></span>
+<span id="cb3-138"><a href="#cb3-138" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb3-139"><a href="#cb3-139" aria-hidden="true" tabindex="-1"></a>            <span class="dt">var</span> dpProp <span class="op">=</span> dobj<span class="op">.</span><span class="fu">GetType</span><span class="op">().</span><span class="fu">GetProperty</span><span class="op">(</span>pi<span class="op">.</span><span class="fu">Name</span> <span class="op">+</span> <span class="st">&quot;Property&quot;</span><span class="op">,</span> </span>
+<span id="cb3-140"><a href="#cb3-140" aria-hidden="true" tabindex="-1"></a>                                                    BindingFlags<span class="op">.</span><span class="fu">Static</span> <span class="op">|</span></span>
+<span id="cb3-141"><a href="#cb3-141" aria-hidden="true" tabindex="-1"></a>                                                    BindingFlags<span class="op">.</span><span class="fu">Public</span> <span class="op">|</span></span>
+<span id="cb3-142"><a href="#cb3-142" aria-hidden="true" tabindex="-1"></a>                                                    BindingFlags<span class="op">.</span><span class="fu">FlattenHierarchy</span><span class="op">);</span></span>
+<span id="cb3-143"><a href="#cb3-143" aria-hidden="true" tabindex="-1"></a>            <span class="kw">if</span> <span class="op">(</span>dpProp <span class="op">!=</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> dpProp<span class="op">.</span><span class="fu">PropertyType</span> <span class="op">==</span> <span class="kw">typeof</span> <span class="op">(</span>DependencyProperty<span class="op">))</span></span>
+<span id="cb3-144"><a href="#cb3-144" aria-hidden="true" tabindex="-1"></a>                <span class="kw">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb3-145"><a href="#cb3-145" aria-hidden="true" tabindex="-1"></a>            <span class="kw">else</span></span>
+<span id="cb3-146"><a href="#cb3-146" aria-hidden="true" tabindex="-1"></a>            <span class="op">{</span></span>
+<span id="cb3-147"><a href="#cb3-147" aria-hidden="true" tabindex="-1"></a>                <span class="dt">var</span> dpField <span class="op">=</span> dobj<span class="op">.</span><span class="fu">GetType</span><span class="op">().</span><span class="fu">GetField</span><span class="op">(</span>pi<span class="op">.</span><span class="fu">Name</span> <span class="op">+</span> <span class="st">&quot;Property&quot;</span><span class="op">,</span> </span>
+<span id="cb3-148"><a href="#cb3-148" aria-hidden="true" tabindex="-1"></a>                                                      BindingFlags<span class="op">.</span><span class="fu">Static</span> <span class="op">|</span> </span>
+<span id="cb3-149"><a href="#cb3-149" aria-hidden="true" tabindex="-1"></a>                                                      BindingFlags<span class="op">.</span><span class="fu">Public</span> <span class="op">|</span> </span>
+<span id="cb3-150"><a href="#cb3-150" aria-hidden="true" tabindex="-1"></a>                                                      BindingFlags<span class="op">.</span><span class="fu">FlattenHierarchy</span><span class="op">);</span></span>
+<span id="cb3-151"><a href="#cb3-151" aria-hidden="true" tabindex="-1"></a>                <span class="kw">if</span> <span class="op">(</span>dpField <span class="op">!=</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> </span>
+<span id="cb3-152"><a href="#cb3-152" aria-hidden="true" tabindex="-1"></a>                    dpField<span class="op">.</span><span class="fu">FieldType</span> <span class="op">==</span> <span class="kw">typeof</span> <span class="op">(</span>DependencyProperty<span class="op">)</span> <span class="op">&amp;&amp;</span> </span>
+<span id="cb3-153"><a href="#cb3-153" aria-hidden="true" tabindex="-1"></a>                    dpField<span class="op">.</span><span class="fu">IsInitOnly</span> <span class="op">&amp;&amp;</span> dpField<span class="op">.</span><span class="fu">IsStatic</span><span class="op">)</span></span>
+<span id="cb3-154"><a href="#cb3-154" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb3-155"><a href="#cb3-155" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb3-156"><a href="#cb3-156" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span>        </span>
+<span id="cb3-157"><a href="#cb3-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-158"><a href="#cb3-158" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb3-159"><a href="#cb3-159" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-160"><a href="#cb3-160" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 
 
 <div id="disqus_thread"></div>

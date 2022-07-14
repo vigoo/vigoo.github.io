@@ -44,72 +44,69 @@
 <p>But we can do better! By not relying on <code>IO</code> but the various type classes the <em>cats-effect</em> library provides we can make <em>prox</em> work with any kind of effect library out of the box. One such example is <a href="https://github.com/zio/zio">ZIO</a>.</p>
 <h2 id="effect-abstraction">Effect abstraction</h2>
 <p>Let’s see an example of how <code>IO</code> used to be used in the library! The following function is in the <code>Start</code> type class, and it starts a process or piped process group:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">def</span> <span class="fu">apply</span>(process: PN, dontStartOutput: Boolean = <span class="kw">false</span>, blocker: Blocker)</a>
-<a class="sourceLine" id="cb1-2" title="2">         (<span class="kw">implicit</span> contextShift: ContextShift[IO]): IO[RunningProcesses]</a></code></pre></div>
-<p>We can observe two things here:</p>
-<ul>
-<li>The function returns an effectful computation in <code>IO</code></li>
-<li>An implicit <em>context shifter</em> is needed by the implementations which are calling some streaming functions needing it.</li>
-</ul>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">apply</span><span class="op">(</span>process<span class="op">:</span> PN<span class="op">,</span> dontStartOutput<span class="op">:</span> <span class="ex">Boolean</span> <span class="op">=</span> <span class="kw">false</span><span class="op">,</span> blocker<span class="op">:</span> Blocker<span class="op">)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>         <span class="op">(</span><span class="kw">implicit</span> contextShift<span class="op">:</span> ContextShift<span class="op">[</span>IO<span class="op">]):</span> IO<span class="op">[</span>RunningProcesses<span class="op">]</span></span></code></pre></div>
+<p>We can observe two things here:
+- The function returns an effectful computation in <code>IO</code>
+- An implicit <em>context shifter</em> is needed by the implementations which are calling some streaming functions needing it.</p>
 <p>To make it independent of the effect library implementation we have to get rid of <code>IO</code> and use a generic type instead, let’s call it <code>F</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">def</span> <span class="fu">apply</span>(process: PN, </a>
-<a class="sourceLine" id="cb2-2" title="2">          dontStartOutput: Boolean = <span class="kw">false</span>, </a>
-<a class="sourceLine" id="cb2-3" title="3">          blocker: Blocker)</a>
-<a class="sourceLine" id="cb2-4" title="4">         (<span class="kw">implicit</span></a>
-<a class="sourceLine" id="cb2-5" title="5">          concurrent: Concurrent[F],</a>
-<a class="sourceLine" id="cb2-6" title="6">          contextShift: ContextShift[F]): F[RunningProcesses]</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">apply</span><span class="op">(</span>process<span class="op">:</span> PN<span class="op">,</span> </span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>          dontStartOutput<span class="op">:</span> <span class="ex">Boolean</span> <span class="op">=</span> <span class="kw">false</span><span class="op">,</span> </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>          blocker<span class="op">:</span> Blocker<span class="op">)</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>         <span class="op">(</span><span class="kw">implicit</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>          concurrent<span class="op">:</span> Concurrent<span class="op">[</span>F<span class="op">],</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>          contextShift<span class="op">:</span> ContextShift<span class="op">[</span>F<span class="op">]):</span> F<span class="op">[</span>RunningProcesses<span class="op">]</span></span></code></pre></div>
 <p>Beside using <code>F</code> instead of <code>IO</code> everywhere we also have a new requirement, our context type (<code>F</code>) have to have an implementation of the <a href="https://typelevel.org/cats-effect/typeclasses/concurrent.html"><code>Concurrent</code></a> type class.</p>
-<p><em>Cats-effect</em> defines a hierarchy of type classes to deal with effectful computations. At the time of writing it looks like this: <img src="https://typelevel.org/cats-effect/img/cats-effect-typeclasses.svg" /></p>
+<p><em>Cats-effect</em> defines a hierarchy of type classes to deal with effectful computations. At the time of writing it looks like this:
+<img src="https://typelevel.org/cats-effect/img/cats-effect-typeclasses.svg" /></p>
 <p>Read the <a href="https://typelevel.org/cats-effect/typeclasses/">official documentation</a> for more information.</p>
 <p>Prox is based on the <code>ProcessNode</code> type which has two implementations, a single <code>Process</code> or a set of processes piped together to a <code>PipedProcess</code>. Because these types store their I/O redirection within themselves, they also have to be enriched with a context type parameter.</p>
 <p>For example <code>Process</code> will look like this:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">class</span> Process[F[_], Out, Err, OutResult, ErrResult, IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]</a>
-<a class="sourceLine" id="cb3-2" title="2">(<span class="kw">val</span> command: String,</a>
-<a class="sourceLine" id="cb3-3" title="3"> <span class="kw">val</span> arguments: List[String],</a>
-<a class="sourceLine" id="cb3-4" title="4"> <span class="kw">val</span> workingDirectory: Option[Path],</a>
-<a class="sourceLine" id="cb3-5" title="5"> <span class="kw">val</span> inputSource: ProcessInputSource[F],</a>
-<a class="sourceLine" id="cb3-6" title="6"> <span class="kw">val</span> outputTarget: ProcessOutputTarget[F, Out, OutResult],</a>
-<a class="sourceLine" id="cb3-7" title="7"> <span class="kw">val</span> errorTarget: ProcessErrorTarget[F, Err, ErrResult],</a>
-<a class="sourceLine" id="cb3-8" title="8"> <span class="kw">val</span> environmentVariables: Map[String, String],</a>
-<a class="sourceLine" id="cb3-9" title="9"> <span class="kw">val</span> removedEnvironmentVariables: Set[String])</a>
-<a class="sourceLine" id="cb3-10" title="10">  <span class="kw">extends</span> ProcessNode[Out, Err, IRS, ORS, ERS] {</a>
-<a class="sourceLine" id="cb3-11" title="11">    <span class="co">// ...</span></a>
-<a class="sourceLine" id="cb3-12" title="12">}</a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="ex">Process</span><span class="op">[</span>F<span class="op">[</span>_<span class="op">],</span> Out<span class="op">,</span> Err<span class="op">,</span> OutResult<span class="op">,</span> ErrResult<span class="op">,</span> IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">]</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="op">(</span><span class="kw">val</span> command<span class="op">:</span> <span class="ex">String</span><span class="op">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> arguments<span class="op">:</span> <span class="ex">List</span><span class="op">[</span><span class="ex">String</span><span class="op">],</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> workingDirectory<span class="op">:</span> <span class="ex">Option</span><span class="op">[</span>Path<span class="op">],</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> inputSource<span class="op">:</span> ProcessInputSource<span class="op">[</span>F<span class="op">],</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> outputTarget<span class="op">:</span> ProcessOutputTarget<span class="op">[</span>F<span class="op">,</span> Out<span class="op">,</span> OutResult<span class="op">],</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> errorTarget<span class="op">:</span> ProcessErrorTarget<span class="op">[</span>F<span class="op">,</span> Err<span class="op">,</span> ErrResult<span class="op">],</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> environmentVariables<span class="op">:</span> <span class="ex">Map</span><span class="op">[</span><span class="ex">String</span><span class="op">,</span> <span class="ex">String</span><span class="op">],</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a> <span class="kw">val</span> removedEnvironmentVariables<span class="op">:</span> <span class="ex">Set</span><span class="op">[</span><span class="ex">String</span><span class="op">])</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">extends</span> ProcessNode<span class="op">[</span>Out<span class="op">,</span> Err<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ...</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>The context parameter (<code>F</code>) is needed because the <em>input source</em> and <em>output target</em> are all representing effectful code such as writing to the standard output, reading from a file, or passing data through concurrent streams.</p>
 <p>Let’s see some examples of how the abstract types of <em>cats-effect</em> can be used to describe the computation, when we cannot rely on <code>IO</code> itself!</p>
 <p>The most basic operation is to <em>delay the execution</em> of some code that does not use the effect abstractions. This is how we wrap the Java process API, for example.</p>
 <p>While with the original implementation of <em>prox</em> it was done by using the <code>IO</code> constructor:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb4-1" title="1">IO {</a>
-<a class="sourceLine" id="cb4-2" title="2">    systemProcess.<span class="fu">isAlive</span></a>
-<a class="sourceLine" id="cb4-3" title="3">}</a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>IO <span class="op">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    systemProcess<span class="op">.</span>isAlive</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>with an arbitrary <code>F</code> we only need to require that it has an implementation of the <code>Sync</code> type class:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">private</span> <span class="kw">class</span> WrappedProcess[F[_] : Sync,  <span class="co">// ...</span></a></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">private</span> <span class="kw">class</span> WrappedProcess<span class="op">[</span>F<span class="op">[</span>_<span class="op">]</span> <span class="op">:</span> Sync<span class="op">,</span>  <span class="co">// ...</span></span></code></pre></div>
 <p>and then use the <code>delay</code> function:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb6-1" title="1">Sync[F].<span class="fu">delay</span> {</a>
-<a class="sourceLine" id="cb6-2" title="2">    systemProcess.<span class="fu">isAlive</span></a>
-<a class="sourceLine" id="cb6-3" title="3">}</a></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>Sync<span class="op">[</span>F<span class="op">].</span>delay <span class="op">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    systemProcess<span class="op">.</span>isAlive</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>Similarily the <code>Concurrent</code> type class can be used to start a concurrent computation on a <em>fiber</em>:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb7-1" title="1">Concurrent[F].<span class="fu">start</span>(stream.<span class="fu">compile</span>.<span class="fu">toVector</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>Concurrent<span class="op">[</span>F<span class="op">].</span><span class="fu">start</span><span class="op">(</span>stream<span class="op">.</span>compile<span class="op">.</span>toVector<span class="op">)</span></span></code></pre></div>
 <h2 id="type-level">Type level</h2>
 <p>This would be it - except that we need one more thing because of the type level techniques described in the <a href="2019-02-10-prox-1-types.html">first post</a>.</p>
 <p>To understand the problem, let’s see how the <em>output redirection</em> operator works. It is implemented as an <em>extension method</em> on the <code>ProcessNode</code> type:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect[PN &lt;: ProcessNode[_, _, _, NotRedirected, _]](processNode: PN) {</a>
-<a class="sourceLine" id="cb8-2" title="2">    <span class="kw">def</span> &gt;[F[_], To, NewOut, NewOutResult, Result &lt;: ProcessNode[_, _, _, Redirected, _]]</a>
-<a class="sourceLine" id="cb8-3" title="3">    (to: To)</a>
-<a class="sourceLine" id="cb8-4" title="4">    (<span class="kw">implicit</span></a>
-<a class="sourceLine" id="cb8-5" title="5">     target: CanBeProcessOutputTarget.<span class="fu">Aux</span>[F, To, NewOut, NewOutResult],</a>
-<a class="sourceLine" id="cb8-6" title="6">     redirectOutput: RedirectOutput.<span class="fu">Aux</span>[F, PN, To, NewOut, NewOutResult, Result]): Result = {</a>
-<a class="sourceLine" id="cb8-7" title="7">      <span class="fu">redirectOutput</span>(processNode, to)</a>
-<a class="sourceLine" id="cb8-8" title="8">    }</a>
-<a class="sourceLine" id="cb8-9" title="9">}</a></code></pre></div>
-<p>This extension method basically just finds the appropriate type class implementations and then call it to alter the process node to register the output redirection:</p>
-<ul>
-<li>we are redirecting the output of <code>processNode</code> (of type <code>PN</code>) to <code>to</code> (of type <code>To</code>)</li>
-<li><code>target</code> is the <code>CanBeProcessOutputTarget</code> implementation, containing the actual code to set up the redirection</li>
-<li><code>redirectOutput</code> is the process node type specific implementation of the <code>RedirectOutput</code> interface, knowing how to set up the redirection of a <code>Process</code> or a <code>PipedProcess</code></li>
-</ul>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">implicit</span> <span class="kw">class</span> ProcessNodeOutputRedirect<span class="op">[</span>PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> NotRedirected<span class="op">,</span> _<span class="op">]](</span>processNode<span class="op">:</span> PN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="op">&gt;[</span>F<span class="op">[</span>_<span class="op">],</span> To<span class="op">,</span> NewOut<span class="op">,</span> NewOutResult<span class="op">,</span> <span class="ex">Result</span> <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> Redirected<span class="op">,</span> _<span class="op">]]</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span>to<span class="op">:</span> To<span class="op">)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="kw">implicit</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>     target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">.</span>Aux<span class="op">[</span>F<span class="op">,</span> To<span class="op">,</span> NewOut<span class="op">,</span> NewOutResult<span class="op">],</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>     redirectOutput<span class="op">:</span> RedirectOutput<span class="op">.</span>Aux<span class="op">[</span>F<span class="op">,</span> PN<span class="op">,</span> To<span class="op">,</span> NewOut<span class="op">,</span> NewOutResult<span class="op">,</span> <span class="ex">Result</span><span class="op">]):</span> <span class="ex">Result</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">redirectOutput</span><span class="op">(</span>processNode<span class="op">,</span> to<span class="op">)</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>This extension method basically just finds the appropriate type class implementations and then call it to alter the process node to register the output redirection:
+- we are redirecting the output of <code>processNode</code> (of type <code>PN</code>) to <code>to</code> (of type <code>To</code>)
+- <code>target</code> is the <code>CanBeProcessOutputTarget</code> implementation, containing the actual code to set up the redirection
+- <code>redirectOutput</code> is the process node type specific implementation of the <code>RedirectOutput</code> interface, knowing how to set up the redirection of a <code>Process</code> or a <code>PipedProcess</code></p>
 <p>This code would compile, but we won’t be able to use it. For example for the following code:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb9-1" title="1">running &lt;- (Process[IO](<span class="st">&quot;echo&quot;</span>, List(<span class="st">&quot;Hello world!&quot;</span>)) &gt; tempFile.<span class="fu">toPath</span>).<span class="fu">start</span>(blocker)</a></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>running <span class="op">&lt;-</span> <span class="op">(</span><span class="ex">Process</span><span class="op">[</span>IO<span class="op">](</span><span class="st">&quot;echo&quot;</span><span class="op">,</span> <span class="ex">List</span><span class="op">(</span><span class="st">&quot;Hello world!&quot;</span><span class="op">))</span> <span class="op">&gt;</span> tempFile<span class="op">.</span>toPath<span class="op">).</span><span class="fu">start</span><span class="op">(</span>blocker<span class="op">)</span></span></code></pre></div>
 <p>It fails with not being able to resolve the implicits correctly. The exact error of course depends much on the context but one example for the above line could be:</p>
 <pre><code>[error] prox/src/test/scala/io/github/vigoo/prox/ProcessSpecs.scala:95:63: diverging implicit expansion for type cats.effect.Concurrent[F]
 [error] starting with method catsIorTConcurrent in object Concurrent
@@ -118,43 +115,43 @@
 <p>The compiler cannot do this. If we check the definition of <code>&gt;</code> again, you can see that there is no connection expressed between the type <code>PN</code> (the actual process node type) and <code>F</code> which is used as a type parameter for the implicit parameters.</p>
 <p>The fix is to link the two, and we have a technique exactly for this that I described earlier: the <em>aux pattern</em>.</p>
 <p>First let’s write some code that, in compile time, can “extract” the context type from a process node type:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb11-1" title="1"><span class="kw">trait</span> ContextOf[PN] {</a>
-<a class="sourceLine" id="cb11-2" title="2">  <span class="kw">type</span> Context[_]</a>
-<a class="sourceLine" id="cb11-3" title="3">}</a>
-<a class="sourceLine" id="cb11-4" title="4"></a>
-<a class="sourceLine" id="cb11-5" title="5"><span class="kw">object</span> ContextOf {</a>
-<a class="sourceLine" id="cb11-6" title="6">  <span class="kw">type</span> Aux[PN, F[_]] = ContextOf[PN] {</a>
-<a class="sourceLine" id="cb11-7" title="7">    <span class="kw">type</span> Context[_] = F[_]</a>
-<a class="sourceLine" id="cb11-8" title="8">  }</a>
-<a class="sourceLine" id="cb11-9" title="9"></a>
-<a class="sourceLine" id="cb11-10" title="10">  <span class="kw">def</span> apply[PN &lt;: ProcessNode[_, _, _, _, _], F[_]](<span class="kw">implicit</span> contextOf: ContextOf.<span class="fu">Aux</span>[PN, F]): Aux[PN, F] = contextOf</a>
-<a class="sourceLine" id="cb11-11" title="11"></a>
-<a class="sourceLine" id="cb11-12" title="12">  <span class="kw">implicit</span> <span class="kw">def</span> contextOfProcess[F[_], Out, Err, OutResult, ErrResult, IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]:</a>
-<a class="sourceLine" id="cb11-13" title="13">  Aux[Process[F, Out, Err, OutResult, ErrResult, IRS, ORS, ERS], F] =</a>
-<a class="sourceLine" id="cb11-14" title="14">    <span class="kw">new</span> ContextOf[Process[F, Out, Err, OutResult, ErrResult, IRS, ORS, ERS]] {</a>
-<a class="sourceLine" id="cb11-15" title="15">      <span class="kw">override</span> <span class="kw">type</span> Context[_] = F[_]</a>
-<a class="sourceLine" id="cb11-16" title="16">    }</a>
-<a class="sourceLine" id="cb11-17" title="17"></a>
-<a class="sourceLine" id="cb11-18" title="18">  <span class="kw">implicit</span> <span class="kw">def</span> contextOfPipedProcess[</a>
-<a class="sourceLine" id="cb11-19" title="19">  F[_],</a>
-<a class="sourceLine" id="cb11-20" title="20">  Out, Err,</a>
-<a class="sourceLine" id="cb11-21" title="21">  PN1 &lt;: ProcessNode[_, _, _, _, _],</a>
-<a class="sourceLine" id="cb11-22" title="22">  PN2 &lt;: ProcessNode[_, _, _, _, _],</a>
-<a class="sourceLine" id="cb11-23" title="23">  IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]:</a>
-<a class="sourceLine" id="cb11-24" title="24">  Aux[PipedProcess[F, Out, Err, Byte, PN1, PN2, IRS, ORS, ERS], F] =</a>
-<a class="sourceLine" id="cb11-25" title="25">    <span class="kw">new</span> ContextOf[PipedProcess[F, Out, Err, Byte, PN1, PN2, IRS, ORS, ERS]] {</a>
-<a class="sourceLine" id="cb11-26" title="26">      <span class="kw">override</span> <span class="kw">type</span> Context[_] = F[_]</a>
-<a class="sourceLine" id="cb11-27" title="27">    }</a>
-<a class="sourceLine" id="cb11-28" title="28">}</a></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">trait</span> ContextOf<span class="op">[</span>PN<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> <span class="ex">Context</span><span class="op">[</span>_<span class="op">]</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">object</span> ContextOf <span class="op">{</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">type</span> Aux<span class="op">[</span>PN<span class="op">,</span> F<span class="op">[</span>_<span class="op">]]</span> <span class="op">=</span> ContextOf<span class="op">[</span>PN<span class="op">]</span> <span class="op">{</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">type</span> <span class="ex">Context</span><span class="op">[</span>_<span class="op">]</span> <span class="op">=</span> F<span class="op">[</span>_<span class="op">]</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> apply<span class="op">[</span>PN <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span> F<span class="op">[</span>_<span class="op">]](</span><span class="kw">implicit</span> contextOf<span class="op">:</span> ContextOf<span class="op">.</span>Aux<span class="op">[</span>PN<span class="op">,</span> F<span class="op">]):</span> Aux<span class="op">[</span>PN<span class="op">,</span> F<span class="op">]</span> <span class="op">=</span> contextOf</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">implicit</span> <span class="kw">def</span> contextOfProcess<span class="op">[</span>F<span class="op">[</span>_<span class="op">],</span> Out<span class="op">,</span> Err<span class="op">,</span> OutResult<span class="op">,</span> ErrResult<span class="op">,</span> IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">]:</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  Aux<span class="op">[</span><span class="ex">Process</span><span class="op">[</span>F<span class="op">,</span> Out<span class="op">,</span> Err<span class="op">,</span> OutResult<span class="op">,</span> ErrResult<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">],</span> F<span class="op">]</span> <span class="op">=</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> ContextOf<span class="op">[</span><span class="ex">Process</span><span class="op">[</span>F<span class="op">,</span> Out<span class="op">,</span> Err<span class="op">,</span> OutResult<span class="op">,</span> ErrResult<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">]]</span> <span class="op">{</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>      <span class="kw">override</span> <span class="kw">type</span> <span class="ex">Context</span><span class="op">[</span>_<span class="op">]</span> <span class="op">=</span> F<span class="op">[</span>_<span class="op">]</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">implicit</span> <span class="kw">def</span> contextOfPipedProcess<span class="op">[</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>  F<span class="op">[</span>_<span class="op">],</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>  Out<span class="op">,</span> Err<span class="op">,</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>  PN1 <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>  PN2 <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> _<span class="op">],</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>  IRS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ORS <span class="op">&lt;:</span> RedirectionState<span class="op">,</span> ERS <span class="op">&lt;:</span> RedirectionState<span class="op">]:</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>  Aux<span class="op">[</span>PipedProcess<span class="op">[</span>F<span class="op">,</span> Out<span class="op">,</span> Err<span class="op">,</span> <span class="ex">Byte</span><span class="op">,</span> PN1<span class="op">,</span> PN2<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">],</span> F<span class="op">]</span> <span class="op">=</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> ContextOf<span class="op">[</span>PipedProcess<span class="op">[</span>F<span class="op">,</span> Out<span class="op">,</span> Err<span class="op">,</span> <span class="ex">Byte</span><span class="op">,</span> PN1<span class="op">,</span> PN2<span class="op">,</span> IRS<span class="op">,</span> ORS<span class="op">,</span> ERS<span class="op">]]</span> <span class="op">{</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>      <span class="kw">override</span> <span class="kw">type</span> <span class="ex">Context</span><span class="op">[</span>_<span class="op">]</span> <span class="op">=</span> F<span class="op">[</span>_<span class="op">]</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>Both <code>Process</code> and <code>PipedProcess</code> have the context as their first type parameter. By creating the <code>ContextOf</code> type class and the corresponding <code>Aux</code> type we can extend the <code>&gt;</code> operator to <em>require</em> such a connection (a way to get a <code>F[_]</code> context out of a type <code>PN</code>) in compile time, and with the aux pattern it unifies the type parameters and the context type gets <em>chained</em> through all the subsequent calls as we desired:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb12-1" title="1"><span class="kw">def</span> &gt;[F[_], To, NewOut, NewOutResult, Result &lt;: ProcessNode[_, _, _, Redirected, _]]</a>
-<a class="sourceLine" id="cb12-2" title="2">    (to: To)</a>
-<a class="sourceLine" id="cb12-3" title="3">    (<span class="kw">implicit</span></a>
-<a class="sourceLine" id="cb12-4" title="4">     contextOf: ContextOf.<span class="fu">Aux</span>[PN, F],</a>
-<a class="sourceLine" id="cb12-5" title="5">     target: CanBeProcessOutputTarget.<span class="fu">Aux</span>[F, To, NewOut, NewOutResult],</a>
-<a class="sourceLine" id="cb12-6" title="6">     redirectOutput: RedirectOutput.<span class="fu">Aux</span>[F, PN, To, NewOut, NewOutResult, Result]): Result = {</a>
-<a class="sourceLine" id="cb12-7" title="7">      <span class="fu">redirectOutput</span>(processNode, to)</a>
-<a class="sourceLine" id="cb12-8" title="8">    }</a></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="op">&gt;[</span>F<span class="op">[</span>_<span class="op">],</span> To<span class="op">,</span> NewOut<span class="op">,</span> NewOutResult<span class="op">,</span> <span class="ex">Result</span> <span class="op">&lt;:</span> ProcessNode<span class="op">[</span>_<span class="op">,</span> _<span class="op">,</span> _<span class="op">,</span> Redirected<span class="op">,</span> _<span class="op">]]</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span>to<span class="op">:</span> To<span class="op">)</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="kw">implicit</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>     contextOf<span class="op">:</span> ContextOf<span class="op">.</span>Aux<span class="op">[</span>PN<span class="op">,</span> F<span class="op">],</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>     target<span class="op">:</span> CanBeProcessOutputTarget<span class="op">.</span>Aux<span class="op">[</span>F<span class="op">,</span> To<span class="op">,</span> NewOut<span class="op">,</span> NewOutResult<span class="op">],</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>     redirectOutput<span class="op">:</span> RedirectOutput<span class="op">.</span>Aux<span class="op">[</span>F<span class="op">,</span> PN<span class="op">,</span> To<span class="op">,</span> NewOut<span class="op">,</span> NewOutResult<span class="op">,</span> <span class="ex">Result</span><span class="op">]):</span> <span class="ex">Result</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">redirectOutput</span><span class="op">(</span>processNode<span class="op">,</span> to<span class="op">)</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span></code></pre></div>
 <h2 id="zio">ZIO</h2>
 <p>Now that everything is in place, we can try out whether <em>prox</em> is really working with other effect libraries such as <a href="https://github.com/zio/zio">ZIO</a>.</p>
 <p><em>ZIO</em> has a compatibility layer for <em>cats-effect</em>. It’s the implementation of the type classes cats-effect provides. It is in an extra library called <a href="https://github.com/zio/interop-cats">zio-interop-cats</a>.</p>
@@ -164,19 +161,19 @@
 <li>or <code>Task[A]</code> which is an alias for <code>ZIO[scala.Any, scala.Throwable, A]</code> if we don’t take advantage of the environment parameter <code>R</code>.</li>
 </ul>
 <p>This in fact assuming the correct context only means switching <code>IO</code> to <code>RIO</code> or <code>Task</code> in the type parameter for <code>Process</code>:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">import</span> zio.<span class="fu">interop</span>.<span class="fu">catz</span>._</a>
-<a class="sourceLine" id="cb13-2" title="2"></a>
-<a class="sourceLine" id="cb13-3" title="3">Blocker[RIO[Console, ?]].<span class="fu">use</span> { blocker =&gt;</a>
-<a class="sourceLine" id="cb13-4" title="4">  <span class="kw">for</span> {</a>
-<a class="sourceLine" id="cb13-5" title="5">      <span class="co">// ...</span></a>
-<a class="sourceLine" id="cb13-6" title="6">      _ &lt;- console.<span class="fu">putStrLn</span>(<span class="st">&quot;Starting external process...&quot;</span>)</a>
-<a class="sourceLine" id="cb13-7" title="7">      _ &lt;- (Process[Task](<span class="st">&quot;echo&quot;</span>, List(<span class="st">&quot;Hello world!&quot;</span>)) &gt; tempFile.<span class="fu">toPath</span>).<span class="fu">start</span>(blocker)</a>
-<a class="sourceLine" id="cb13-8" title="8">      <span class="co">// ...</span></a>
-<a class="sourceLine" id="cb13-9" title="9">  } <span class="kw">yield</span> ()</a>
-<a class="sourceLine" id="cb13-10" title="10">}</a></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> zio<span class="op">.</span>interop<span class="op">.</span>catz<span class="op">.</span>_</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>Blocker<span class="op">[</span>RIO<span class="op">[</span><span class="ex">Console</span><span class="op">,</span> <span class="op">?]].</span>use <span class="op">{</span> blocker <span class="op">=&gt;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> <span class="op">{</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>      <span class="co">// ...</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>      _ <span class="op">&lt;-</span> console<span class="op">.</span><span class="fu">putStrLn</span><span class="op">(</span><span class="st">&quot;Starting external process...&quot;</span><span class="op">)</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>      _ <span class="op">&lt;-</span> <span class="op">(</span><span class="ex">Process</span><span class="op">[</span>Task<span class="op">](</span><span class="st">&quot;echo&quot;</span><span class="op">,</span> <span class="ex">List</span><span class="op">(</span><span class="st">&quot;Hello world!&quot;</span><span class="op">))</span> <span class="op">&gt;</span> tempFile<span class="op">.</span>toPath<span class="op">).</span><span class="fu">start</span><span class="op">(</span>blocker<span class="op">)</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>      <span class="co">// ...</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span> <span class="cf">yield</span> <span class="op">()</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>A nice way to have everything set up for this is to use the interop library’s <a href="https://zio.dev/docs/interop/interop_catseffect#cats-app"><code>CatsApp</code></a> trait as an entrypoint for the application.</p>
 <p>This brings all the necessary implicits in scope and requires you to implement the following function as the entry point of the application:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><a class="sourceLine" id="cb14-1" title="1"><span class="kw">def</span> <span class="fu">run</span>(args: List[String]): ZIO[Environment, Nothing, Int]</a></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">run</span><span class="op">(</span>args<span class="op">:</span> <span class="ex">List</span><span class="op">[</span><span class="ex">String</span><span class="op">]):</span> ZIO<span class="op">[</span><span class="ex">Environment</span><span class="op">,</span> Nothing<span class="op">,</span> <span class="bu">Int</span><span class="op">]</span></span></code></pre></div>
 
 
 <div id="disqus_thread"></div>
