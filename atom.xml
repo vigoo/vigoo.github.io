@@ -8,8 +8,24 @@
         <name>Daniel Vigovszky</name>
         <email>daniel.vigovszky@gmail.com</email>
     </author>
-    <updated>2022-06-15T00:00:00Z</updated>
+    <updated>2022-12-01T00:00:00Z</updated>
     <entry>
+    <title>[Video] Binary Serialization Of Evolving Data Types @ Functional Scala 2022</title>
+    <link href="http://vigoo.github.io/posts/2022-12-01-funscala2022-talk.html" />
+    <id>http://vigoo.github.io/posts/2022-12-01-funscala2022-talk.html</id>
+    <published>2022-12-01T00:00:00Z</published>
+    <updated>2022-12-01T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="info">
+    Posted on December  1, 2022
+    
+</div>
+
+<p>My talk at <a href="https://www.functionalscala.com/">Functional Scala 2022</a> about the binary serialization library <a href="https://vigoo.github.io/desert/">desert</a>.</p>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/Y2KopYpjZ3Y" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen>
+</iframe>
+]]></summary>
+</entry>
+<entry>
     <title>ZIO Kafka with transactions - a debugging story</title>
     <link href="http://vigoo.github.io/posts/2022-06-15-zio-kafka-debugging-story.html" />
     <id>http://vigoo.github.io/posts/2022-06-15-zio-kafka-debugging-story.html</id>
