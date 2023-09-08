@@ -3,13 +3,13 @@ title: Generating a Rust client library for ZIO Http endpoints
 tags: scala rust codegen zio
 ---
 
-We at [Golem Cloud](https://golem.cloud) built our first developer preview on top of the ZIO ecosystem, including [ZIO Http](https://github.io/zio/zio-http) for defining and implementin our server's REST API. By using **ZIO Http** we immediately had the ability to call our endpoints using endpoint **client**s, which allowed us to develop the first version of Golem's **CLI tool** very rapidly.
+We at [Golem Cloud](https://golem.cloud) built our first developer preview on top of the ZIO ecosystem, including [ZIO Http](https://github.io/zio/zio-http) for defining and implementing our server's REST API. By using **ZIO Http** we immediately had the ability to call our endpoints using endpoint **client**s, which allowed us to develop the first version of Golem's **CLI tool** very rapidly.
 
-Although very convenient for development, _using_ a CLI tool built with Scala for the JVM is not a pleasant experience for the users due to the slow startup time. One possible solution is to compile to native using [GraalVM Native Image](https://www.graalvm.org/22.0/reference-manual/native-image/) but it is very hard to set up and even when it works, it is extremely fragile - further changes to the code, updated dependencies can all break it causing unexpected extra maintenance cost. After some initial experiments we dropped this idea - and instead chose to reimplement the CLI using **Rust** - a language being a much better fit for command line tools, and also already an important technology in our Golem stack.
+Although very convenient for development, _using_ a CLI tool built with Scala for the JVM is not a pleasant experience for the users due to the slow startup time. One possible solution is to compile to native using [GraalVM Native Image](https://www.graalvm.org/22.0/reference-manual/native-image/) but it is very hard to set up and even when it works, it is extremely fragile - further changes to the code or updated dependencies can break it causing unexpected extra maintenance cost. After some initial experiments we dropped this idea - and instead chose to reimplement the CLI using **Rust** - a language being a much better fit for command line tools, and also already an important technology in our Golem stack.
 
 ## ZIO Http
 
-If we rewrite `golem-cli` to Rust, we loose the convenience of using  **endpoint definitions** (written in Scala with ZIO Http, the ones we have for implementing the server) for calling our API, and we would also loose all the **types** used in these APIs as they are all defined as Scala case classes and enums. Just to have more context, let's take a look at one of the endpoints!
+If we rewrite `golem-cli` to Rust, we lose the convenience of using  **endpoint definitions** (written in Scala with ZIO Http, the ones we have for implementing the server) for calling our API, and we would also lose all the **types** used in these APIs as they are all defined as Scala case classes and enums. Just to have more context, let's take a look at one of the endpoints!
 
 A ZIO Http **endpoint** is just a definition of a single endpoint of a HTTP API, describing the routing as well the inputs and outputs of it:
 
@@ -26,19 +26,19 @@ Let's see what we have here:
 - the endpoint is reached by sending a **GET** request
 - the request **path** consists of some static segments as well as the _template id_ and the _worker name_ 
 - it also requires an **authorization header**
-- we define that kind of errors it can return with
-- and finally it defines that the responses **body** will contain a JSON representation (default in ZIO Http) of a type called `WorkerMetadata`
+- we define the kind of errors it can return
+- and finally it defines that the response's **body** will contain a JSON representation (default in ZIO Http) of a type called `WorkerMetadata`
 
-What are `rawTemplateId` and `workerName`? These are so called **path codecs**, defined in a common place so they can be reused in multiple endpoints. They allow us to have dynamic parts of the request path mapped to specific types - so when we implement the endpoint (or call in a client) we don't have to pass strings, we can directly work with the business domain types, in this case `RawTemplateId` and `WorkerName`.
+What are `rawTemplateId` and `workerName`? These are so called **path codecs**, defined in a common place so they can be reused in multiple endpoints. They allow us to have dynamic parts of the request path mapped to specific types - so when we implement the endpoint (or call it in a client) we don't have to pass strings and we can directly work with the business domain types, in this case `RawTemplateId` and `WorkerName`.
 
-The simplest way to define path codecs is to **transform** and existing one:
+The simplest way to define path codecs is to **transform** an existing one:
 
 ```scala
 val workerName: PathCodec[WorkerName] =
   string("worker-name").transformOrFailLeft(WorkerName.make(_).toErrorEither, _.value)
 ```
 
-Here the `make` function is a **ZIO Prelude** [`Validation`](https://zio.github.io/zio-prelude/docs/functionaldatatypes/validation) which we have to convert to an `Either` for the transform function. Validations can contain more than one failures, opposed to `Either`s, which allows us to compose them in a way that we can keep multiple errors instead of immediately returning with the first failure.
+Here the `make` function is a **ZIO Prelude** [`Validation`](https://zio.github.io/zio-prelude/docs/functionaldatatypes/validation) which we have to convert to an `Either` for the transform function. Validations can contain more than one failures, as opposed to `Either`s, which allows us to compose them in a way that we can keep multiple errors instead of immediately returning with the first failure.
 
 The `tokenSecret` is similar, but it is a `HeaderCodec` describing what type of header it is and how the value of the given header should be mapped to a specific type (a token, in this case).
 
@@ -66,9 +66,9 @@ object WorkerMetadata {
 }
 ```
 
-We will talk more about ZIO Schema below - for now all we need to know it describes the structure of Scala types, and this information can be used to serialize data into various formats, including JSON.
+We will talk more about ZIO Schema below - for now all we need to know is it describes the structure of Scala types, and this information can be used to serialize data into various formats, including JSON.
 
-Once we have our endpoints defined like this, we can do several things with them - they are just data describing how and endpoint looks like!
+Once we have our endpoints defined like this, we can do several things with them - they are just data describing what an endpoint looks like!
 
 ### Implementing an endpoint
 
@@ -78,14 +78,14 @@ When developing a _server_, the most important thing to do with an endpoint is t
 val getWorkerMetadataImpl =
     getWorkerMetadata.implement {
       Handler.fromFunctionZIO { (rawTemplateId, workerName, authTokenId) =>
-        // ... ZIO program returning with a WorkerMetadata
+        // ... ZIO program returning a WorkerMetadata
       }
     }
 ```
 
-The _type_ of `getWorkerMetadataImpl` is `Route` - it is no longer just a description of how an endpoint looks like, it defines a specific HTTP route and its associated _request handler_, implemented by a ZIO effect (remember that ZIO effects are also values - we _describe_ what we need to do when a request comes in, but executing it will be the responsibility of the server implementation).
+The _type_ of `getWorkerMetadataImpl` is `Route` - it is no longer just a description of what an endpoint looks like, it defines a specific HTTP route and its associated _request handler_, implemented by a ZIO effect (remember that ZIO effects are also values - we _describe_ what we need to do when a request comes in, but executing it will be the responsibility of the server implementation).
 
-The nice thing about ZIO Http endpoints is that they are completely type safe. I've hid the type signature in the previous code snippets but actually `getWorkerMetadata` has the type 
+The nice thing about ZIO Http endpoints is that they are completely type safe. I've hidden the type signature in the previous code snippets but actually `getWorkerMetadata` has the type:
 
 ```scala
 Endpoint[
@@ -107,7 +107,7 @@ With these types, we really just have to implement a (ZIO) function from the inp
 
 and this is exactly what we pass to `Handler.fromFunctionZIO` in the above example.
 
-### Calling and endpoint
+### Calling an endpoint
 
 The same endpoint values can also be used to make requests to our API from clients such as `golem-cli`. Taking advantage of the same type safe representation we can just call `apply` on the endpoint definition passing its input as a parameter to get an **invocation**:
 
@@ -125,7 +125,7 @@ executor(invocation).flatMap { workerMetadata =>
 
 ## The task
 
-So can we do anything to keep this convenient way of calling our endpoints when migrating the CLI to Rust? At the time of writing we already had more than 60 endpoints, with many complex types used in them - defining them by hand in Rust, and keeping the two (Scala and Rust) code in sync sounds like a nightmare.
+So can we do anything to keep this convenient way of calling our endpoints when migrating the CLI to Rust? At the time of writing we already had more than 60 endpoints, with many complex types used in them - defining them by hand in Rust, and keeping the Scala and Rust code in sync sounds like a nightmare.
 
 The ideal case would be to have something like this in Rust:
 
@@ -157,7 +157,7 @@ We want to generate from an arbitrary set of ZIO Http `Endpoint` definitions a *
 
 Let's start with the actual source code generation. This is something that can be done in many different ways - one extreme could be to just concatenate strings (or use a `StringBuilder`) while the other is to build a full real Rust _AST_ and pretty print that. I had a [talk on Function Scala 2021 about the topic](http://vigoo.github.io/posts/2021-12-03-funscala2021-talk.html).
 
-For this task I chose a technique which is somewhere in the middle and provides some extent of composability while also allows to do just the amount of abstraction we want to. The idea is that we define a _Rust code generator model_ which does not have to strictly follow the actual generated language's concepts, and then define a pretty printer to this model. This way we only have to model the subset of the language we need for the code generator, and we can keep simplifications or even complete string fragments in it if that makes our life easier. 
+For this task I chose a technique which is somewhere in the middle and provides some extent of composability while also allowing use to do just the amount of abstraction we want to. The idea is that we define a _Rust code generator model_ which does not have to strictly follow the actual generated language's concepts, and then define a pretty printer for this model. This way we only have to model the subset of the language we need for the code generator, and we can keep simplifications or even complete string fragments in it if that makes our life easier. 
 
 Let's see how this works with some examples!
 
@@ -215,7 +215,7 @@ def typename: Rust[RustType] = Printer.byValue:
   // ...
 ```
 
-We can see that `typename` uses itself to recursively generate inner type names for example when generating type parameters of tuple members. It also demonstrates that we can extract patterns such as `bracketed` to simplify our printer definitions and eliminate repetition.
+We can see that `typename` uses itself to recursively generate inner type names, for example when generating type parameters of tuple members. It also demonstrates that we can extract patterns such as `bracketed` to simplify our printer definitions and eliminate repetition.
 
 Another nice feature we get by using a general purpose printer library like ZIO Parser is that we can use the built-in combinators to get printers for new types. One example is the sequential composition of printers. For example the following fragment:
 
@@ -287,7 +287,7 @@ def fromSchemas(schemas: Seq[Schema[?]]): Either[String, RustModel]
 
 The `Either` result type is used to indicate failures. Even if we write a transformation that can produce from any `Schema` a proper `RustModel`, we always have to have an error result when working with ZIO Schema because it has an explicit failure case called `Schema.Fail`. If we process a schema and end up with a `Fail` node, we can't do anything else than fail our code generator.
 
-There are many important details to consider when implementing this function, but let's just see first how the actual `Schema` type looks like. When we have a value of `Schema[?]` we can pattern match on it and implement the following cases:
+There are many important details to consider when implementing this function, but let's just see first what the actual `Schema` type looks like. When we have a value of `Schema[?]` we can pattern match on it and implement the following cases:
 
 - `Schema.Primitive` describes a primitive type - there are a lot of primitive types defined by ZIO Schema's `StandardType` enum
 - `Schema.Enum` describes a type with multiple cases (a _sum type_) such as a `sealed trait` or `enum` 
@@ -321,7 +321,7 @@ lazy val tree: Schema[Tree] =
 
 If we are not prepared for recursive types we can easily get into an endless loop (or stack overflow) when processing these schemas.
 
-This is just one example of things to keep track of while converting a schema into a set of Rust definitions. Other things we need to look for is that for fields that refer to the self type we want to use `Box` so to put them on the heap, we also need to keep track if everything within a generated type derives `Ord` and `Hash` - and if yes, we should derive an instance for the same type classes for our generated type as well.
+This is just one example of things to keep track of while converting a schema into a set of Rust definitions. If fields refer to the self type we want to use `Box` so to put them on the heap. We also need to keep track of if everything within a generated type derives `Ord` and `Hash` - and if yes, we should derive an instance for the same type classes for our generated type as well.
 
 My preferred way to implement such recursive stateful transformation functions is to use **ZIO Prelude**'s `ZPure` type. It's type definition looks a little scary:
 
@@ -356,7 +356,7 @@ final case class State(
   processed: Set[Schema[?]],
   stack: Chunk[Schema[?]],
   nameTypeIdMap: Map[Name, Set[TypeId]],
- schemaCaps: Map[Schema[?], Capabilities]
+  schemaCaps: Map[Schema[?], Capabilities]
 )
 ```
 
@@ -369,7 +369,7 @@ private def getState: Fx[State] = ZPure.get[State]
 private def updateState(f: State => State): Fx[Unit] = ZPure.update[State, State](f)
 ```
 
-For example we can use `updateState`  to manipulate the `stack` field of the state around an other computation - before running it, we add a schema to the stack, after that we remove it:
+For example we can use `updateState`  to manipulate the `stack` field of the state around another computation - before running it, we add a schema to the stack, after that we remove it:
 
 ```scala
 private def stacked[A, R](schema: Schema[A])(f: => Fx[R]): Fx[R] =
@@ -391,7 +391,7 @@ private def boxIfNeeded[A](schema: Schema[A]): Fx[RustType] =
 
 By looking into `state.stack` we can decide if we are dealing with a recursive type or not, and make our decision regarding boxing the field.
 
-Another example is to guard against infinite recursion when traversing the schema definition, as I explained before. We can define a helper function that just keeps track of all the visited schemas and shortcuts the computation if something has already seen:
+Another example is to guard against infinite recursion when traversing the schema definition, as I explained before. We can define a helper function that just keeps track of all the visited schemas and shortcuts the computation if something has already been seen:
 
 ```scala
 private def ifNotProcessed[A](value: Schema[A])(f: => Fx[Unit]): Fx[Unit] =
@@ -427,7 +427,7 @@ We generated Rust code for all our types but we still need to generate HTTP clie
 - Generate some intermediate model 
 - Pretty print this model to Rust code
 
-The conversion once again is recursive, can fail, and requires keeping track of various things, so we can use `ZPure` to implement it. Not repeating the same details, in this section we will talk about how exactly the endpoint descriptions look like and what do we have be aware of when trying to process them.
+The conversion once again is recursive, can fail, and requires keeping track of various things, so we can use `ZPure` to implement it. Not repeating the same details, in this section we will talk about what exactly the endpoint descriptions look like and what we have be aware of when trying to process them.
 
 The first problem to solve is that currently ZIO Http does not have a concept of multiple endpoints. We are not composing `Endpoint` values into an API, instead we first **implement** them to get `Route` values and compose those. We can no longer inspect the endpoint definitions from the composed routes, so unfortunately we have to repeat ourselves and somehow compose our set of endpoints for our code generator. 
 
@@ -444,7 +444,7 @@ object RustEndpoint:
   ): Either[String, RustEndpoint] = // ...
 ```
 
-The second thing to notice: endpoints does not have a name! If we look back to our initial example of `getWorkerMetadata`, it did not have a unique name except the Scala value it was assigned to. But we can't observe that in our code generator (without writing a macro) so here we have chosen to just get a name as a string next to the definition.
+The second thing to notice: endpoints do not have a name! If we look back to our initial example of `getWorkerMetadata`, it did not have a unique name except the Scala value it was assigned to. But we can't observe that in our code generator (without writing a macro) so here we have chosen to just get a name as a string next to the definition.
 
 Then we can define a **collection** of `RustEndpoint`s:
 
@@ -472,7 +472,7 @@ When processing a single endpoint, we need to process the following parts of dat
 - Outputs (`endpoint.output`)
 - Errors (`endpoint.error`)
 
-Everything we need is encoded in one of these three fields of an endpoint, and all the three is built on the same abstraction called `HttpCodec`. Still there is a significant difference in what we want to do with inputs versus what we want to do with outputs and errors, so we can write two different traversals for gathering all the necessary information from them.
+Everything we need is encoded in one of these three fields of an endpoint, and all three are built on the same abstraction called `HttpCodec`. Still there is a significant difference in what we want to do with inputs versus what we want to do with outputs and errors, so we can write two different traversals for gathering all the necessary information from them.
 
 ### Inputs
 
@@ -485,7 +485,7 @@ When gathering information from the inputs, we are going to run into the followi
 - `HttpCodec.Header` means we need to send a _header_ in the request, which can be a static (value described by the endpoint) or dynamic one (where we need to add an extra parameter to the generated function to get a value of the header). There are a couple of different primitive types supported for the value, such as string, numbers, UUIDs.
 - `HttpCodec.Method` defines the method to be used for calling the endpoint
 - `HttpCodec.Path` describes the request path, which consists of a sequence of static and dynamic segments - for the dynamic segments the generated API need to have exposed function parameters of the appropriate type
-- `HttpCodec.Query` similarly to the header codec defines query parameters to be sent
+- `HttpCodec.Query` similar to the header codec defines query parameters to be sent
 - `HttpCodec.TransformOrFail` transforms a value with a Scala function - the same case as with `Schema.Transform`. We cannot use the Scala function in our code generator so we just need to ignore this and go to the inner codec.
 - `HttpCodec.Annotated` attaches additional information to the codecs that we are currently not using, but it could be used to get documentation strings and include them in the generated code as comments, for example.
 
@@ -516,7 +516,7 @@ This leads to a series of nested `HttpCodec.Fallback`, `HttpCodec.Combine`, `Htt
 final case class PossibleOutput(tpe: RustType, status: Option[Status], isError: Boolean, schema: Schema[?])
 ```
 
-and once we fully processed one branch of a `Fallback`, we finalise these possible outputs and make them real outputs. The way these different error cases are mapped into different case classes of a a single error type (`LimitsEndpointError`) also complicates things. When we reach a `HttpCodec.Content` referencing  `Schema[LimitsEndpointError.LimitExceeded`] for example, all we see is a `Schema.Record` - and not the parent enum! For this reason in the code generator we are explicitly defining the error ADT type:
+and once we have fully processed one branch of a `Fallback`, we finalize these possible outputs and make them real outputs. The way these different error cases are mapped into different case classes of a a single error type (`LimitsEndpointError`) also complicates things. When we reach a `HttpCodec.Content` referencing  `Schema[LimitsEndpointError.LimitExceeded`] for example, all we see is a `Schema.Record` - and not the parent enum! For this reason in the code generator we are explicitly defining the error ADT type:
 
 ```scala
 val fromEndpoint = RustEndpoint.withKnownErrorAdt[LimitsEndpointError].zio
@@ -526,7 +526,7 @@ and we detect if all cases are subtypes of this error ADT and generate the clien
 
 ### The Rust client
 
-It is time to take a look at how the output of all this looks like. In this section we will examine some parts of the generated Rust code.
+It is time to take a look at what the output of all this looks like. In this section we will examine some parts of the generated Rust code.
 
 Let's take a look at the **Projects API**. We have generated a `trait` for all the endpoints belonging to it:
 
