@@ -1,0 +1,261 @@
+@import url('https://fonts.googleapis.com/css?family=Poppins:400,700,900');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code&display=swap');
+
+$iosevka: "Iosevka Term Web","Victor Mono","Spline Sans Mono","Fira Mono","Fira Sans","JetBrains Mono","Helvetica Neue","Lexend Deca",sans-serif;
+$poppins: "Poppins", "Poppins", "helvetica neue", helvetica, arial, sans-serif;
+$main-link-color: rgb(30, 108, 185);
+
+body {
+   //font-family: "Iosevka Term Web","Victor Mono","Spline Sans Mono","Fira Mono","Fira Sans","JetBrains Mono","Helvetica Neue","Lexend Deca",sans-serif;
+   font-family: $poppins;
+   margin: 0px;
+}
+
+h1 {
+    font-family: $iosevka;
+}
+
+.post {
+    h1 {
+        font-family: $iosevka;
+        font-size: xx-large;
+        margin-bottom: 1rem;
+    }
+
+    h2 {
+        font-family: $iosevka;
+        font-size: x-large;
+    }
+
+    h3 {
+        font-family: $iosevka;
+        font-size: large;
+    }
+
+    h4 {
+        font-family: $iosevka;
+    }
+
+    h5 {
+        font-family: $iosevka;
+    }
+}
+
+.about {
+    section {
+        width: 60%;
+    }
+
+    background-image: url("/images/vigoofej2020.jpg");
+    background-repeat: no-repeat;
+    background-position-x: right;
+    background-position-y: top;
+    background-size: 30%;
+}
+
+menu {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    display: flex;
+    justify-content: flex-end;
+
+    li {
+        list-style-type: none;
+        padding: 0.5rem;
+
+        a {
+            color: black;
+            font-weight: bold;
+            font-variant-caps: titling-caps;
+            text-decoration: none; 
+            text-transform: uppercase;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+    }
+}
+
+
+.post-tag {
+    display: inline;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-bottom: 0.2rem;
+    padding-top: 0.2rem;
+    
+    font-weight: bold;
+    font-size: small;
+
+    background-color: rgb(158, 102, 33);
+    color: white;
+    border-radius: 16px;
+
+    a {
+        color: #ffffff;
+        text-decoration: none;        
+    }
+
+    &:hover {
+        background-color: rgb(202, 143, 72);
+    }
+}
+
+
+.post-list {
+    a {
+        color: $main-link-color;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+
+    h2 {
+        font-family: $iosevka;
+    }
+
+    li {
+        list-style-type: none;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+
+
+        h3 {
+            display: inline;
+            font-family: $iosevka;
+            font-weight: normal;
+        }
+
+        .post-date {
+            display: inline;
+            font-style: italic;
+            padding-left: 1rem;            
+        }
+
+        .post-word-count {
+            display: inline;
+            color: rgb(160, 160, 160);
+            font-style: italic;
+            font-size: small;
+            margin-left: 0.5rem;
+        }
+
+        .post-tag {
+            a {
+                color: #ffffff;
+                text-decoration: none;
+            }
+        }
+    }
+}
+
+.tag-list {
+    list-style-type: none;
+
+    li {
+        display: inline-block;
+        margin: 8px;
+
+        .post-tag {
+            padding: 8px;
+            font-size: medium;        
+            background-color: white;
+
+            a {
+                color: $main-link-color;
+            }
+        }
+    }
+}
+
+.hdr {
+    background-image: linear-gradient(to bottom, #19111f, #2c1e37);
+    color: #d1cddc;
+
+    h1 {
+        width: 70%;
+        padding-top: 16px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    a {
+        color: #d1cddc;
+        text-decoration: none;
+    }
+}
+
+main {
+    width: 70%;
+    margin-left: auto;
+    margin-right: auto;
+
+    article {
+        text-align: justify;        
+    }
+
+    .all-posts-link {
+        display: block;
+        padding-top: 2rem;
+        padding-left: 2rem;
+        color: $main-link-color;
+        font-size: larger;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+pre {
+    font-size: medium;
+    font-family: 'Fira Code', monospace;
+    padding-left: 1rem;
+    overflow: auto;
+
+    // The line numbers already provide some kind of left/right padding
+    [data-linenos] {
+        padding: 1rem 0;
+    }
+
+    table {
+        td {
+            padding: 0;
+
+            // The line number cells
+            &:nth-of-type(1) {
+                text-align: center;
+                user-select: none;
+            }
+        }
+
+        width: 100%;
+        border-collapse: collapse;
+        white-space: pre;
+    }
+
+    mark {
+        // If you want your highlights to take the full width.
+        display: block;
+        // The default background colour of a mark is bright yellow
+        background-color: rgba(254, 252, 232, 0.9);
+    }
+}
+
+code {
+    font-family: 'Fira Code', monospace;
+}
+
+.zola-anchor {
+    display: none;
+}
+
+.posted-on {
+    font-style: italic;
+    font-size: medium;
+}

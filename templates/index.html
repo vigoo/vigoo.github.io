@@ -1,0 +1,65 @@
+<html>
+    <head>
+        {% block head %}
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>{% if page.title %}{{ page.title }}{% else %}{{ config.title }}{% endif %}</title>
+        {% if page.author %}
+        <meta name="author" content="{{ page.author }}">
+        {% elif config.author %}
+        <meta name="author" content="{{ config.author }}">
+        {% else %}
+        {% endif %}     
+        {% if page.description %}
+        <meta name="description" content="{{ page.description }}">
+        {% else %}
+        <meta name="description" content="{{ config.description }}">
+        {% endif %}   
+        {% if current_url %}
+        <link rel="canonical" href="{{ current_url }}">
+        {% endif %}
+        {% endblock %}
+        {% block rss %}
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="{{ get_url(path='/atom.xml', trailing_slash=false) }}">
+        {% endblock %}
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="{{ get_url(path='/style.css') }}">
+    </head>
+    
+</html>
+<body>
+    {% block header %}
+    <header class="hdr">
+        <h1><a href="/">{{ config.title }}</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    {% endblock %}
+
+    <main>
+    {% block main %}
+        <section class="post-list">
+            <h2>Recent blog posts</h2>
+            {% set posts = get_section(path="posts/_index.md") %}
+            <ul>
+            {% for page in posts.pages %}
+                {% if page.year >= 2018 %}
+                {% include "partials/post-list-item.html" %}
+                {% endif %}
+            {% endfor %}
+            </ul>            
+        </section>
+        {% endblock %}        
+        <a href="/archive" class="all-posts-link">...all posts...</a>
+    </main>    
+
+    {% block footer %}    
+    {% endblock %}
+</body>

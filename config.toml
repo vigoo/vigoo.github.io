@@ -1,0 +1,18 @@
+title = "vigoo's software development blog"
+author = "Daniel Vigovszky"
+
+base_url = "https://vigoo.github.io"
+compile_sass = true
+build_search_index = false
+generate_feed = true
+
+taxonomies = [
+    { name = "tags", feed = true }
+]
+
+[markdown]
+highlight_code = true
+highlight_theme = "OneHalfLight"
+extra_syntaxes_and_themes = ["syntaxes"]
+
+[extra]

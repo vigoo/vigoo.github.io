@@ -1,0 +1,15 @@
+{% extends "index.html" %}
+{% block rss %}
+  {% set rss_path = "tags/" ~ term.name ~ "/atom.xml" %}
+  <link rel="alternate" type="application/atom+xml" title="Atom" href="{{ get_url(path=rss_path, trailing_slash=false) }}">
+{% endblock rss %}
+{% block main %}
+    <section class="post-list">
+        <h2>Blog posts tagged with {{term.name }}</h2>
+        <ul>
+        {% for page in term.pages %}
+            {% include "partials/post-list-item.html" %}
+        {% endfor %}
+        </ul>
+    </section>
+{% endblock %}

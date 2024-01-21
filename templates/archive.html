@@ -1,0 +1,17 @@
+{% extends "index.html" %}
+{% block main %}
+<section class="post-list">
+    <h2>Blog posts</h2>
+    {% set all_posts = get_section(path="posts/_index.md") %}
+    {% set yearly_posts = all_posts.pages | group_by(attribute="year") %}
+
+    {% for year, posts in yearly_posts %}
+        <h3>{{ year }}</h3>
+        <ul>
+        {% for page in posts %}
+        {% include "partials/post-list-item.html" %}
+        {% endfor %}
+        </ul>    
+    {% endfor %}
+</section>
+{% endblock %}

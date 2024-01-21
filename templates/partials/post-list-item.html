@@ -1,0 +1,12 @@
+<li>
+    <article>
+        <h3><a href="{{ page.permalink }}">{{ page.title}}</a><h3>
+        {% set formatted_date = page.date | date(format="%B %d, %Y") %}
+        <span class="post-date">{{ formatted_date }}</span>
+        {% for tag in page.taxonomies.tags %}
+        {% set tag_url = get_taxonomy_url(kind="tags", name=tag, lang=page.lang) %}                        
+        <span class="post-tag"><a href="{{ tag_url }}">{{ tag }}</a></span>                        
+        {% endfor %}
+        <span class="post-word-count">{{ page.word_count }} words</span>
+    </article>
+</li>
