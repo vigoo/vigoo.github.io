@@ -43,6 +43,7 @@ Let's start *Code* now!
 
 ### Installing the extension
 Open the *command palette* (F1, or ⇧⌘P) and type `ext install bari`
+
 <a href="/images/baricode1.png" class="zimg"><img width="600" src="/images/baricode1.png" alt="bari-code-1"></a>
 
 ### Loading the project

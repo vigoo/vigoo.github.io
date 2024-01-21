@@ -5,7 +5,7 @@ title = "ZIO-AWS with ZIO Query"
 tags = ["scala", "zio", "aws", "zioquery"]
 +++
 
-A few years ago I wrote a [post](https://vigoo.github.io/posts/2018-09-21-aws-rate-limits-prezidig.html) about how I refactored one of our internal tools at [Prezi](https://prezi.com). This command line tool was able to discover a set of AWS resources and present them in a nice human readable way. The primary motivation at that time was to introduce circuit breaking to survive AWS API rate limits.
+A few years ago I wrote a [post](@/posts/2018-09-21-aws-rate-limits-prezidig.md) about how I refactored one of our internal tools at [Prezi](https://prezi.com). This command line tool was able to discover a set of AWS resources and present them in a nice human readable way. The primary motivation at that time was to introduce circuit breaking to survive AWS API rate limits.
 
 I have recently published a set of libraries, [**zio-aws**](https://github.com/vigoo/zio-aws), and thought it would be interesting to rewrite this tool on top of it, and use this opportunity to try out [**ZIO Query**](https://zio.github.io/zio-query/) on a real-world example. In this post I'm going to show step by step how to build an efficient and easily extensible query tool with the help of _ZIO_ libraries. The full source can be found [on GitHub](https://github.com/vigoo/aws-query).
 
@@ -370,7 +370,7 @@ The other function of `ReportCache`, `retrieve` will be used when traversing the
 
 ## Throttling
 
-The original implementation of this tool did not control the amount and rate of AWS requests in any way, and a few years ago API rate limits made it somewhat unusable. As I explained [in a previous post](https://vigoo.github.io/posts/2018-09-21-aws-rate-limits-prezidig.html), I solved it by centralizing the calls to AWS then adding _circuit breaking and retry_ to handle the _throttling errors_.
+The original implementation of this tool did not control the amount and rate of AWS requests in any way, and a few years ago API rate limits made it somewhat unusable. As I explained [in a previous post](@/posts/2018-09-21-aws-rate-limits-prezidig.md), I solved it by centralizing the calls to AWS then adding _circuit breaking and retry_ to handle the _throttling errors_.
 
 In this new implementation _ZIO Query_ 's batching feature already reduces the load but AWS has a global rate limit that can be reached any time, regardless of the actual request rate provided by this application. So how could we handle this with `zio-aws` and ZIO Query? 
 

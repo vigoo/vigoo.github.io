@@ -10,7 +10,7 @@ It is not enabled by default, but I used it exclusively for months and it seems 
 have it enabled with `-Puse-stack` and have to keep some rules in your `.cabal` file, as explained [in the README](https://github.com/prezi/gradle-haskell-plugin#explanation-stack-mode).
 
 ## How does it work?
-The core idea did not change [compared to the original, cabal based solution](http://vigoo.github.io/posts/2015-04-22-gradle-haskell-plugin.html).
+The core idea did not change [compared to the original, cabal based solution](@/posts/2015-04-22-gradle-haskell-plugin.md).
 
 To support chaining the binary artifacts, I had to add a new option to *stack* called [extra package databases](https://github.com/commercialhaskell/stack/pull/990). The databases listed in this section are passed *after the global* but **before** the snapshot and the local databases, which means that the snapshot database cannot be used (the packages in the binary artifacts are not "seeing" them). This sounds bad, but *gradle-haskell-plugin* does a workaround; it **generates** the `stack.yaml` automatically, and in a way that:
 

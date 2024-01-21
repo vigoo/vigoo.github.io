@@ -157,7 +157,7 @@ We want to generate from an arbitrary set of ZIO Http `Endpoint` definitions a *
 
 ## Generating Rust code
 
-Let's start with the actual source code generation. This is something that can be done in many different ways - one extreme could be to just concatenate strings (or use a `StringBuilder`) while the other is to build a full real Rust _AST_ and pretty print that. I had a [talk on Function Scala 2021 about the topic](http://vigoo.github.io/posts/2021-12-03-funscala2021-talk.html).
+Let's start with the actual source code generation. This is something that can be done in many different ways - one extreme could be to just concatenate strings (or use a `StringBuilder`) while the other is to build a full real Rust _AST_ and pretty print that. I had a [talk on Function Scala 2021 about the topic](@/posts/2021-12-03-funscala2021-talk.md).
 
 For this task I chose a technique which is somewhere in the middle and provides some extent of composability while also allowing use to do just the amount of abstraction we want to. The idea is that we define a _Rust code generator model_ which does not have to strictly follow the actual generated language's concepts, and then define a pretty printer for this model. This way we only have to model the subset of the language we need for the code generator, and we can keep simplifications or even complete string fragments in it if that makes our life easier. 
 
