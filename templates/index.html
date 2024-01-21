@@ -44,7 +44,7 @@
     {% endblock %}
 
     <main>
-    {% block main %}
+        {% block main %}
         <section class="post-list">
             <h2>Recent blog posts</h2>
             {% set posts = get_section(path="posts/_index.md") %}
@@ -56,8 +56,8 @@
             {% endfor %}
             </ul>            
         </section>
-        {% endblock %}        
         <a href="/archive" class="all-posts-link">...all posts...</a>
+        {% endblock %}
     </main>    
 
     {% block footer %}    
