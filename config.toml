@@ -1,7 +1,7 @@
 title = "vigoo's software development blog"
 author = "Daniel Vigovszky"
 
-base_url = "https://vigoo.github.io"
+base_url = "https://vigoo.dev"
 compile_sass = true
 build_search_index = false
 generate_feed = true
