@@ -2,7 +2,7 @@
 title = "[Video] Introducing ZIO Flow @ ZIO World 2023"
 
 [taxonomies]
-tags = ["scala", "zio", "talk"]
+tags = ["scala", "zio", "talk", "video"]
 +++
 
 My short talk at [ZIO World 2023](https://www.zioworld.com/) about the  [zio-flow library](https://zio.dev/zio-flow/).
