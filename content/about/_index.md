@@ -14,10 +14,12 @@ I'm a developer at [Ziverge](https://ziverge.com), working on [Golem Cloud](http
 - [Twitter](https://twitter.com/dvigovszky)
 
 ## Highlighted projects
-- [clipp](https://github.com/vigoo/clipp) is a functional command line argument parser and usage infor generator for Scala
+- [clipp](https://github.com/vigoo/clipp) is a functional command line argument parser and usage information generator for Scala
 - [desert](https://github.com/vigoo/desert) is a binary serialization library for Scala, focusing on supporting data type evolution
+- [golem-services](https://github.com/golemcloud/golem-services) the Golem platform
 - [golem-wasm-ast](https://github.com/golemcloud/golem-wasm-ast) is a Rust crate for working with WASM components on a higher level
 - [prox](https://github.com/vigoo/prox) is a Scala library for working with system processes
+- [wasm-rpc](https://github.com/golemcloud/wasm-rpc) WASM RPC for Golem
 - [zio-aws](https://github.com/zio/zio-aws/) is a low level ZIO interface for the full Amazon Web Services
 - [zio-flow](https://github.com/zio/zio-flow/) is an engine for executing persistent, distributed, fault-tolerant applications, providing an easy and powerful way to build stateful serverless applications in Scala.
 - [zio-k8s](https://github.com/coralogix/zio-k8s) is an idiomatic ZIO client for the Kubernetes API.
