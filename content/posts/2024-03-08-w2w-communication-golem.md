@@ -376,7 +376,7 @@ One way to do this composition is to use `wasm-tools compose`, but it is more co
 
 The following diagram demonstrates how the component's in the example are interacting with each other:
 
-![w2w-comm](w2w-comm.png)
+![](/images/w2w-comm.png)
 
 ## Conclusion
 
