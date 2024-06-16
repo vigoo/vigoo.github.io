@@ -1,0 +1,653 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - wasm</title>
+    <link href="https://blog.vigoo.dev/tags/wasm/atom.xml" rel="self" type="application/atom+xml"/>
+    <link href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-06-16T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/wasm/atom.xml</id>
+    <entry xml:lang="en">
+        <title>[Video] Golem and the WASM Component Model @ LambdaConf 2024</title>
+        <published>2024-06-16T00:00:00+00:00</published>
+        <updated>2024-06-16T00:00:00+00:00</updated>
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        <link rel="alternate" href="https://blog.vigoo.dev/posts/golem-and-the-wasm-component-model/" type="text/html"/>
+        <id>https://blog.vigoo.dev/posts/golem-and-the-wasm-component-model/</id>
+        
+        <content type="html">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.lambdaconf.us&quot;&gt;LambdaConf 2024&lt;&#x2F;a&gt; explaining how &lt;a href=&quot;https:&#x2F;&#x2F;golem.cloud&quot;&gt;Golem&lt;&#x2F;a&gt; takes advantage of the WebAssembly Component Model.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;g5uUQSByvI4?si=lxlQgFztHp94WjrU&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; referrerpolicy=&quot;strict-origin-when-cross-origin&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Zig and the WASM Component Model</title>
+        <published>2024-05-09T00:00:00+00:00</published>
+        <updated>2024-05-09T00:00:00+00:00</updated>
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        <link rel="alternate" href="https://blog.vigoo.dev/posts/zig-wasm-component-model/" type="text/html"/>
+        <id>https://blog.vigoo.dev/posts/zig-wasm-component-model/</id>
+        
+        <content type="html">&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;golem.cloud&quot;&gt;Golem&lt;&#x2F;a&gt; always considered &lt;a href=&quot;https:&#x2F;&#x2F;ziglang.org&quot;&gt;Zig&lt;&#x2F;a&gt; a supported language, but until now the only documented way to use it was to compile a program with a single &lt;code&gt;main&lt;&#x2F;code&gt; function into a &lt;em&gt;core WebAssembly module&lt;&#x2F;em&gt; and then wrap that as a component that can be uploaded to Golem for execution. This is very limiting, as in order to take full advantage of Golem (and any other part of the evolving &lt;em&gt;WASM Component Model ecosystem&lt;&#x2F;em&gt;) a Zig program must have definitions for both &lt;em&gt;importing&lt;&#x2F;em&gt; and &lt;em&gt;exporting&lt;&#x2F;em&gt; functions and data types in order to be a usable component. &lt;&#x2F;p&gt;
+&lt;h2 id=&quot;binding-generators&quot;&gt;Binding generators&lt;&#x2F;h2&gt;
+&lt;p&gt;For many supported languages the workflow is to write a &lt;strong&gt;WIT&lt;&#x2F;strong&gt; file, which is the Component Model&#x27;s &lt;a href=&quot;https:&#x2F;&#x2F;component-model.bytecodealliance.org&#x2F;design&#x2F;wit.html&quot;&gt;interface definition language&lt;&#x2F;a&gt; and then use a &lt;em&gt;binding generator&lt;&#x2F;em&gt;, such as &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;bytecodealliance&#x2F;wit-bindgen&#x2F;&quot;&gt;wit-bindgen&lt;&#x2F;a&gt; to create statically typed representation of the component&#x27;s imports and exports in the targeted language. &lt;&#x2F;p&gt;
+&lt;p&gt;The binding generator does not support Zig, but it does support C. So the best we can do with existing tooling is to use the C binding generator and Zig&#x27;s excellent C interoperability together to be able to create WASM components with Zig.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;the-steps&quot;&gt;The steps&lt;&#x2F;h2&gt;
+&lt;p&gt;The primary steps are the following:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Define&lt;&#x2F;strong&gt; the component&#x27;s interface using WIT&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Generate&lt;&#x2F;strong&gt; C bindings from this definition&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Implement&lt;&#x2F;strong&gt; the exported functions in Zig, potentially using other imported interfaces and data types available through the generated binding&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Compile&lt;&#x2F;strong&gt; the whole project into WASM&lt;&#x2F;li&gt;
+&lt;li&gt;As Zig&#x27;s standard library still uses &lt;em&gt;WASI Preview 1&lt;&#x2F;em&gt;, and outputs a single WASM module, we also have to &lt;strong&gt;compose&lt;&#x2F;strong&gt; our resulting module with an &lt;em&gt;adapter component&lt;&#x2F;em&gt; in order to get a WASM component depending on &lt;em&gt;WASI Preview 2&lt;&#x2F;em&gt;.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;The first step is manual work - although we may eventually get code-first approaches in some languages where the WIT interface is generated as part as the build flow, it is not the case for Zig at the moment.&lt;&#x2F;p&gt;
+&lt;p&gt;For generating the bindings we use &lt;code&gt;wit-bindgen&lt;&#x2F;code&gt;, and once the implementation is done we compile the Zig source code, together with the generated C bindings into a WASM module using zig&#x27;s build system (&lt;code&gt;zig build&lt;&#x2F;code&gt;). &lt;&#x2F;p&gt;
+&lt;p&gt;Finally we can use &lt;code&gt;wasm-tools compose&lt;&#x2F;code&gt; to take this WASM module and an appropriate version of a Preview1 adapter such as &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-wit&#x2F;blob&#x2F;main&#x2F;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&quot;&gt;the one we provide for Golem&lt;&#x2F;a&gt; to get the final component that&#x27;s ready to be used with Golem.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;zig-s-build-system&quot;&gt;Zig&#x27;s build system&lt;&#x2F;h2&gt;
+&lt;p&gt;Executing all these steps manually is not convenient but fortunately we can integrate all the steps within Zig&#x27;s &lt;em&gt;build system&lt;&#x2F;em&gt;. Let&#x27;s see how!&lt;&#x2F;p&gt;
+&lt;p&gt;We need to write a custom &lt;code&gt;build.zig&lt;&#x2F;code&gt; in the following way. First, let&#x27;s do some imports and start defining our build flow:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; std &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= @import&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;std&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; Builder &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.build.Builder;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; CrossTarget &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.zig.CrossTarget;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;build&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;b&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*Builder&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!void &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The first non-manual thing on our list of steps is &lt;strong&gt;generating&lt;&#x2F;strong&gt; the C bindings. Let&#x27;s define a build step that just runs &lt;code&gt;wit-bindgen&lt;&#x2F;code&gt; for us:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; bindgen &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addSystemCommand&lt;&#x2F;span&gt;&lt;span&gt;(&amp;amp;.{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;wit-bindgen&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;c&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;--autodrop-borrows&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;yes&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;.&#x2F;wit&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;--out-dir&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;src&#x2F;bindings&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;});
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is just a description of running the binding generator, not integrated within the build flow yet. The next step is &lt;strong&gt;compiling&lt;&#x2F;strong&gt; our Zig and C files into WASM. &lt;&#x2F;p&gt;
+&lt;p&gt;First we define it as an &lt;em&gt;executable target&lt;&#x2F;em&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; optimize &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;standardOptimizeOption&lt;&#x2F;span&gt;&lt;span&gt;(.{
+&lt;&#x2F;span&gt;&lt;span&gt;        .preferred_optimize_mode &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; .ReleaseSmall&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    });
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; wasm &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addExecutable&lt;&#x2F;span&gt;&lt;span&gt;(.{ 
+&lt;&#x2F;span&gt;&lt;span&gt;    	.name &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;main&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;      .root_source_file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; .{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;src&#x2F;main.zig&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;}, 
+&lt;&#x2F;span&gt;&lt;span&gt;      .target &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; .{
+&lt;&#x2F;span&gt;&lt;span&gt;        .cpu_arch &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; .wasm32&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        .os_tag &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; .wasi&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    	}, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	.optimize &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; optimize 
+&lt;&#x2F;span&gt;&lt;span&gt;    });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This already defines we want to use WASM and target WASI and points to our root source file. We are not done yet though, as if we run the binding generator step defined above, we will end up having a couple of files generated in our &lt;code&gt;src&#x2F;bindings&lt;&#x2F;code&gt; directory:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ l src&#x2F;bindings
+&lt;&#x2F;span&gt;&lt;span&gt;.rw-r--r-- 909 vigoo  9 May 09:34 zig3.c
+&lt;&#x2F;span&gt;&lt;span&gt;.rw-r--r-- 371 vigoo  9 May 09:34 zig3.h
+&lt;&#x2F;span&gt;&lt;span&gt;.rw-r--r-- 299 vigoo  9 May 09:34 zig3_component_type.o
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The &lt;code&gt;.c&lt;&#x2F;code&gt;&#x2F;&lt;code&gt;.h&lt;&#x2F;code&gt; pair contains the generated binding, while the object file holds the binary representation of the WIT interface it was generated from.&lt;&#x2F;p&gt;
+&lt;p&gt;We need to add the C source and the object file into our build, and the header file to the include file paths. As the name of the generated files depend on the WIT file&#x27;s contents, we need to list all files in this &lt;code&gt;bindings&lt;&#x2F;code&gt; directory and mutate our &lt;code&gt;wasm&lt;&#x2F;code&gt; build target according to what we find:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; binding_root &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;pathFromRoot&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;src&#x2F;bindings&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; binding_root_dir &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; std.fs.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;cwd&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;openIterableDir&lt;&#x2F;span&gt;&lt;span&gt;(binding_root, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; binding_root_dir.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;close&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; it &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; binding_root_dir.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;walk&lt;&#x2F;span&gt;&lt;span&gt;(b.allocator);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;while &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; it.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;()) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;|&lt;&#x2F;span&gt;&lt;span&gt;entry&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;switch &lt;&#x2F;span&gt;&lt;span&gt;(entry.kind) {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;            .file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;pathJoin&lt;&#x2F;span&gt;&lt;span&gt;(&amp;amp;.{ binding_root, entry.path });
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(std.mem.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;endsWith&lt;&#x2F;span&gt;&lt;span&gt;(u8, entry.basename, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;.c&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)) {
+&lt;&#x2F;span&gt;&lt;span&gt;                    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addCSourceFile&lt;&#x2F;span&gt;&lt;span&gt;(.{ .file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; .{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; path }, .flags &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; &amp;amp;.{} });
+&lt;&#x2F;span&gt;&lt;span&gt;                } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else if &lt;&#x2F;span&gt;&lt;span&gt;(std.mem.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;endsWith&lt;&#x2F;span&gt;&lt;span&gt;(u8, entry.basename, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;.o&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)) {
+&lt;&#x2F;span&gt;&lt;span&gt;                    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addObjectFile&lt;&#x2F;span&gt;&lt;span&gt;(.{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; path });
+&lt;&#x2F;span&gt;&lt;span&gt;                }
+&lt;&#x2F;span&gt;&lt;span&gt;            },
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else =&amp;gt; continue&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        }
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This registers all the &lt;code&gt;.c&lt;&#x2F;code&gt; and &lt;code&gt;.o&lt;&#x2F;code&gt; files from the generated bindings, but we still need to add the whole directory as an include path:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addIncludePath&lt;&#x2F;span&gt;&lt;span&gt;(.{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; binding_root });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and enable linking with &lt;code&gt;libc&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;linkLibC&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now that we defined two build steps - the generating the bindings and compiling to a WASM module - we define the third step which is &lt;strong&gt;composing&lt;&#x2F;strong&gt; the generated module and the preview1 adapter into a WASM component:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; adapter &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;option&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    	[]&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; u8, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;adapter&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Path to the Golem Tier1 WASI adapter&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;orelse &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; out &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; std.fmt.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allocPrint&lt;&#x2F;span&gt;&lt;span&gt;(b.allocator, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;zig-out&#x2F;bin&#x2F;{s}&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{wasm.out_filename});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; component &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addSystemCommand&lt;&#x2F;span&gt;&lt;span&gt;(&amp;amp;.{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;wasm-tools&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;component&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;new&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, out, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;-o&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;zig-out&#x2F;bin&#x2F;component.wasm&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;--adapt&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, adapter });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Here we provide a way to override the path to the adapter WASM using &lt;code&gt;zig build -Dadapter=xxx&lt;&#x2F;code&gt; but default to &lt;code&gt;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&lt;&#x2F;code&gt; in case it is not specified.&lt;&#x2F;p&gt;
+&lt;p&gt;The final step is to set up dependencies between these build steps and wire them to the main build flow:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    wasm.step.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependOn&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bindgen.step);
+&lt;&#x2F;span&gt;&lt;span&gt;    component.step.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependOn&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;wasm.step);
+&lt;&#x2F;span&gt;&lt;span&gt;    b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;installArtifact&lt;&#x2F;span&gt;&lt;span&gt;(wasm);
+&lt;&#x2F;span&gt;&lt;span&gt;    b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;getInstallStep&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependOn&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;component.step);
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h2 id=&quot;trying-it-out&quot;&gt;Trying it out&lt;&#x2F;h2&gt;
+&lt;p&gt;Let&#x27;s try this out by implementing a simple counter component. We start with the first step - defining our WIT file, putting it into &lt;code&gt;wit&#x2F;counter.wit&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span&gt;package golem:example;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;interface api {
+&lt;&#x2F;span&gt;&lt;span&gt;  add: func(value: u64);
+&lt;&#x2F;span&gt;&lt;span&gt;  get: func() -&amp;gt; u64;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;world counter {
+&lt;&#x2F;span&gt;&lt;span&gt;  export api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We also save the above defined build script as &lt;code&gt;build.zig&lt;&#x2F;code&gt; (full version &lt;a href=&quot;https:&#x2F;&#x2F;gist.github.com&#x2F;vigoo&#x2F;19ed4b5d3e47ca2f5f1258d1ae8b28a4&quot;&gt;available here&lt;&#x2F;a&gt;) and then write an initial  &lt;code&gt;src&#x2F;main.zig&lt;&#x2F;code&gt; file:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; std &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= @import&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;std&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;main&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;anyerror!void &lt;&#x2F;span&gt;&lt;span&gt;{}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Let&#x27;s place the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-wit&#x2F;raw&#x2F;main&#x2F;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&quot;&gt;adapter WASM&lt;&#x2F;a&gt; as well in the &lt;code&gt;adapters&#x2F;tier1&lt;&#x2F;code&gt; directory, and then try to compile this:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ zig build --summary all                                                                                 ...
+&lt;&#x2F;span&gt;&lt;span&gt;zig build-exe main Debug wasm32-wasi: error: the following command failed with 2 compilation errors:
+&lt;&#x2F;span&gt;&lt;span&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;error: wasm-ld: &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;counter&#x2F;zig-cache&#x2F;o&#x2F;a212123ad3dcf4839747c2bd77f7ef4e&#x2F;counter.o:
+&lt;&#x2F;span&gt;&lt;span&gt;undefined symbol: exports_golem_example_api_add
+&lt;&#x2F;span&gt;&lt;span&gt;error: wasm-ld: &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;counter&#x2F;zig-cache&#x2F;o&#x2F;a212123ad3dcf4839747c2bd77f7ef4e&#x2F;counter.o:
+&lt;&#x2F;span&gt;&lt;span&gt;undefined symbol: exports_golem_example_api_get
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It fails because we defined two exported functions: &lt;code&gt;api&#x2F;add&lt;&#x2F;code&gt; and &lt;code&gt;api&#x2F;get&lt;&#x2F;code&gt; in our WIT file but haven&#x27;t implemented them yet. Let&#x27;s do that:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;state&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64 = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;exports_golem_example_api_add&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;value&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;void &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; stdout &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.io.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;getStdOut&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;writer&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Adding {} to state&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{value}) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;catch unreachable&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    state &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+=&lt;&#x2F;span&gt;&lt;span&gt; value;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;exports_golem_example_api_get&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64 &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; state;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then compile it:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ zig build --summary all
+&lt;&#x2F;span&gt;&lt;span&gt;Generating &amp;quot;src&#x2F;bindings&#x2F;counter.c&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;Generating &amp;quot;src&#x2F;bindings&#x2F;counter.h&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;Generating &amp;quot;src&#x2F;bindings&#x2F;counter_component_type.o&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;Build Summary: 5&#x2F;5 steps succeeded
+&lt;&#x2F;span&gt;&lt;span&gt;install success
+&lt;&#x2F;span&gt;&lt;span&gt;├─ install main cached
+&lt;&#x2F;span&gt;&lt;span&gt;│  └─ zig build-exe main Debug wasm32-wasi cached 9ms MaxRSS:29M
+&lt;&#x2F;span&gt;&lt;span&gt;│     └─ run wit-bindgen success 3ms MaxRSS:3M
+&lt;&#x2F;span&gt;&lt;span&gt;└─ run wasm-tools success 11ms MaxRSS:8M
+&lt;&#x2F;span&gt;&lt;span&gt;   └─ zig build-exe main Debug wasm32-wasi (+1 more reused dependencies)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and we can verify our resulting &lt;code&gt;zig-out&#x2F;component.wasm&lt;&#x2F;code&gt; using &lt;code&gt;wasm-tools&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ wasm-tools print --skeleton zig-out&#x2F;bin&#x2F;component.wasm 
+&lt;&#x2F;span&gt;&lt;span&gt;(component
+&lt;&#x2F;span&gt;&lt;span&gt;  ...
+&lt;&#x2F;span&gt;&lt;span&gt;  (instance (;11;) (instantiate 0
+&lt;&#x2F;span&gt;&lt;span&gt;      (with &amp;quot;import-func-add&amp;quot; (func 16))
+&lt;&#x2F;span&gt;&lt;span&gt;      (with &amp;quot;import-func-get&amp;quot; (func 17))
+&lt;&#x2F;span&gt;&lt;span&gt;    )
+&lt;&#x2F;span&gt;&lt;span&gt;  )
+&lt;&#x2F;span&gt;&lt;span&gt;  (export (;12;) &amp;quot;golem:example&#x2F;api&amp;quot; (instance 11))
+&lt;&#x2F;span&gt;&lt;span&gt;  (@producers
+&lt;&#x2F;span&gt;&lt;span&gt;    (processed-by &amp;quot;wit-component&amp;quot; &amp;quot;0.20.1&amp;quot;)
+&lt;&#x2F;span&gt;&lt;span&gt;  )
+&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h2 id=&quot;using-imports&quot;&gt;Using imports&lt;&#x2F;h2&gt;
+&lt;p&gt;After this simple example let&#x27;s try &lt;em&gt;importing&lt;&#x2F;em&gt; some interface and using that from our Zig code. What we are going to do is every time our counter changes, we are going to also save that value to an external key-value store. This is usually not something you need to do when writing a Golem application, because your program will be durable anyway - you can just keep the counter in memory. But it is a simple enough example to demonstrate how to use imported interfaces from Zig.&lt;&#x2F;p&gt;
+&lt;p&gt;First let&#x27;s add some additional WIT files into &lt;code&gt;wit&#x2F;deps&lt;&#x2F;code&gt; from the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-wit&quot;&gt;golem-wit repository&lt;&#x2F;a&gt; (Note that the WASI Key-Value interface is defined &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;WebAssembly&#x2F;wasi-keyvalue&quot;&gt;here&lt;&#x2F;a&gt;, the &lt;code&gt;golem-wit&lt;&#x2F;code&gt; repo just stores the exact version of its definitions which is currently implemented by Golem ).&lt;&#x2F;p&gt;
+&lt;p&gt;We need the following directory tree:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ tree wit
+&lt;&#x2F;span&gt;&lt;span&gt;wit
+&lt;&#x2F;span&gt;&lt;span&gt;├── counter.wit
+&lt;&#x2F;span&gt;&lt;span&gt;└── deps
+&lt;&#x2F;span&gt;&lt;span&gt;    ├── io
+&lt;&#x2F;span&gt;&lt;span&gt;    │   ├── error.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    │   ├── poll.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    │   ├── streams.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    │   └── world.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    └── keyvalue
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── atomic.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── caching.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── error.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── eventual-batch.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── eventual.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── handle-watch.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── types.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        └── world.wit
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;4 directories, 13 files
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we can import the key-value interface to &lt;code&gt;counter.wit&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span&gt;package golem:example;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;interface api {
+&lt;&#x2F;span&gt;&lt;span&gt;  add: func(value: u64);
+&lt;&#x2F;span&gt;&lt;span&gt;  get: func() -&amp;gt; u64;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;world counter {
+&lt;&#x2F;span&gt;&lt;span&gt;  import wasi:keyvalue&#x2F;eventual@0.1.0;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  export api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;By recompiling the project we can verify everything still works, and we will also get our new bindings generated in the C source.&lt;&#x2F;p&gt;
+&lt;p&gt;Before implementing writing to the key-value store in Zig, let&#x27;s just take a look at the WIT interface of &lt;code&gt;wasi:keyvalue&#x2F;eventual@0.1.0&lt;&#x2F;code&gt; to understand what we will have to do:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span&gt;interface eventual {
+&lt;&#x2F;span&gt;&lt;span&gt;  &#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;  set: func(
+&lt;&#x2F;span&gt;&lt;span&gt;    bucket: borrow&amp;lt;bucket&amp;gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;    key: key, 
+&lt;&#x2F;span&gt;&lt;span&gt;    outgoing-value: borrow&amp;lt;outgoing-value&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  ) -&amp;gt; result&amp;lt;_, error&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We will need to pass a &lt;code&gt;bucket&lt;&#x2F;code&gt; and an &lt;code&gt;outgoing-value&lt;&#x2F;code&gt;, both being &lt;em&gt;WIT resources&lt;&#x2F;em&gt; so we first need to create them, then borrow references of them for the &lt;code&gt;set&lt;&#x2F;code&gt; call, and finally drop them.&lt;&#x2F;p&gt;
+&lt;p&gt;The bucket resource can be constructed with a static function called &lt;code&gt;open-bucket&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span&gt;resource bucket {
+&lt;&#x2F;span&gt;&lt;span&gt;  open-bucket: static func(name: string) -&amp;gt; result&amp;lt;bucket, error&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Searching for this in the generated C bindings reveals the following:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extern bool &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;wasi_keyvalue_types_static_bucket_open_bucket&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  counter_string_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_types_own_bucket_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;ret&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_types_own_error_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;err
+&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We will have to drop the created bucket with&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extern void &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;wasi_keyvalue_types_bucket_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_types_own_bucket_t handle
+&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With all this information let&#x27;s try to open a bucket in Zig by directly using the generated C bindings. First we need to import the C headers:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; c &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= @cImport&lt;&#x2F;span&gt;&lt;span&gt;({
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;@cDefine&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;_NO_CRT_STDIO_INLINE&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;1&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;@cInclude&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;counter.h&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;});
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We also define an initial error type for our function for using later:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const &lt;&#x2F;span&gt;&lt;span&gt;KVError &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= error &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    FailedToOpenBucket,
+&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then start implementing the store function by first storing the bucket&#x27;s name in &lt;code&gt;counter_string_t&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;record_state&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;anyerror!void &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; stdout &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.io.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;getStdOut&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;writer&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket_name&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.counter_string_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_dup&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_name, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;state&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_free&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_name);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and then invoking the &lt;code&gt;wasi_keyvalue_types_static_bucket_open_bucket&lt;&#x2F;code&gt; function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_types_own_bucket_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket_err&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_wasi_keyvalue_error_own_error_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_static_bucket_open_bucket&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_name, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_err)) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_bucket_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(bucket);
+&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; TODO
+&lt;&#x2F;span&gt;&lt;span&gt;    } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_wasi_keyvalue_error_error_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(bucket_err);
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Failed to open bucket&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; KVError.FailedToOpenBucket;
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now that we have an open bucket we want to call the &lt;code&gt;set&lt;&#x2F;code&gt; function to update a key&#x27;s value:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extern bool &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;wasi_keyvalue_eventual_set&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_borrow_bucket_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_key_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;key&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_borrow_outgoing_value_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;outgoing_value&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_own_error_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;err
+&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We already have our bucket, but we &lt;em&gt;own&lt;&#x2F;em&gt; it and we need to pass a &lt;em&gt;borrowed&lt;&#x2F;em&gt; bucket to this function. What&#x27;s the difference? There is no difference in the actual value - both just store a &lt;em&gt;handle&lt;&#x2F;em&gt; to a resource that exists in the runtime engine, but we still have to borrow the owned value using the &lt;code&gt;wasi_keyvalue_types_borrow_bucket&lt;&#x2F;code&gt; function. The &lt;code&gt;wasi_keyvalue_eventual_key_t&lt;&#x2F;code&gt; type is just an alias for &lt;code&gt;counter_string_t&lt;&#x2F;code&gt; and &lt;code&gt;wasi_keyvalue_eventual_borrow_outgoing_value_t&lt;&#x2F;code&gt; is another resource we need to construct first. Let&#x27;s put this together!&lt;&#x2F;p&gt;
+&lt;p&gt;First we borrow the owned bucket:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; borrowed_bucket &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_borrow_bucket&lt;&#x2F;span&gt;&lt;span&gt;(bucket);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_bucket_drop_borrow&lt;&#x2F;span&gt;&lt;span&gt;(borrowed_bucket);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we create an &lt;em&gt;outgoing value&lt;&#x2F;em&gt; that&#x27;s going to be stored in the key-value store:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; outgoing_value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_static_outgoing_value_new_outgoing_value&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_outgoing_value_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(outgoing_value);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; borrowed_outgoing_value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_borrow_outgoing_value&lt;&#x2F;span&gt;&lt;span&gt;(outgoing_value);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_outgoing_value_drop_borrow&lt;&#x2F;span&gt;&lt;span&gt;(borrowed_outgoing_value);
+&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;body&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.counter_string_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; std.fmt.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allocPrint&lt;&#x2F;span&gt;&lt;span&gt;(gpa.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allocator&lt;&#x2F;span&gt;&lt;span&gt;(), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;{d}&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{state});
+&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_set&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;body, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;@ptrCast&lt;&#x2F;span&gt;&lt;span&gt;(value));
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_free&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;body);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;write_err&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_types_own_error_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_method_outgoing_value_outgoing_value_write_body_sync&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    borrowed_outgoing_value, 
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;@ptrCast&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;body),
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_err)) {
+&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_wasi_keyvalue_error_error_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(write_err);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Failed to set outgoing value&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; KVError.FailedToSetKey;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Also we need to create a string for holding the &lt;em&gt;key&lt;&#x2F;em&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;key&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.counter_string_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_dup&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;key, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;latest&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_free&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;key);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And finally call the &lt;code&gt;set&lt;&#x2F;code&gt; function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;set_err&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_eventual_own_error_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_eventual_set&lt;&#x2F;span&gt;&lt;span&gt;(borrowed_bucket, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;key, borrowed_outgoing_value, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;set_err)) {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Failed to set key&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; KVError.FailedToSetKey;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With this implementation we can compile our new version of our WASM component which now also depends on &lt;code&gt;wasi:keyvalue&lt;&#x2F;code&gt; and stores the latest value in a remote storage every time it gets updated.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;what-s-next&quot;&gt;What&#x27;s next?&lt;&#x2F;h2&gt;
+&lt;p&gt;With the above technique we have a way to impelment WASM components in Zig, but working with the generated C bindings is a bit inconvenient. It would be nice to have a more idiomatic Zig interface to the component model, and maybe it can be achieved just by using Zig&#x27;s metaprogramming features without having to create a Zig specific binding generator in addition to the existing ones.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Worker to Worker communication in Golem</title>
+        <published>2024-03-08T00:00:00+00:00</published>
+        <updated>2024-03-08T00:00:00+00:00</updated>
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        <link rel="alternate" href="https://blog.vigoo.dev/posts/w2w-communication-golem/" type="text/html"/>
+        <id>https://blog.vigoo.dev/posts/w2w-communication-golem/</id>
+        
+        <content type="html">&lt;p&gt;This article was originally posted at &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;post&#x2F;worker-to-worker-communication&quot;&gt;the Golem Cloud Blog&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;Golem Cloud&#x27;s first developer preview &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;post&#x2F;unveiling-golem-cloud&quot;&gt;has been unveiled in August&lt;&#x2F;a&gt;, and just a month ago, we released &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;post&#x2F;golem-goes-open-source&quot;&gt;an open-source version of Golem&lt;&#x2F;a&gt;. Workers, the fundamental primitive in Golem, expose a typed interface that can be invoked through the REST API or the command line tools, but until today, calling a worker from &lt;em&gt;another worker&lt;&#x2F;em&gt; was neither easy nor type-safe.&lt;&#x2F;p&gt;
+&lt;p&gt;With the latest release of Golem and the &lt;code&gt;golem-cli&lt;&#x2F;code&gt; tool, we finally have a first-class, typed way to invoke one worker from another, using any of the supported guest languages!&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;golem-wasm-rpc&quot;&gt;Golem WASM RPC&lt;&#x2F;h2&gt;
+&lt;p&gt;Golem&#x27;s new worker to worker communication feature consists of two major layers:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;A low-level, dynamic worker invocation API exposed as a Golem &lt;strong&gt;host function&lt;&#x2F;strong&gt; to all workers. This interface is not type safe. Rather, it matches the capabilities of the external REST API, allowing a worker to invoke any method on any other worker with any parameters. However, it avoids the overhead of setting up an HTTP connection and will be optimized in the future.&lt;&#x2F;li&gt;
+&lt;li&gt;The ability to generate &lt;strong&gt;stubs&lt;&#x2F;strong&gt; for having a completely type-safe, language-independent remote worker invocation for any supported language having a WIT-based binding generator.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With the new stub generator commands integrated into Golem&#x27;s command line tool (&lt;code&gt;golem-cli&lt;&#x2F;code&gt;) worker to worker communication is now a simple and fully type-safe experience.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;a-full-example&quot;&gt;A full example&lt;&#x2F;h2&gt;
+&lt;p&gt;To demonstrate how this new feature works, we will take one of the first Golem example projects, the &lt;strong&gt;shopping cart&lt;&#x2F;strong&gt;, and extend it with worker-to-worker communication. The original shopping-cart project defines a worker for each shopping cart of an online web store, with exported functions to add items to the cart and eventually check out and finish the shopping process.&lt;&#x2F;p&gt;
+&lt;p&gt;In this example, we introduce a second &lt;strong&gt;worker template&lt;&#x2F;strong&gt;, one that will be used to create a single &lt;strong&gt;worker&lt;&#x2F;strong&gt; for each online shopper. This worker will keep a log of all the purchases of the user it belongs to. We will extend the shopping cart&#x27;s &lt;code&gt;checkout&lt;&#x2F;code&gt; function with a remote worker invocation to add a new entry to the account&#x27;s purchase log.&lt;&#x2F;p&gt;
+&lt;p&gt;First, let&#x27;s make sure we have the latest version of &lt;code&gt;golem-cli&lt;&#x2F;code&gt;, if using the open-source Golem version, or &lt;code&gt;golem-cloud-cli&lt;&#x2F;code&gt;, if using the hosted version. It must have the new &lt;code&gt;stubgen&lt;&#x2F;code&gt; subcommand, to check let&#x27;s run &lt;code&gt;golem-cli stubgen --help&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;WASM&lt;&#x2F;span&gt;&lt;span&gt; RPC stub generator
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Usage:&lt;&#x2F;span&gt;&lt;span&gt; golem-cli stubgen &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;[&lt;&#x2F;span&gt;&lt;span&gt;OPTIONS&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;] &amp;lt;&lt;&#x2F;span&gt;&lt;span&gt;COMMAND&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Commands:
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;generate&lt;&#x2F;span&gt;&lt;span&gt;              Generate a Rust RPC stub crate for a WASM component
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;build&lt;&#x2F;span&gt;&lt;span&gt;                 Build an RPC stub for a WASM component
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;add-stub-dependency&lt;&#x2F;span&gt;&lt;span&gt;   Adds a generated stub as a dependency to another WASM component
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;compose&lt;&#x2F;span&gt;&lt;span&gt;               Compose a WASM component with a generated stub WASM
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;initialize-workspace&lt;&#x2F;span&gt;&lt;span&gt;  Initializes a Golem-specific cargo-make configuration in a Cargo workspace for automatically generating stubs and composing results
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;help&lt;&#x2F;span&gt;&lt;span&gt;                  Print this message or the help of the given subcommand(s)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Options:
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;-v, --verbose&lt;&#x2F;span&gt;&lt;span&gt;...  Increase logging verbosity
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;-q, --quiet&lt;&#x2F;span&gt;&lt;span&gt;...    Decrease logging verbosity
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;-h, --help&lt;&#x2F;span&gt;&lt;span&gt;        Print help
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;preparing-the-example&quot;&gt;Preparing the example&lt;&#x2F;h3&gt;
+&lt;p&gt;We are going to create two different &lt;strong&gt;Golem templates&lt;&#x2F;strong&gt;, and have the source codes of both of them in a single &lt;strong&gt;Cargo workspace&lt;&#x2F;strong&gt;. This is not required—they could live in completely separate places—but it allows using our built-in cargo-make support, which currently gives us the best possible developer experience for worker-to-worker communication.&lt;&#x2F;p&gt;
+&lt;p&gt;First, let&#x27;s use the &lt;code&gt;golem-cli new&lt;&#x2F;code&gt; command to take the &lt;strong&gt;shopping-cart example&lt;&#x2F;strong&gt; and generate a new template source from it:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; golem-cli new&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --example&lt;&#x2F;span&gt;&lt;span&gt; rust-shopping-cart&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --template-name&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart-rpc
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;See&lt;&#x2F;span&gt;&lt;span&gt; the documentation about installing common tooling: https:&#x2F;&#x2F;golem.cloud&#x2F;learn&#x2F;rust
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Compile&lt;&#x2F;span&gt;&lt;span&gt; the Rust component with cargo-component:
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span&gt; component build&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --release
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;The&lt;&#x2F;span&gt;&lt;span&gt; result in target&#x2F;wasm32-wasi&#x2F;release&#x2F;shopping_cart_rpc.wasm is ready to be used with Golem!
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The &lt;code&gt;shopping-cart-rpc&lt;&#x2F;code&gt; directory now contains a single Rust crate, which can be compiled to WASM using &lt;code&gt;cargo component build&lt;&#x2F;code&gt;. We need two different WASMs (two Golem templates) so as a first step, we convert the generated Cargo project to a &lt;a href=&quot;https:&#x2F;&#x2F;doc.rust-lang.org&#x2F;book&#x2F;ch14-03-cargo-workspaces.html&quot;&gt;&lt;strong&gt;cargo workspace&lt;&#x2F;strong&gt;&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;First, create two sub-directories for the two templates we will use:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mkdir&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -pv&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mkdir&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -pv&lt;&#x2F;span&gt;&lt;span&gt; purchase-history
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;purchase-history
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then, move the generated shopping cart source code into the &lt;code&gt;shopping-cart&lt;&#x2F;code&gt; subdirectory:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -v&lt;&#x2F;span&gt;&lt;span&gt; src shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;src&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;src
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -v&lt;&#x2F;span&gt;&lt;span&gt; wit shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wit&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;wit
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -v&lt;&#x2F;span&gt;&lt;span&gt; Cargo.toml shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Cargo.toml&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;Cargo.toml
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We can copy the whole contents of the &lt;code&gt;shopping-cart&lt;&#x2F;code&gt; directory to the &lt;code&gt;purchase-history&lt;&#x2F;code&gt; directory too:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cp&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -rv&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt; purchase-history
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;Cargo.toml&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;Cargo.toml
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;src&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;src
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;src&#x2F;lib.rs&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;src&#x2F;lib.rs
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;wit&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;wit&#x2F;shopping-cart-rpc.wit&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;wit&#x2F;shopping-cart-rpc.wit
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we create a new &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt; file in the root, pointing to the two sub-projects:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span&gt;[workspace]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;resolver &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;2&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;members &lt;&#x2F;span&gt;&lt;span&gt;= [
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;shopping-cart&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;purchase-history&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Next, modify the &lt;code&gt;name&lt;&#x2F;code&gt; property in both sub-project&#x27;s &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt;. In &lt;code&gt;shopping-cart&#x2F;Cargo.toml&lt;&#x2F;code&gt;, it should be:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;shopping-cart&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;while in the other&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;purchase-history&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It&#x27;s also recommended that you rename the WIT file in both the &lt;code&gt;wit&lt;&#x2F;code&gt; directories to a file name that corresponds to the given sub-project&#x27;s name, but it does not have any effect on the compilation—it just makes working on the source code easier.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv shopping-cart&#x2F;wit&#x2F;shopping-cart-rpc.wit shopping-cart&#x2F;wit&#x2F;shopping-cart.wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv purchase-history&#x2F;wit&#x2F;shopping-cart-rpc.wit purchase-history&#x2F;wit&#x2F;purchase-history.wit
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;At this point running &lt;code&gt;cargo component build&lt;&#x2F;code&gt; in the root will compile both identical sub-projects, creating two different WASM files (but both containing the shopping cart implementation for now):&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo component build
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history.wasm
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;implementing-the-purchase-history-template&quot;&gt;Implementing the purchase history template&lt;&#x2F;h3&gt;
+&lt;p&gt;Before talking about &lt;em&gt;worker-to-worker communication&lt;&#x2F;em&gt;, let&#x27;s just implement a simple version of the &lt;strong&gt;purchase history template&lt;&#x2F;strong&gt;. Each worker of this template will correspond to a &lt;strong&gt;user&lt;&#x2F;strong&gt; of the system, the worker name being equal to the user&#x27;s identifier. We only need two exported functions, one for recording a purchase, and one for getting all the previous purchases.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s completely replace &lt;code&gt;purchase-history&#x2F;wit&#x2F;purchase-history.wit&lt;&#x2F;code&gt; with the following interface definition:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span&gt;package shopping:purchase-history;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;interface api {
+&lt;&#x2F;span&gt;&lt;span&gt;  record product-item {
+&lt;&#x2F;span&gt;&lt;span&gt;    product-id: string,
+&lt;&#x2F;span&gt;&lt;span&gt;    name: string,
+&lt;&#x2F;span&gt;&lt;span&gt;    price: float32,
+&lt;&#x2F;span&gt;&lt;span&gt;    quantity: u32,
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  record order {
+&lt;&#x2F;span&gt;&lt;span&gt;    order-id: string,
+&lt;&#x2F;span&gt;&lt;span&gt;    items: list&amp;lt;product-item&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    total: float32,
+&lt;&#x2F;span&gt;&lt;span&gt;    timestamp: u64,
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  add-order: func(order: order) -&amp;gt; ();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  get-orders: func() -&amp;gt; list&amp;lt;order&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;world purchase-history {
+&lt;&#x2F;span&gt;&lt;span&gt;  export api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Our &lt;code&gt;product-item&lt;&#x2F;code&gt; and &lt;code&gt;order&lt;&#x2F;code&gt; types are the same that we have in the shopping-cart WIT. In a next step, we will remove them from the shopping-cart WIT, and import them from this component&#x27;s interface definition!&lt;&#x2F;p&gt;
+&lt;p&gt;Running &lt;code&gt;cargo component build&lt;&#x2F;code&gt; now will print a couple of errors, as we did not update the &lt;code&gt;purchase-history&lt;&#x2F;code&gt; module&#x27;s Rust source code yet:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo component build
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;error[E0433]:&lt;&#x2F;span&gt;&lt;span&gt; failed to resolve: could not find `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;golem&lt;&#x2F;span&gt;&lt;span&gt;` in `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;exports&lt;&#x2F;span&gt;&lt;span&gt;`
+&lt;&#x2F;span&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;--&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;src&#x2F;lib.rs:3:31
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;|
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;3 &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;use&lt;&#x2F;span&gt;&lt;span&gt; crate::bindings::exports::golem::template::api::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;|                               &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;^^^^^&lt;&#x2F;span&gt;&lt;span&gt; could not find `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;golem&lt;&#x2F;span&gt;&lt;span&gt;` in `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;exports&lt;&#x2F;span&gt;&lt;span&gt;`
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;A simple implementation of this can be the following code replacing the existing &lt;code&gt;lib.rs&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;mod &lt;&#x2F;span&gt;&lt;span&gt;bindings;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::exports::shopping::purchase_history::api::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;Component;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;State {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;orders&lt;&#x2F;span&gt;&lt;span&gt;: Vec&amp;lt;Order&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;static mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;STATE&lt;&#x2F;span&gt;&lt;span&gt;: State &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; State {
+&lt;&#x2F;span&gt;&lt;span&gt;    orders: Vec::new()
+&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;with_state&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T&amp;gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl FnOnce(&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;mut State&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; T) -&amp;gt; T {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; result &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= unsafe &lt;&#x2F;span&gt;&lt;span&gt;{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;STATE&lt;&#x2F;span&gt;&lt;span&gt;) };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; result;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Guest &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;Component {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add_order&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;order&lt;&#x2F;span&gt;&lt;span&gt;: Order) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;with_state&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;state&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;            state.orders.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;push&lt;&#x2F;span&gt;&lt;span&gt;(order);
+&lt;&#x2F;span&gt;&lt;span&gt;        });
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get_orders&lt;&#x2F;span&gt;&lt;span&gt;() -&amp;gt; Vec&amp;lt;Order&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;with_state&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;state&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;            state.orders.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;()
+&lt;&#x2F;span&gt;&lt;span&gt;        })
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With this, &lt;code&gt;cargo component build&lt;&#x2F;code&gt; now compiles the new &lt;code&gt;purchase_history.wasm&lt;&#x2F;code&gt; for us.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;worker-to-worker-communication&quot;&gt;Worker to worker communication&lt;&#x2F;h3&gt;
+&lt;p&gt;At this point, the only outstanding task in our example is to &lt;strong&gt;invoke the appropriate purchase history worker&lt;&#x2F;strong&gt; in the &lt;code&gt;checkout&lt;&#x2F;code&gt; implementation of the shopping cart.&lt;&#x2F;p&gt;
+&lt;p&gt;To find all the available options for doing this, check the &lt;a href=&quot;https:&#x2F;&#x2F;learn.golem.cloud&#x2F;docs&#x2F;rpc&quot;&gt;Worker-to-Worker communication&#x27;s documentation&lt;&#x2F;a&gt;. In this example, we have both the target (the purchase history) and the caller (the shopping cart) in &lt;strong&gt;the same cargo workspace&lt;&#x2F;strong&gt;, so we can use Golem&#x27;s &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;sagiegurari&#x2F;cargo-make&quot;&gt;cargo-make&lt;&#x2F;a&gt; based solution for enabling communication between the different sub-projects of the workspace.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s initialize this using &lt;code&gt;golem-cli&lt;&#x2F;code&gt; (or &lt;code&gt;golem-cloud-cli&lt;&#x2F;code&gt;):&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; golem-cli stubgen initialize-workspace&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --targets&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --callers&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; cargo-make Makefile to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;Makefile.toml&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; initial stub for purchase-history
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; stub WIT to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;wit&#x2F;_stub.wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Copying&lt;&#x2F;span&gt;&lt;span&gt; root package shopping:purchasehistory
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;..&lt;&#x2F;span&gt;&lt;span&gt; &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history&#x2F;wit&#x2F;purchase-history.wit to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;wit&#x2F;deps&#x2F;shopping_purchasehistory&#x2F;purchase-history.wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; wasm-rpc.wit to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;wit&#x2F;deps&#x2F;wasm-rpc
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; Cargo.toml to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;Cargo.toml
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; stub source to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;src&#x2F;lib.rs
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; updated Cargo.toml to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;Cargo.toml&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;As a next step, we check if the generated artifacts work, by running &lt;strong&gt;cargo make&lt;&#x2F;strong&gt; to execute the full build flow. It contains custom steps invoking &lt;code&gt;golem-cli&lt;&#x2F;code&gt; to implement the typed worker-to-worker communication.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo make build-flow
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history.wasm
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history_stub.wasm
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;[cargo-make]&lt;&#x2F;span&gt;&lt;span&gt; INFO - Execute Command: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;wasm-rpc-stubgen&amp;quot; &amp;quot;compose&amp;quot; &amp;quot;--source-wasm&amp;quot; &amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm&amp;quot; &amp;quot;--stub-wasm&amp;quot; &amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history_stub.wasm&amp;quot; &amp;quot;--dest-wasm&amp;quot; &amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart_composed.wasm&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Error:&lt;&#x2F;span&gt;&lt;span&gt; no dependencies of component `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm&lt;&#x2F;span&gt;&lt;span&gt;` were found
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Don&#x27;t worry about the failure at the end - it will be fixed in the next step.&lt;&#x2F;p&gt;
+&lt;p&gt;There are several changes in our workspace after running this command:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;We have a &lt;code&gt;Makefile.toml&lt;&#x2F;code&gt; file describing custom build tasks related to worker to worker communication&lt;&#x2F;li&gt;
+&lt;li&gt;We have a completely new sub-project called &lt;code&gt;purchase-history-stub&lt;&#x2F;code&gt; which is added to the Cargo workspace&lt;&#x2F;li&gt;
+&lt;li&gt;The &lt;code&gt;shopping-cart&#x2F;wit&#x2F;deps&lt;&#x2F;code&gt; directory now contains three dependencies: the original purchase history module, the generated stub interface, and the general purpose &lt;code&gt;wasm-rpc&lt;&#x2F;code&gt; package.&lt;&#x2F;li&gt;
+&lt;li&gt;These dependencies are also registered in &lt;code&gt;shopping-cart&#x2F;Cargo.toml&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Before further explaining what these generated stubs are, let&#x27;s finish our example. We need to modify the &lt;strong&gt;shopping cart&lt;&#x2F;strong&gt; template&#x27;s interface definition (&lt;code&gt;shopping-cart&#x2F;wit&#x2F;shopping-cart.wit&lt;&#x2F;code&gt;) to import the generated stub, and to reuse the data types defined for the purchase history template instead of redefining them.&lt;&#x2F;p&gt;
+&lt;p&gt;The updated WIT file would look like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span&gt;package shopping:cart;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;interface api {
+&lt;&#x2F;span&gt;&lt;span&gt;  use shopping:purchase-history&#x2F;api.{product-item};
+&lt;&#x2F;span&gt;&lt;span&gt;  use shopping:purchase-history&#x2F;api.{order};
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  record order-confirmation {
+&lt;&#x2F;span&gt;&lt;span&gt;    order-id: string,
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  variant checkout-result {
+&lt;&#x2F;span&gt;&lt;span&gt;    error(string),
+&lt;&#x2F;span&gt;&lt;span&gt;    success(order-confirmation),
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  initialize-cart: func(user-id: string) -&amp;gt; ();
+&lt;&#x2F;span&gt;&lt;span&gt;  add-item: func(item: product-item) -&amp;gt; ();
+&lt;&#x2F;span&gt;&lt;span&gt;  remove-item: func(product-id: string) -&amp;gt; ();
+&lt;&#x2F;span&gt;&lt;span&gt;  update-item-quantity: func(product-id: string, quantity: u32) -&amp;gt; ();
+&lt;&#x2F;span&gt;&lt;span&gt;  checkout: func() -&amp;gt; checkout-result;
+&lt;&#x2F;span&gt;&lt;span&gt;  get-cart-contents: func() -&amp;gt; list&amp;lt;product-item&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;world shopping-cart {
+&lt;&#x2F;span&gt;&lt;span&gt;  import shopping:purchase-history-stub&#x2F;stub-purchase-history;
+&lt;&#x2F;span&gt;&lt;span&gt;  export api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;There are three changes:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;We renamed the package from the default &lt;code&gt;golem:template&lt;&#x2F;code&gt; to &lt;code&gt;shopping:cart&lt;&#x2F;code&gt; to make it more consistent with the other packages&lt;&#x2F;li&gt;
+&lt;li&gt;We deleted the definition of &lt;code&gt;product-item&lt;&#x2F;code&gt; and &lt;code&gt;order&lt;&#x2F;code&gt;, and instead importing them from the &lt;code&gt;shopping:purchase-history&lt;&#x2F;code&gt; package.&lt;&#x2F;li&gt;
+&lt;li&gt;We added the &lt;code&gt;import&lt;&#x2F;code&gt; statement in the &lt;code&gt;world&lt;&#x2F;code&gt;, which loads the generated &lt;strong&gt;stub&lt;&#x2F;strong&gt; into the template&#x27;s world, so we can call it from the Rust code to initiate remote calls to the &lt;code&gt;purchase-history&lt;&#x2F;code&gt; workers.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Because of the change of the package name, we have to update the import in &lt;code&gt;lib.rs&lt;&#x2F;code&gt; :&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::exports::shopping::cart::api::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The only remaining step is to extend the &lt;code&gt;checkout&lt;&#x2F;code&gt; function with the remote worker invocation!&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::shopping::purchase_history::api::{Order};
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::shopping::purchase_history_stub::stub_purchase_history;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::golem::rpc::types::Uri;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;checkout&lt;&#x2F;span&gt;&lt;span&gt;() -&amp;gt; CheckoutResult {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;dispatch_order&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Defining the order to be saved in history
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; order &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; Order {
+&lt;&#x2F;span&gt;&lt;span&gt;        items: state.items.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        order_id: order_id.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        timestamp: std::time::SystemTime::now().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;duration_since&lt;&#x2F;span&gt;&lt;span&gt;(std::time::SystemTime::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UNIX_EPOCH&lt;&#x2F;span&gt;&lt;span&gt;).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;as_secs&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        total: state.items.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;iter&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;map&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;item&lt;&#x2F;span&gt;&lt;span&gt;| item.price &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt; item.quantity &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;as f32&lt;&#x2F;span&gt;&lt;span&gt;).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;sum&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;    };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Constructing the remote worker&amp;#39;s URI
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; template_id &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  		std::env::var(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;PURCHASE_HISTORY_TEMPLATE_ID&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;  			.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;expect&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;PURCHASE_HISTORY_TEMPLATE_ID not set&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; uri &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; Uri {
+&lt;&#x2F;span&gt;&lt;span&gt;        value: format!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;worker:&#x2F;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{template_id}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, state.user_id),
+&lt;&#x2F;span&gt;&lt;span&gt;    };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Connecdting to the remote worker and invoking it
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; history &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;stub_purchase_history::Api::new(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;uri);
+&lt;&#x2F;span&gt;&lt;span&gt;    history.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add_order&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;order);
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With all these changes, running &lt;code&gt;cargo make&lt;&#x2F;code&gt; again will succeed:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo make build-flow
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; composed component to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart_composed.wasm&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;[cargo-make]&lt;&#x2F;span&gt;&lt;span&gt; INFO - Build Done in 7.38 seconds.
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We first created the &lt;code&gt;Order&lt;&#x2F;code&gt; value to be saved in the remote purchase history. Then we get an &lt;strong&gt;environment variable&lt;&#x2F;strong&gt; to figure out the Golem &lt;em&gt;template-id&lt;&#x2F;em&gt; of the purchase history template. This is something we need to record when uploading the template to Golem, and set it to all shopping cart worker&#x27;s when creating them. The remote URI consists of the template identifier and the &lt;em&gt;worker name&lt;&#x2F;em&gt;, and in our example the worker name is the same as the &lt;strong&gt;user id&lt;&#x2F;strong&gt; that the shopping cart belongs to. This guarantees that we will have a distinct purchase history worker for each user.&lt;&#x2F;p&gt;
+&lt;p&gt;When we have the URI, we just instantiate the &lt;strong&gt;generated stub&lt;&#x2F;strong&gt; for by passing the remote worker&#x27;s URI—and we get an interface that corresponds to the remote worker&#x27;s exported interface! This way we can just call &lt;code&gt;add_order&lt;&#x2F;code&gt; on it, passing the constructed order value.&lt;&#x2F;p&gt;
+&lt;p&gt;Everything else is handled by Golem. If this was the first order of the user, a new purchase history worker is created. Otherwise, the existing worker will be targeted, which is likely already in a suspended state, not actively in any worker executor&#x27;s memory. Golem restores the worker&#x27;s state and invokes the &lt;code&gt;add_order&lt;&#x2F;code&gt; function on them, which adds the new order to the list of orders for that user, in a fully durable way, without the need for a database.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;how-does-it-work&quot;&gt;How does it work?&lt;&#x2F;h3&gt;
+&lt;p&gt;The generated cargo-make makefile just wraps a couple of &lt;code&gt;golem-cli stubgen&lt;&#x2F;code&gt; commands.&lt;&#x2F;p&gt;
+&lt;p&gt;First, &lt;code&gt;stubgen generate&lt;&#x2F;code&gt; creates a new Rust crate for each &lt;strong&gt;target&lt;&#x2F;strong&gt; that has a similar interface as the original worker, but all the exported functions and interfaces are wrapped in a resource, which has to be instantiated with a &lt;strong&gt;worker URI&lt;&#x2F;strong&gt;. This generated crate can be compiled to a WASM file (or &lt;code&gt;stubgen build&lt;&#x2F;code&gt; can do that automatically) and it also contains a &lt;strong&gt;WIT&lt;&#x2F;strong&gt; file describing this interface.&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;stubgen add-stub-dependency&lt;&#x2F;code&gt; command takes this generated interface specification and &lt;strong&gt;adds it&lt;&#x2F;strong&gt; to an other worker&#x27;s &lt;code&gt;wit&lt;&#x2F;code&gt; folder—making it a &lt;em&gt;dependency&lt;&#x2F;em&gt; of that worker. So the caller worker is not depending directly on the target worker, it depends on the &lt;strong&gt;generated stub&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;If we compile this caller worker to WASM, it will not only require host functions provided by Golem (such as the WASI interfaces or Golem specific APIs) but it will also require an &lt;strong&gt;implementation&lt;&#x2F;strong&gt; of the stub interface. That&#x27;s where the generated Rust crate comes into the picture—its compiled WASM &lt;strong&gt;implements&lt;&#x2F;strong&gt; (exports) the stub interface while the caller WASM &lt;strong&gt;requires&lt;&#x2F;strong&gt; (imports) it. WASM components can be composed so by combining the two we can get a result WASM that no longer tries to import the stub interface—it is going to be wired within the component—only the other dependencies the original modules had.&lt;&#x2F;p&gt;
+&lt;p&gt;One way to do this composition is to use &lt;code&gt;wasm-tools compose&lt;&#x2F;code&gt;, but it is more convenient to use &lt;code&gt;golem-cli&lt;&#x2F;code&gt; (or &lt;code&gt;golem-cloud-cli&lt;&#x2F;code&gt;)&#x27;s built-in command for it, called &lt;code&gt;stubgen compose&lt;&#x2F;code&gt;. This is the last step the generated cargo-make file performs when running the &lt;code&gt;build-flow&lt;&#x2F;code&gt; task.&lt;&#x2F;p&gt;
+&lt;p&gt;The following diagram demonstrates how the component&#x27;s in the example are interacting with each other:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;w2w-comm.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;We have seen how the new Golem tools enable simple, fully-typed communication between &lt;strong&gt;workers&lt;&#x2F;strong&gt;. Although the above demonstrated &lt;code&gt;cargo-make&lt;&#x2F;code&gt;-based build is Rust specific, the other &lt;code&gt;stubgen&lt;&#x2F;code&gt; commands are not: they can be used with any language that has WIT binding generator support (see &lt;a href=&quot;https:&#x2F;&#x2F;learn.golem.cloud&#x2F;docs&#x2F;building-templates&#x2F;tier-2&quot;&gt;Golem&#x27;s Tier 2 languages&lt;&#x2F;a&gt;)—Rust, C, Go, JavaScript, Python and Scala.js.&lt;&#x2F;p&gt;
+&lt;p&gt;The remote calls are not only simple to use, they are also efficient, and they get translated to direct function calls when the source and the target workers are running on the same &lt;strong&gt;worker executor&lt;&#x2F;strong&gt;. They are also fully durable, as all other external interaction running on Golem. This means we don&#x27;t have to worry about failures when calling remote workers. Additionally, Golem applies retry policies in case of transient failures, and it makes sure that a remote invocation only happens once.&lt;&#x2F;p&gt;
+&lt;p&gt;This feature is ready to use both in the &lt;a href=&quot;http:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem&quot;&gt;open source&lt;&#x2F;a&gt; and the &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;&quot;&gt;cloud version&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
