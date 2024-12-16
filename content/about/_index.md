@@ -21,6 +21,7 @@ I'm senior staff software engineer at [Ziverge](https://ziverge.com), working on
 - [golem-services](https://github.com/golemcloud/golem-services) the Golem platform
 - [golem-wasm-ast](https://github.com/golemcloud/golem-wasm-ast) is a Rust crate for working with WASM components on a higher level
 - [prox](https://github.com/vigoo/prox) is a Scala library for working with system processes
+- [test-r](https://github.com/vigoo/test-r) is a testing framework for Rust
 - [wasm-rpc](https://github.com/golemcloud/wasm-rpc) WASM RPC for Golem
 - [zio-aws](https://github.com/zio/zio-aws/) is a low level ZIO interface for the full Amazon Web Services
 - [zio-flow](https://github.com/zio/zio-flow/) is an engine for executing persistent, distributed, fault-tolerant applications, providing an easy and powerful way to build stateful serverless applications in Scala.
