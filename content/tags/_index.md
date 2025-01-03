@@ -1,5 +1,4 @@
 +++
 title = "Tags"
-generate_feed = true
+generate_feeds = true
 +++
-

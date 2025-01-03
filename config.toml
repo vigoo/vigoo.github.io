@@ -4,11 +4,9 @@ author = "Daniel Vigovszky"
 base_url = "https://blog.vigoo.dev"
 compile_sass = true
 build_search_index = false
-generate_feed = true
+generate_feeds = true
 
-taxonomies = [
-    { name = "tags", feed = true }
-]
+taxonomies = [{ name = "tags", feed = true }]
 
 [markdown]
 highlight_code = true
