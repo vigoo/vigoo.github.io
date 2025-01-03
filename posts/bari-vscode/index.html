@@ -1,0 +1,152 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Bari with Visual Studio Code</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;bari-vscode&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Bari with Visual Studio Code</h1>
+            
+            <p class="posted-on">Posted on January 21, 2016</p>
+        </header>
+
+        <h2 id="intro">Intro</h2>
+<p>A few weeks ago I discovered <a href="https://code.visualstudio.com/">Visual Studio Code</a> and started using it for some of my work. <em>(Note: I'm using multiple editors/IDEs all the time, based on the task; Emacs, Sublime, Atom, IntelliJ, VS, etc.)</em> So far <em>Code</em> is my favourite among the set of similar editors, such as Atom. I was pleasently surprised how well it works with its integrated <a href="http://www.omnisharp.net/">OmniSharp</a> plugin on <a href="http://vigoo.github.io/bari/">bari's</a> codebase, so I decided to try to write a <em>bari plugin</em> for it.</p>
+<p>Writing an extension for <em>Code</em> was a nice experience. The outcome is the <a href="https://marketplace.visualstudio.com/items/vigoo.bari">bari build management extension</a>, which I'll demonstrate in the next section.</p>
+<h2 id="developing-net-applications-with-visual-studio-code-and-bari">Developing .NET applications with Visual Studio Code and bari</h2>
+<p>As <em>Code</em> is multiplatform, and <em>bari</em> also works with <a href="http://www.mono-project.com/">Mono</a>, I'll demonstrate how you can use these tools to develop a .NET application (actually <em>bari</em> itself) on a Mac. The steps here (except installing Mono) would be the same on Windows or Linux as well.</p>
+<h3 id="installing-the-tools">Installing the tools</h3>
+<p>First, if you are not on Windows, you'll have to install the latest <a href="http://www.mono-project.com/">Mono</a> framework. On OSX I recommed to use <a href="http://brew.sh/"><code>brew</code></a> to do that:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>brew install mono
+</span><span>mono --version
+</span></code></pre>
+<p>Then get the latest <a href="https://code.visualstudio.com/">Visual Studio Code</a> version, either by downloading it from its homepage or with <a href="https://github.com/caskroom/homebrew-cask"><code>brew cask</code></a>:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>brew cask install visual-studio-code
+</span></code></pre>
+<p>Get the latest <em>bari</em>. On Windows I recommend downloading and extracting the <a href="https://github.com/vigoo/bari/releases/latest">latest official release</a> and adding it to the <code>PATH</code>.
+On OSX, with <code>mono</code> we already have <code>nuget</code>, so let's use that:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>cd /opt
+</span><span>nuget install bari-mono
+</span><span>ln -s bari-mono.1.0.2.2 bari
+</span></code></pre>
+<p>and create a script to execute it somewhere in your <code>PATH</code>:</p>
+<pre data-lang="sh" style="background-color:#fafafa;color:#383a42;" class="language-sh "><code class="language-sh" data-lang="sh"><span style="color:#a0a1a7;">#!/bin/sh
+</span><span style="color:#e45649;">mono</span><span> /opt/bari/tools/bari.exe $</span><span style="color:#e45649;">@
+</span></code></pre>
+<p>That's it. Future versions of the <em>bari extension</em> will probably be able to install <em>bari</em> itself.</p>
+<p>Let's start <em>Code</em> now!</p>
+<h3 id="installing-the-extension">Installing the extension</h3>
+<p>Open the <em>command palette</em> (F1, or ⇧⌘P) and type <code>ext install bari</code></p>
+<p><a href="/images/baricode1.png" class="zimg"><img width="600" src="/images/baricode1.png" alt="bari-code-1"></a></p>
+<h3 id="loading-the-project">Loading the project</h3>
+<p>After that restart the editor. Have your bari-built project available somewhere. As we are going to develop bari itself, let's clone its repository:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>git clone https://github.com/vigoo/bari.git
+</span></code></pre>
+<p>Then open the result <code>bari</code> directory with <em>Code</em>. This should look like the following:</p>
+<p><a href="/images/baricode2.png" class="zimg"><img width="800" src="/images/baricode2.png" alt="bari-code-2"></a></p>
+<p>The <em>bari plugin</em> automatically detected that the opened folder has a <code>suite.yaml</code> in its root, and loaded it. That's why we can see the two sections on the statusbar's right side: <code>full</code> and <code>debug</code>. The first one is the <a href="https://github.com/vigoo/bari/wiki/Product">selected target product</a> and the second one is the <a href="https://github.com/vigoo/bari/wiki/Goal">selected goal</a>. All the <em>bari commands</em> provided by the extension will be executed with these settings.</p>
+<h3 id="changing-the-target">Changing the target</h3>
+<p>To change the active product or goal, you can click on the statusbar or use the <em>command palette</em> (F1, or ⇧⌘P) and choose <code>bari: Change goal</code> or <code>bari: Change target product</code>.</p>
+<p>Let's change the <em>goal</em> to <code>debug-mono</code>, as we are working on a non-Windows environment:</p>
+<p><a href="/images/baricode3.png" class="zimg"><img width="800" src="/images/baricode3.png" alt="bari-code-3"></a></p>
+<h3 id="generating-the-solution">Generating the solution</h3>
+<p>The next step before starting coding is to actually <strong>generate</strong> the solution and projects files (and fetch the dependencies, etc.) so <em>OmniSharp</em> can load it and provide code completion, analysis, etc. features.</p>
+<p>To do so, just use the <em>command palette</em> and choose <code>bari: Regenerate solution</code>, which <a href="https://github.com/vigoo/bari/wiki/VsCommand">runs the <code>bari vs</code> command</a> with the correct parameters. The command's output is displayed in an <em>output panel</em> called <code>bari</code>. This looks like the following:</p>
+<p><a href="/images/baricode4.png" class="zimg"><img width="800" src="/images/baricode4.png" alt="bari-code-4"></a></p>
+<p>There's nothing else left than pointing <em>OmniSharp</em> to the generated solution, with the following command:</p>
+<p><a href="/images/baricode5.png" class="zimg"><img width="800" src="/images/baricode5.png" alt="bari-code-5"></a></p>
+<p>It will automatically find the generated <code>.sln</code> file, just select the correct one:</p>
+<p><a href="/images/baricode6.png" class="zimg"><img width="800" src="/images/baricode6.png" alt="bari-code-6"></a></p>
+<p>In a few seconds (and with a few warnings for this project), <em>OmniSharp</em> works. To see what it can do, <a href="https://code.visualstudio.com/Docs/languages/csharp">check this page</a>. A simple example is to jump to a given class or interface with ⌘P:</p>
+<p><a href="/images/baricode7.png" class="zimg"><img width="600" src="/images/baricode7.png" alt="bari-code-7"></a></p>
+<h3 id="working-on-the-project">Working on the project</h3>
+<p>You can work on the project and build it from <em>Code</em> or run its tests using the <code>bari: Build</code> and <code>bari: Test</code> commands. The build output will be shown just like in the <em>solution generation step</em>.</p>
+<p><a href="/images/baricode8.png" class="zimg"><img width="600" src="/images/baricode8.png" alt="bari-code-8"></a></p>
+<p>Whenever the suite definition itself must be modified, you can jump there with the <code>bari: Open suite.yaml</code> command and then just regenerate the solution as it was shown above.</p>
+<h2 id="implementation">Implementation</h2>
+<p>The implementation was really straightforward. The source code <a href="https://github.com/vigoo/bari-code">can be found here</a>. It's basically a <em>JSON</em> defining how the plugin is integrated and some implementation code in <em>TypeScript</em>. It's easy to run and debug the plugin from <em>Code</em> itself.</p>
+<p>For example the following section from the extension definition describes what events triggers the extension:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span style="color:#50a14f;">&quot;activationEvents&quot;</span><span>: [
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.build&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.test&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.vs&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.openSuiteYaml&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.selfUpdate&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.goal.changeCurrentGoal&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;onCommand:bari.goal.changeCurrentProduct&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;workspaceContains:suite.yaml&quot;
+</span><span>],
+</span></code></pre>
+<p>It's either done by invoking one of the defined commands from the <em>command palette</em>, or if the opened workspace contains a <code>suite.yaml</code>. The latter enables the extension to parse the suite definition and initialize the statusbar immediately one the suite has been opened.</p>
+<p>The package definition also specifies the provided configuration values, such as:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span style="color:#50a14f;">&quot;bari.commandLine&quot;</span><span>: {
+</span><span>	</span><span style="color:#50a14f;">&quot;type&quot;</span><span>: </span><span style="color:#50a14f;">&quot;string&quot;</span><span>,
+</span><span>	</span><span style="color:#50a14f;">&quot;default&quot;</span><span>: </span><span style="color:#50a14f;">&quot;bari&quot;</span><span>,
+</span><span>	</span><span style="color:#50a14f;">&quot;description&quot;</span><span>: </span><span style="color:#50a14f;">&quot;Command line to execute bari&quot;
+</span><span>},
+</span><span style="color:#50a14f;">&quot;bari.verboseOutput&quot;</span><span>: {
+</span><span>	</span><span style="color:#50a14f;">&quot;type&quot;</span><span>: </span><span style="color:#50a14f;">&quot;boolean&quot;</span><span>,
+</span><span>	</span><span style="color:#50a14f;">&quot;default&quot;</span><span>: </span><span style="color:#c18401;">false</span><span>,
+</span><span>	</span><span style="color:#50a14f;">&quot;description&quot;</span><span>: </span><span style="color:#50a14f;">&quot;Turns on verbose output for all the executed bari commands&quot;
+</span><span>}
+</span></code></pre>
+<p>The implementation itself is really simple, all the user interface elements involved such as the console output window, the command palette, the statusbar panels can be easily managed.</p>
+<p>For example the panel showing <code>bari</code>'s output is created by the following code snippet:</p>
+<pre data-lang="javascript" style="background-color:#fafafa;color:#383a42;" class="language-javascript "><code class="language-javascript" data-lang="javascript"><span style="color:#a626a4;">var </span><span style="color:#e45649;">channel </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">vscode</span><span>.</span><span style="color:#e45649;">window</span><span>.</span><span style="color:#0184bc;">createOutputChannel</span><span>(</span><span style="color:#50a14f;">&#39;bari&#39;</span><span>);
+</span><span style="color:#e45649;">channel</span><span>.</span><span style="color:#0184bc;">show</span><span>();
+</span></code></pre>
+<p>Or to display the result of an operation:</p>
+<pre data-lang="javascript" style="background-color:#fafafa;color:#383a42;" class="language-javascript "><code class="language-javascript" data-lang="javascript"><span style="color:#e45649;">vscode</span><span>.</span><span style="color:#e45649;">window</span><span>.</span><span style="color:#0184bc;">showErrorMessage</span><span>(</span><span style="color:#50a14f;">&quot;No suite.yaml in the current workspace!&quot;</span><span>)
+</span></code></pre>
+<p>or to create the statusbar panel:</p>
+<pre data-lang="javascript" style="background-color:#fafafa;color:#383a42;" class="language-javascript "><code class="language-javascript" data-lang="javascript"><span style="color:#e45649;">this</span><span>.</span><span style="color:#e45649;">goals </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">vscode</span><span>.</span><span style="color:#e45649;">window</span><span>.</span><span style="color:#0184bc;">createStatusBarItem</span><span>(</span><span style="color:#e45649;">vscode</span><span>.</span><span style="color:#e45649;">StatusBarAlignment</span><span>.</span><span style="color:#e45649;">Right</span><span>);
+</span><span style="color:#e45649;">this</span><span>.</span><span style="color:#e45649;">goals</span><span>.</span><span style="color:#e45649;">command </span><span style="color:#a626a4;">= </span><span style="color:#50a14f;">&#39;bari.goal.changeCurrentGoal&#39;</span><span>;
+</span><span style="color:#e45649;">this</span><span>.</span><span style="color:#e45649;">goals</span><span>.</span><span style="color:#0184bc;">show</span><span>();
+</span></code></pre>
+<p>This API is simple and well documented enough so basic integrations like this can be done in an hour.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>
