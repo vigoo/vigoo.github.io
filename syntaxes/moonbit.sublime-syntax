@@ -1,0 +1,142 @@
+contexts:
+  interpolation:
+  - match: \\{
+    push:
+    - match: '}'
+      pop: true
+      scope: meta.embedded.line.moonbit
+    - include: $self
+    scope: meta.embedded.line.moonbit
+  types:
+  - match: \b(?<!@)[A-Z][A-Za-z0-9_]*((\?)+|\b)
+    scope: entity.name.type.moonbit
+  variables:
+  - match: \b(?<!\.|::)[a-z_][a-zA-Z0-9_]*\b
+    scope: variable.other.moonbit
+  strings:
+  - match: (#\|).*
+    scope: string.line
+  - match: (\$\|)(.*)
+    scope: string.line
+  - match: ''''
+    push:
+    - match: ''''
+      pop: true
+      scope: string.quoted.single.moonbit
+    - include: escape
+    scope: string.quoted.single.moonbit
+  - match: '"'
+    push:
+    - match: '"'
+      pop: true
+      scope: string.quoted.double.moonbit
+    - include: escape
+    - include: interpolation
+    scope: string.quoted.double.moonbit
+  support:
+  - match: \b(Eq|Compare|Hash|Show|Default|ToJson|FromJson)\b
+    scope: support.class.moonbit
+  functions:
+  - match: \b(fn)\b\s*(?:([A-Z][A-Za-z0-9_]*)::)?([a-z0-9_][A-Za-z0-9_]*)?\b
+  - match: (?!\bfn\s+)(?:\.|::)?([a-z0-9_][A-Za-z0-9_]*(\!|\?)?)(\()
+    push:
+    - match: \)
+      pop: true
+      scope: meta.function.call.moonbit
+    - include: comments
+    - include: constants
+    - include: functions
+    - include: support
+    - include: types
+    - include: keywords
+    - include: modules
+    - include: strings
+    - include: variables
+    scope: meta.function.call.moonbit
+  escape:
+  - match: \\[0\\tnrb"']
+    scope: constant.character.escape.moonbit
+  - match: \\x[0-9a-fA-F]{2}
+    scope: constant.character.escape.moonbit
+  - match: \\o[0-3][0-7]{2}
+    scope: constant.character.escape.moonbit
+  - match: \\u[0-9a-fA-F]{4}
+    scope: constant.character.escape.unicode.moonbit
+  - match: \\u{[0-9a-fA-F]*}
+    scope: constant.character.escape.unicode.moonbit
+  main:
+  - include: strings
+  - include: comments
+  - include: constants
+  - include: keywords
+  - include: functions
+  - include: support
+  - include: types
+  - include: modules
+  - include: variables
+  modules:
+  - match: '@[A-Za-z][A-Za-z0-9_/]*'
+    scope: entity.name.namespace.moonbit
+  keywords:
+  - match: \b(guard|if|while|break|continue|return|try|catch|except|raise|match|else|as|in|loop|for)\b
+    scope: keyword.control.moonbit
+  - match: \b(type!|(type|typealias|let|const|enum|struct|import|trait|derive|test|impl|with)\b)
+    scope: keyword.moonbit
+  - match: \b(self)\b
+    scope: variable.language.moonbit
+  - match: \b(mut|pub|priv|readonly|extern)\b
+    scope: storage.modifier.moonbit
+  - match: ->
+    scope: storage.type.function.arrow.moonbit
+  - match: =>
+    scope: storage.type.function.arrow.moonbit
+  - match: =
+    scope: keyword.operator.assignment.moonbit
+  - match: \|>
+    scope: keyword.operator.other.moonbit
+  - match: (===|==|!=|>=|<=|(?<!-)(?<!\|)>(?!>)|<(?!<))
+    scope: keyword.operator.comparison.moonbit
+  - match: (\bnot\b|&&|\|\|)
+    scope: keyword.operator.logical.moonbit
+  - match: (\|(?!\|)(?!>)|&(?!&)|\^|<<|>>)
+    scope: keyword.operator.bitwise.moonbit
+  - match: (\+|-(?!>)|\*|%|/)
+    scope: keyword.operator.math.moonbit
+  comments:
+  - match: //[^/].*
+    scope: comment.line
+  - match: ///
+    push:
+    - match: $
+      pop: true
+      scope: comment.block.documentation.moonbit
+    - match: \s*```
+      push:
+      - match: \s*```
+        pop: true
+        scope: meta.embedded.line.moonbit
+      - include: $self
+      scope: meta.embedded.line.moonbit
+    - match: .*
+      scope: comment.block.documentation.moonbit
+    scope: comment.block.documentation.moonbit
+  constants:
+  - match: \b\d(\d|_)*(?!\.)(U)?(L)?\b
+    scope: constant.numeric.moonbit
+  - match: (?<=\.)\d((?=\.)|\b)
+    scope: constant.numeric.moonbit
+  - match: \b\d+(\.)\d+\b
+    scope: constant.numeric.moonbit
+  - match: \b\d[\d_]*(\.)[\d_]+[Ee][+-]?\d[\d_]+\b
+    scope: constant.numeric.moonbit
+  - match: \b0[XxOoBb][\dAaBbCcDdEeFf_]+(U)?(L)?(?!\.)\b
+    scope: constant.numeric.moonbit
+  - match: \b0[Xx][\dAaBbCcDdEeFf_]+(\.)[\dAaBbCcDdEeFf_]+[Pp][+-]?[\dAaBbCcDdEeFf_]+\b
+    scope: constant.numeric.moonbit
+  - match: \b(true|false|\(\))\b
+    scope: constant.language.moonbit
+file_extensions:
+- mbt
+name: moonbit
+scope: source.moonbit
+version: 2
