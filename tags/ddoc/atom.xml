@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - ddoc</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/ddoc/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2014-07-13T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/ddoc/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Conditional blocks in Distributed Documentor</title>
+        <published>2014-07-13T00:00:00+00:00</published>
+        <updated>2014-07-13T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/conditional-blocks-in-ddoc/"/>
+        <id>https://blog.vigoo.dev/posts/conditional-blocks-in-ddoc/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/conditional-blocks-in-ddoc/">&lt;p&gt;I&#x27;ve added a new feature to &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;distributed-documentor&quot;&gt;Distributed Documentor&lt;&#x2F;a&gt; today, &lt;em&gt;conditional blocks&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;The idea is that parts of the documents can be enabled when a given &lt;em&gt;condition&lt;&#x2F;em&gt; is present. This is very similar to &lt;a href=&quot;http:&#x2F;&#x2F;gcc.gnu.org&#x2F;onlinedocs&#x2F;cpp&#x2F;Ifdef.html&quot;&gt;C&#x27;s ifdef blocks&lt;&#x2F;a&gt;. To use it with the &lt;em&gt;MediaWiki syntax&lt;&#x2F;em&gt;, put &lt;code&gt;[When:X]&lt;&#x2F;code&gt; and &lt;code&gt;[End]&lt;&#x2F;code&gt; commands in separate lines:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;Unconditional
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;[When:FIRST]
+&lt;&#x2F;span&gt;&lt;span&gt;First conditional
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;[When:SECOND]
+&lt;&#x2F;span&gt;&lt;span&gt;First and second conditional
+&lt;&#x2F;span&gt;&lt;span&gt;[End]
+&lt;&#x2F;span&gt;&lt;span&gt;[End]
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;[When:SECOND]
+&lt;&#x2F;span&gt;&lt;span&gt;Second conditional
+&lt;&#x2F;span&gt;&lt;span&gt;[End]
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;&lt;em&gt;Snippets&lt;&#x2F;em&gt; can also have conditional blocks.&lt;&#x2F;p&gt;
+&lt;p&gt;There are two possibilities to set which conditionals are enabled:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;Specifying it with command line arguments, such as&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt; java -jar DistributedDocumentor.jar -D FIRST -D SECOND
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is useful when exporting a documentation from command line, or to launch the documentation editor with a predefined set of enabled conditions.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;On the user interface, using &lt;em&gt;View&lt;&#x2F;em&gt; menu&#x27;s &lt;em&gt;Enabled conditions...&lt;&#x2F;em&gt; menu item:&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;enabled-conditions-dialog.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
