@@ -1,0 +1,85 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Introducing bari</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;introducing-bari&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Introducing bari</h1>
+            
+            <p class="posted-on">Posted on May 16, 2014</p>
+        </header>
+
+        <p>In the past two years I worked on a project called <a href="https://github.com/vigoo/bari">bari</a> which now reached an usable state. <strong>bari</strong> is a <em>build management system</em>, trying to fix Visual Studio's bad parts while keeping the good ones.</p>
+<p>Basically it tries to make .NET development more convenient, when</p>
+<ul>
+<li>The application may consist of a <em>large number of projects</em></li>
+<li>There may be several different <em>subsets</em> of these projects defining
+valuable target <em>products</em></li>
+<li><em>Custom build steps</em> may be required</li>
+<li>It is important to be able to <em>reproduce</em> the build environment as
+easily as possible</li>
+<li>The developers want to use the full power of their <em>IDE</em></li>
+</ul>
+<p>The main idea is to generate Visual Studio solutions and projects <em>on the fly</em> as needed, from a concise <em>declarative</em>  build description. I tried to optimize this build description for human readability. Let's see an example, a short section from <strong>bari</strong>'s own build definition:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span>- </span><span style="color:#e45649;">name</span><span>: </span><span style="color:#50a14f;">bari
+</span><span>  </span><span style="color:#e45649;">type</span><span>: </span><span style="color:#50a14f;">executable
+</span><span>  </span><span style="color:#e45649;">references</span><span>:
+</span><span>    - </span><span style="color:#50a14f;">gac://System
+</span><span>    - </span><span style="color:#50a14f;">nuget://log4net
+</span><span>    - </span><span style="color:#50a14f;">nuget://Ninject/3.0.1.10
+</span><span>    - </span><span style="color:#50a14f;">nuget://QuickGraph
+</span><span>    - </span><span style="color:#50a14f;">module://Bari.Core
+</span><span>  </span><span style="color:#e45649;">csharp</span><span>:
+</span><span>    </span><span style="color:#e45649;">root-namespace</span><span>: </span><span style="color:#50a14f;">Bari.Console
+</span></code></pre>
+<p>The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.</p>
+<p>To keep build definitions short and readable, <strong>bari</strong> prefers <em>convention</em> over <em>configuration</em>. For example the directory stucture in which the source code lays defines not only the name of the modules to build, but also the way it is built. For example, in a simple <em>hello world</em> example the C# source code would be put in the <code>src/TestModule/HelloWorld/cs</code> directory, and <strong>bari</strong> would build <code>target/TestModule/HelloWorld.exe</code>.</p>
+<p><strong>bari</strong> unifies the handling of <em>project references</em> in a way that referencing projects within a suite, from the GAC, using <a href="http://www.nuget.org">Nuget</a> or from a custom repository works exactly the same. It is also possible to write <em>custom builders</em> in Python.</p>
+<p>For more information check out <a href="https://github.com/vigoo/bari/wiki/GettingStarted">the getting started page</a>.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

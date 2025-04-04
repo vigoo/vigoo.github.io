@@ -1,0 +1,1024 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Using MoonBit with Golem Cloud</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;moonbit-with-golem&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Using MoonBit with Golem Cloud</h1>
+            
+            <p class="posted-on">Posted on January 03, 2025</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p><a href="https://www.moonbitlang.com">MoonBit</a>, a new programming language has been open sourced a few weeks ago - see <a href="https://www.moonbitlang.com/blog/compiler-opensource">this blog post</a>. MoonBit is an exciting modern programming language that natively supports WebAssembly, including the component model - this makes it a perfect fit for writing applications for <a href="https://golem.cloud">Golem Cloud</a>.</p>
+<p>In this post I'm exploring the current state of MoonBit and whether it is ready for writing Golem components, by implementing an example application more complex than a simple "hello world" example.</p>
+<p>The application to be implemented is a simple collaborative list editor - on the <a href="https://youtu.be/11Cig1iH6S0">launch event of Golem 1.0</a> I have live-coded the same example using three different programming languages (TypeScript, Rust and Go) for the three main modules it requires. In this post I am implementing all three using <strong>MoonBit</strong>, including the e-mail sending feature that was omitted from the live demo due to time constraints.</p>
+<p>The application can handle an arbitrary number of simultaneously open <strong>lists</strong>. Each list consists of a list of string items. These items can be appended, inserted and deleted simultaneously by multiple users; the current list state can be queried any time, as well as the active connections (users who can perform editing operations on the list). Modification is only allowed for connected editors, and there is a <code>poll</code> function exposed for them which returns the new changes since the last poll call. Lists can be archived, in which case they are no longer editable and their contents are saved in a separate <strong>list archive</strong>. Then the list itself can be deleted, its last state remains stored forever in the archive. An additional feature is that if a list is <em>not archived</em> and there were no changes for a certain period of time, all the connected editors are notified by sending an <strong>email</strong> to them.</p>
+<h2 id="golem-architecture">Golem Architecture</h2>
+<p>In Golem a good architecture to run this is to have three different <strong>golem components</strong>:</p>
+<ul>
+<li>the list</li>
+<li>the archive</li>
+<li>the email notifier</li>
+</ul>
+<p>These are compiled WebAssembly components, each exporting a distinct set of functions. Golem provides APIs to invoke these functions from the external world (for example mapping them to a HTTP API) and also allows <strong>workers</strong> (instances of these components) to invoke each other. A component can have an arbitrary number of instances, each such worker being identified by a unique name.</p>
+<p>We can use this feature to have a very simple and straightforward implementation of the list editor - each document (editable list) will be mapped to its own worker, identified by the list's identifier. This way our list component only has to deal with a single list; scaling it up to handle multiple (possibly even millions) of lists is done automatically by Golem.</p>
+<p>For archiving lists, we want to store each archived list in a single place - so we are going to have only a single instance of our archive component, where each archived list information is sent to. This singleton worker can store the archived lists in some database if needed - but because Golem's durable execution guarantees, it is enough to just store them in memory (one important exception is if we want to store a really large amount of archived lists not fitting in a single worker's memory). Golem guarantees that the worker's state is restored in any case of failure or rescaling event so the archive component can really remain very simple.</p>
+<p>Finally, because Golem workers are single threaded and does not support async calls overlapping with its invocations at the moment, we need a third component to implement the delayed email sending functionality. There will be an <strong>email sending worker</strong> corresponding to each <strong>list worker</strong> and this worker will be suspended for an extended period of time (the amount we want to wait before sending out the email). Again, because of Golem's durable execution feature we can just "sleep" for an arbitrary long time in this component and we don't need to care about what can happen to our execution environment during that long period.</p>
+<h2 id="initial-moonbit-implementation">Initial MoonBit implementation</h2>
+<p>Before going into details of how to develop Golem components with MoonBit, let's try to implement the above described components in this new language, without any Golem or WebAssembly specifics.</p>
+<p>First we create a new <code>lib</code> project using <code>moon new</code>. This creates a new <strong>project</strong> with a single <strong>package</strong>. To match our architecture let's start by creating multiple packages, one for each component to develop (<code>list</code>, <code>archive</code>, <code>email</code>)</p>
+<p>We create a folder for each package, with a <code>moon.pkg.json</code> in each:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>{
+</span><span>    </span><span style="color:#50a14f;">&quot;import&quot;</span><span>: [
+</span><span>    ]
+</span><span>}
+</span></code></pre>
+<h3 id="list-model">List model</h3>
+<p>Let's start by modelling our <strong>list</strong>. The edited "document" itself is just an array of strings:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">struct </span><span>Document {
+</span><span>  </span><span style="color:#a626a4;">mut </span><span style="color:#e45649;">items</span><span>: Array[String]
+</span><span>}
+</span></code></pre>
+<p>We can implement <strong>methods</strong> on <code>Document</code> corresponding to the document editing operations we want to support. On this level we don't care about collaborative editing or connected users, just model our document as a pure data structure:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Creates an empty document
+</span><span style="color:#a626a4;">pub</span><span> fn Document::new() </span><span style="color:#a626a4;">-&gt; </span><span>Document {
+</span><span>  { </span><span style="color:#e45649;">items</span><span>: [] }
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Adds a new item to the document
+</span><span style="color:#a626a4;">pub</span><span> fn add(</span><span style="color:#e45649;">self</span><span> : Document, </span><span style="color:#e45649;">item</span><span> : String) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#a626a4;">if </span><span style="color:#e45649;">self</span><span>.items.search(</span><span style="color:#e45649;">item</span><span>).is_empty() {
+</span><span>    </span><span style="color:#e45649;">self</span><span>.items.push(</span><span style="color:#e45649;">item</span><span>)
+</span><span>  }
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Deletes an item from the document
+</span><span style="color:#a626a4;">pub</span><span> fn delete(</span><span style="color:#e45649;">self</span><span> : Document, </span><span style="color:#e45649;">item</span><span> : String) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.items </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.items.filter(fn(</span><span style="color:#e45649;">i</span><span>) { </span><span style="color:#e45649;">item </span><span style="color:#a626a4;">!= </span><span style="color:#e45649;">i</span><span> })
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Inserts an item to the document after an existing item. If `after` is not in the document, the new item is inserted at the end.
+</span><span style="color:#a626a4;">pub</span><span> fn insert(</span><span style="color:#e45649;">self</span><span> : Document, </span><span style="color:#e45649;">after</span><span>~ : String, </span><span style="color:#e45649;">value</span><span>~ : String) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">index </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.items.search(</span><span style="color:#e45649;">after</span><span>)
+</span><span>  </span><span style="color:#a626a4;">match </span><span style="color:#e45649;">index</span><span> {
+</span><span>    Some(</span><span style="color:#e45649;">index</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span style="color:#e45649;">self</span><span>.items.insert(</span><span style="color:#e45649;">index </span><span style="color:#a626a4;">+ </span><span style="color:#c18401;">1</span><span>, </span><span style="color:#e45649;">value</span><span>)
+</span><span>    None </span><span style="color:#a626a4;">=&gt; </span><span style="color:#e45649;">self</span><span>.add(</span><span style="color:#e45649;">value</span><span>)
+</span><span>  }
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Gets a view of the document&#39;s items
+</span><span style="color:#a626a4;">pub</span><span> fn get(</span><span style="color:#e45649;">self</span><span> : Document) </span><span style="color:#a626a4;">-&gt; </span><span>ArrayView[String] {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.items[:]
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Iterates the items in the document
+</span><span style="color:#a626a4;">pub</span><span> fn iter(</span><span style="color:#e45649;">self</span><span> : Document) </span><span style="color:#a626a4;">-&gt; </span><span>Iter[String] {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.items.iter()
+</span><span>}
+</span></code></pre>
+<p>We can also use MoonBit's built-in test feature to write unit tests for this. The following test contains an assertion that the initial document is empty:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">test </span><span style="color:#50a14f;">&quot;</span><span>new document is empty</span><span style="color:#50a14f;">&quot;</span><span> {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">empty </span><span style="color:#a626a4;">= </span><span>Document::new()
+</span><span>  assert_eq!(</span><span style="color:#e45649;">empty</span><span>.items, [])
+</span><span>}
+</span></code></pre>
+<p>With the <code>inspect</code> function tests can use <strong>snapshot values</strong> to compare values with. The <code>moon</code> CLI tool and the IDE integration provides a way to automatically update the snapshot values (the <code>content=</code> part) in these test functions when needed:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">test </span><span style="color:#50a14f;">&quot;</span><span>basic document operations</span><span style="color:#50a14f;">&quot;</span><span> {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">doc </span><span style="color:#a626a4;">= </span><span>Document::new()
+</span><span>    ..add(</span><span style="color:#50a14f;">&quot;</span><span>x</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    ..add(</span><span style="color:#50a14f;">&quot;</span><span>y</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    ..add(</span><span style="color:#50a14f;">&quot;</span><span>z</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    ..insert(</span><span style="color:#e45649;">after</span><span style="color:#a626a4;">=</span><span style="color:#50a14f;">&quot;</span><span>y</span><span style="color:#50a14f;">&quot;</span><span>, </span><span style="color:#e45649;">value</span><span style="color:#a626a4;">=</span><span style="color:#50a14f;">&quot;</span><span>w</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    ..insert(</span><span style="color:#e45649;">after</span><span style="color:#a626a4;">=</span><span style="color:#50a14f;">&quot;</span><span>a</span><span style="color:#50a14f;">&quot;</span><span>, </span><span style="color:#e45649;">value</span><span style="color:#a626a4;">=</span><span style="color:#50a14f;">&quot;</span><span>b</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    ..delete(</span><span style="color:#50a14f;">&quot;</span><span>z</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    ..delete(</span><span style="color:#50a14f;">&quot;</span><span>f</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>  inspect!(
+</span><span>    </span><span style="color:#e45649;">doc</span><span>.get(),
+</span><span>    </span><span style="color:#e45649;">content</span><span style="color:#a626a4;">=
+</span><span>      </span><span style="color:#50a14f;">#|[&quot;x&quot;, &quot;y&quot;, &quot;w&quot;, &quot;b&quot;]
+</span><span>    ,
+</span><span>  )
+</span><span>}
+</span></code></pre>
+<h3 id="list-editor-state">List editor state</h3>
+<p>The next step is to implement the editor state management on top of this <code>Document</code> type. As a reminder, we decided that every instance (Golem worker) of the list component will be only responsible for editing a single list. So we don't need to care about storing and indexing the lists, or routing connections to the corresponding node where the list state is - this is all going to be managed by Golem.</p>
+<p>What we need to do, however, is write stateful code to handle connecting and disconnecting users ("editors"), adding some validation on top of the document editing API so only connected editors can make changes, and collect change events for the polling API.</p>
+<p>We can start by defining a new datatype holding our document editing state:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Document state
+</span><span style="color:#a626a4;">struct </span><span>State {
+</span><span>  </span><span style="color:#e45649;">document</span><span> : Document
+</span><span>  </span><span style="color:#e45649;">connected</span><span> : Map[ConnectionId, EditorState]
+</span><span>  </span><span style="color:#a626a4;">mut </span><span style="color:#e45649;">last_connection_id</span><span> : ConnectionId
+</span><span>  </span><span style="color:#a626a4;">mut </span><span style="color:#e45649;">archived</span><span> : Bool
+</span><span>  </span><span style="color:#a626a4;">mut </span><span style="color:#e45649;">email_deadline</span><span> : @datetime.DateTime
+</span><span>  </span><span style="color:#a626a4;">mut </span><span style="color:#e45649;">email_recipients</span><span> : Array[EmailAddress]
+</span><span>}
+</span></code></pre>
+<p>Beside the actual document we are going to store:</p>
+<ul>
+<li>A map of connected editors, with some per-editor state associated with them</li>
+<li>The last used connection ID so we can always generate a new unique one</li>
+<li>Whether the document has been archived or not</li>
+<li>When should we send out the email notification, and to what recipients</li>
+</ul>
+<p>So far we have only defined the <code>Document</code> type so let's continue by specifying all these other types used in <code>State</code>s fields.</p>
+<p><code>ConnectionId</code> is going to be a <strong>newtype</strong> wrapping an integer:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Identifier of a connected editor
+</span><span style="color:#a626a4;">type </span><span>ConnectionId Int </span><span style="color:#a626a4;">derive</span><span>(</span><span style="color:#c18401;">Eq</span><span>, </span><span style="color:#c18401;">Hash</span><span>)
+</span><span>
+</span><span style="color:#a0a1a7;">///| Generates a next unique connection ID
+</span><span>fn next(</span><span style="color:#e45649;">self</span><span> : ConnectionId) </span><span style="color:#a626a4;">-&gt; </span><span>ConnectionId {
+</span><span>  ConnectionId(</span><span style="color:#e45649;">self</span><span>._ </span><span style="color:#a626a4;">+ </span><span style="color:#c18401;">1</span><span>)
+</span><span>}
+</span></code></pre>
+<p>We want to use this type as a <strong>key</strong> of a <code>Map</code> so we need instances of the <code>Eq</code> and <code>Hash</code> type classes. MoonBit can derive it for us automatically for newtypes. In addition to that, we also define a method called <code>next</code> that generates a new connection ID with an incremented value.</p>
+<p>The <code>EditorState</code> structure holds information for each connected editor. To keep things simple, we only store the editor's <strong>email address</strong> and a buffer of change events since the last call to <code>poll</code>.</p>
+<p>An email address is a newtype of a <code>String</code>:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Email address of a connected editor
+</span><span style="color:#a626a4;">type </span><span>EmailAddress String
+</span></code></pre>
+<p>The <code>Change</code> enum describes the possible changes made to the document:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| An observable change of the edited document
+</span><span style="color:#a626a4;">enum </span><span>Change {
+</span><span>  Added(String)
+</span><span>  Deleted(String)
+</span><span>  Inserted(</span><span style="color:#e45649;">after</span><span>~ : String, </span><span style="color:#e45649;">value</span><span>~ : String)
+</span><span>} </span><span style="color:#a626a4;">derive</span><span>(</span><span style="color:#c18401;">Show</span><span>)
+</span></code></pre>
+<p>Deriving <code>Show</code> (or implementing it by hand) makes it possible to use the <code>inspect</code> test function to compare string snapshots of array of changes with the results of our <code>poll</code> function.</p>
+<p>Finally, let's define <code>EditorState</code> using these two new types:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| State per connected editor
+</span><span style="color:#a626a4;">struct </span><span>EditorState {
+</span><span>  </span><span style="color:#e45649;">email</span><span> : EmailAddress
+</span><span>  </span><span style="color:#a626a4;">mut </span><span style="color:#e45649;">events</span><span> : Array[Change]
+</span><span>}
+</span></code></pre>
+<p>The <code>email</code> field never changes of a connected editor - but the <code>events</code> array is, as every call to <code>poll</code> will reset this so the next poll returns only the new changes. To be able to do this, we have to mark it as <code>mut</code>-able.</p>
+<p>The last new type we need to introduce for <code>State</code> is something representing a point in time. MoonBit's <code>core</code> standard library does not have currently anything for this, but there is already a package database, <a href="https://mooncakes.io">mooncakes</a>, with published MoonBit packages. Here we can find a <a href="https://mooncakes.io/docs/#/suiyunonghen/datetime/">package called <code>datetime</code></a>. Adding it to our project can be done with the <code>moon</code> CLI:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span> </span><span style="color:#e45649;">moon</span><span> add suiyunonghen/datetime
+</span></code></pre>
+<p>and then importing it into the <code>list</code> package by modifying its <code>moon.pkg.json</code>:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>{
+</span><span>    </span><span style="color:#50a14f;">&quot;import&quot;</span><span>: [
+</span><span>        </span><span style="color:#50a14f;">&quot;suiyunonghen/datetime&quot;
+</span><span>    ]
+</span><span>}
+</span></code></pre>
+<p>With this we can refer to the <code>DateTime</code> type in this package using <code>@datetime.DateTime</code>.</p>
+<p>Before starting to implement methods for <code>State</code>, we have to think about error handling too - some of the operations on <code>State</code> may fail, for example if a wrong connection ID is used, or a document editing operation comes in for an already archived list. MoonBit has built-in support for error handling, and it starts by defining our own error type in the following way:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Error type for editor state operations
+</span><span style="color:#a626a4;">type! </span><span>EditorError {
+</span><span>  </span><span style="color:#a0a1a7;">///| Error returned when an invalid connection ID is used
+</span><span>  InvalidConnection(ConnectionId)
+</span><span>  </span><span style="color:#a0a1a7;">///| Error when trying to modify an already archived document
+</span><span>  AlreadyArchived
+</span><span>}
+</span></code></pre>
+<p>With this we are ready to implement the collaborative list editor! I'm not going to list <em>all</em> the methods of <code>State</code> in this post, but the full source code is available <a href="https://github.com/vigoo/golem-moonbit-example">on GitHub</a>.</p>
+<p>The <code>connect</code> method associates a new connection ID with the connected user, and also returns the current document state. This is important to be able to use the results of <code>poll</code> - the returned list of changes have to be applied to exactly this document state on the client side.</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Connects a new editor
+</span><span style="color:#a626a4;">pub</span><span> fn connect(
+</span><span>  </span><span style="color:#e45649;">self</span><span> : State,
+</span><span>  </span><span style="color:#e45649;">email</span><span> : EmailAddress
+</span><span>) </span><span style="color:#a626a4;">-&gt;</span><span> (ConnectionId, ArrayView[String]) {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">connection_id </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.last_connection_id.next()
+</span><span>  </span><span style="color:#e45649;">self</span><span>.last_connection_id </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">connection_id
+</span><span>  </span><span style="color:#e45649;">self</span><span>.connected.set(</span><span style="color:#e45649;">connection_id</span><span>, EditorState::new(</span><span style="color:#e45649;">email</span><span>))
+</span><span>  (</span><span style="color:#e45649;">connection_id</span><span>, </span><span style="color:#e45649;">self</span><span>.document.get())
+</span><span>}
+</span></code></pre>
+<p>The <em>editing operations</em> are more interesting. They build on top of the editing operations we already defined for <code>Document</code>, but in addition to that, they all perform the following tasks:</p>
+<ul>
+<li>Validating the connection ID</li>
+<li>Validating that the document is not archived yet</li>
+<li>Adding a <code>Change</code> event to each connected editor's state</li>
+<li>Updating the <code>email_deadline</code> and <code>email_recipients</code> fields, as each editing operation <em>resets</em> the timeout for sending out the emails</li>
+</ul>
+<p>Let's go through these steps one by one. For validations, we define two helper methods as we want to reuse them in all editing methods:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Fails if the document is archived
+</span><span>fn ensure_not_archived(</span><span style="color:#e45649;">self</span><span> : State) </span><span style="color:#a626a4;">-&gt; </span><span>Unit!EditorError {
+</span><span>  </span><span style="color:#a626a4;">guard not</span><span>(</span><span style="color:#e45649;">self</span><span>.archived) </span><span style="color:#a626a4;">else</span><span> { </span><span style="color:#a626a4;">raise </span><span>AlreadyArchived }
+</span><span>
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Fails if the given `connection_id` is not in the connection map
+</span><span>fn ensure_is_connected(
+</span><span>  </span><span style="color:#e45649;">self</span><span> : State,
+</span><span>  </span><span style="color:#e45649;">connection_id</span><span> : ConnectionId
+</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>Unit!EditorError {
+</span><span>  </span><span style="color:#a626a4;">guard </span><span style="color:#e45649;">self</span><span>.connected.contains(</span><span style="color:#e45649;">connection_id</span><span>) </span><span style="color:#a626a4;">else</span><span> {
+</span><span>    </span><span style="color:#a626a4;">raise </span><span>InvalidConnection(</span><span style="color:#e45649;">connection_id</span><span>)
+</span><span>  }
+</span><span>
+</span><span>}
+</span></code></pre>
+<p>The <code>Unit!EditorError</code> result type indicates that these methods can fail with <code>EditorError</code>.</p>
+<p>We can also define a helper method for adding a change event to each connected editor's state:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Adds a change event to each connected editor&#39;s state
+</span><span>fn add_event(</span><span style="color:#e45649;">self</span><span> : State, </span><span style="color:#e45649;">change</span><span> : Change) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#a626a4;">for </span><span style="color:#e45649;">editor_state </span><span style="color:#a626a4;">in </span><span style="color:#e45649;">self</span><span>.connected.values() {
+</span><span>    </span><span style="color:#e45649;">editor_state</span><span>.events.push(</span><span style="color:#e45649;">change</span><span>)
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<p>And finally one for resetting the email-sending deadline and list of recipients:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Updates the `email_deadline` and `email_recipients` fields after an update.
+</span><span>fn update_email_properties(</span><span style="color:#e45649;">self</span><span> : State) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">now </span><span style="color:#a626a4;">= </span><span>@datetime.DateTime::from_unix_mseconds(</span><span style="color:#c18401;">0</span><span>) </span><span style="color:#a0a1a7;">// TODO
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">send_at </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">now</span><span>.inc_hour(</span><span style="color:#c18401;">12</span><span>)
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">email_list </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.connected_editors()
+</span><span>  </span><span style="color:#e45649;">self</span><span>.email_deadline </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">send_at
+</span><span>  </span><span style="color:#e45649;">self</span><span>.email_recipients </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">email_list
+</span><span>}
+</span></code></pre>
+<p>Note that the <code>datetime</code> library we imported has no concept of getting the <em>current</em> date and time which we need for this function to work properly. We are going to address this problem once we start targeting WebAssembly (and Golem) as getting the current system time is something depending on the target platform.</p>
+<p>With these helper functions, implementing the editor functions, for example <code>add</code>, is straightforward:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Adds a new element to the document as a connected editor
+</span><span style="color:#a626a4;">pub</span><span> fn add(
+</span><span>  </span><span style="color:#e45649;">self</span><span> : State,
+</span><span>  </span><span style="color:#e45649;">connection_id</span><span> : ConnectionId,
+</span><span>  </span><span style="color:#e45649;">value</span><span> : String
+</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>Unit!EditorError {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.ensure_not_archived!()
+</span><span>  </span><span style="color:#e45649;">self</span><span>.ensure_is_connected!(</span><span style="color:#e45649;">connection_id</span><span>)
+</span><span>  </span><span style="color:#e45649;">self</span><span>.document.add(</span><span style="color:#e45649;">value</span><span>)
+</span><span>  </span><span style="color:#e45649;">self</span><span>.add_event(Change::Added(</span><span style="color:#e45649;">value</span><span>))
+</span><span>  </span><span style="color:#e45649;">self</span><span>.update_email_properties()
+</span><span>}
+</span></code></pre>
+<p>Implementing <code>poll</code> is also easy, as we already maintain the list of changes per connection, we just need to reset it after each call:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Returns the list of changes occurred since the last call to poll
+</span><span style="color:#a626a4;">pub</span><span> fn poll(
+</span><span>  </span><span style="color:#e45649;">self</span><span> : State,
+</span><span>  </span><span style="color:#e45649;">connection_id</span><span> : ConnectionId
+</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>Array[Change]!EditorError {
+</span><span>  </span><span style="color:#a626a4;">match </span><span style="color:#e45649;">self</span><span>.connected.get(</span><span style="color:#e45649;">connection_id</span><span>) {
+</span><span>    Some(</span><span style="color:#e45649;">editor_state</span><span>) </span><span style="color:#a626a4;">=&gt;</span><span> {
+</span><span>      </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">events </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">editor_state</span><span>.events
+</span><span>      </span><span style="color:#e45649;">editor_state</span><span>.events </span><span style="color:#a626a4;">=</span><span> []
+</span><span>      </span><span style="color:#e45649;">events
+</span><span>    }
+</span><span>    None </span><span style="color:#a626a4;">=&gt; raise </span><span>InvalidConnection(</span><span style="color:#e45649;">connection_id</span><span>)
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<h3 id="list-archiving">List archiving</h3>
+<p>As mentioned in the introduction, we are going to have a singleton Golem worker to store <strong>archived lists</strong>. At this point we are still not having anything Golem or WebAssembly specific, like RPC calls, so let's just implement the list archive store in the simplest possible way. As I wrote earlier, we can simply store the archived lists in memory, and Golem will take care of persisting it.</p>
+<p>We don't want to reuse the same <code>Document</code> type as it represents a live, editable document. Instead we define a few new types in the <code>archive</code> package:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Unique name of a document
+</span><span style="color:#a626a4;">type </span><span>DocumentName String </span><span style="color:#a626a4;">derive</span><span>(</span><span style="color:#c18401;">Eq</span><span>, </span><span style="color:#c18401;">Hash</span><span>)
+</span><span>
+</span><span style="color:#a0a1a7;">///| Show instance for DocumentName
+</span><span style="color:#a626a4;">impl </span><span style="color:#c18401;">Show </span><span style="color:#a626a4;">for </span><span>DocumentName </span><span style="color:#a626a4;">with </span><span>output(</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">logger</span><span>) { </span><span style="color:#e45649;">self</span><span>._.output(</span><span style="color:#e45649;">logger</span><span>) }
+</span><span>
+</span><span style="color:#a0a1a7;">///| A single archived immutable document, encapsulating the document&#39;s name and its items
+</span><span style="color:#a626a4;">struct </span><span>ArchivedDocument {
+</span><span>  </span><span style="color:#e45649;">name</span><span> : DocumentName
+</span><span>  </span><span style="color:#e45649;">items</span><span> : Array[String]
+</span><span>} </span><span style="color:#a626a4;">derive</span><span>(</span><span style="color:#c18401;">Show</span><span>)
+</span><span>
+</span><span style="color:#a0a1a7;">///| Archive is a list of archived documents
+</span><span style="color:#a626a4;">struct </span><span>Archive {
+</span><span>  </span><span style="color:#e45649;">documents</span><span> : Map[DocumentName, ArchivedDocument]
+</span><span>}
+</span></code></pre>
+<p>All we need is an <code>insert</code> method and a way to iterate all the archived documents:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Archives a named document
+</span><span style="color:#a626a4;">pub</span><span> fn insert(
+</span><span>  </span><span style="color:#e45649;">self</span><span> : Archive,
+</span><span>  </span><span style="color:#e45649;">name</span><span> : DocumentName,
+</span><span>  </span><span style="color:#e45649;">items</span><span> : Array[String]
+</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.documents.set(</span><span style="color:#e45649;">name</span><span>, { </span><span style="color:#e45649;">name</span><span>, </span><span style="color:#e45649;">items</span><span> })
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Iterates all the archived documents
+</span><span style="color:#a626a4;">pub</span><span> fn iter(</span><span style="color:#e45649;">self</span><span> : Archive) </span><span style="color:#a626a4;">-&gt; </span><span>Iter[ArchivedDocument] {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.documents.values()
+</span><span>}
+</span></code></pre>
+<p>With this done, we first implement the list archiving in the <code>list</code> package using simple method calls. Later we are going to replace it with Golem's own <em>Worker to Worker communication</em>.</p>
+<p>As there will be a singleton archive worker, we can simulate this for now by having a top-level <code>Archive</code> instance in the <code>archive</code> package:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>pub let archive: Archive = Archive::new()
+</span></code></pre>
+<p>And calling this in our <code>State::archive</code> method:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">pub</span><span> fn archive(</span><span style="color:#e45649;">self</span><span> : State) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#e45649;">self</span><span>.archived </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">true
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">name </span><span style="color:#a626a4;">= </span><span>@archive.DocumentName(</span><span style="color:#50a14f;">&quot;</span><span>TODO</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>  @archive.archive.insert(</span><span style="color:#e45649;">name</span><span>, </span><span style="color:#e45649;">self</span><span>.document.iter().to_array())
+</span><span>}
+</span></code></pre>
+<p>Note that so far we have no way to know the document's name in <code>State</code> - we did not store it anywhere. This is intentional, as we discussed earlier the <strong>worker name</strong> will be used as the document's unique identifier. Getting the worker's name will be done in a Golem specific way once we get there.</p>
+<h3 id="sending-an-email">Sending an email</h3>
+<p>We already prepared some part of the email sending logic in the <code>State</code> type: it has a <em>deadline</em> and a list of <em>recipients</em>. The idea is that we start an <strong>email sending worker</strong> when a new list is created, and this runs in parallel to our editing session, in a loop. In this loop it first queries the deadline and list of recipients from our list editing state, and then just sleeps until that given deadline. When it wakes up (after 12 hours), it queries the list again, and if it is <em>past</em> the deadline, it means there were no further editing operations in the meantime. Then it sends the notification emails to the list of recipients.</p>
+<p>There is no library on <a href="https://mooncakes.io">mooncakes</a> yet for sending emails or even for making HTTP requests, so this is something we will have to do ourselves. Also, spawning the worker to run it in parallel is something Golem specific, so at this point we are not going to implement anything for the <code>email</code> package. We will get back to it once the rest of the application is already compiled as Golem components.</p>
+<h2 id="compiling-as-golem-components">Compiling as Golem Components</h2>
+<p>It is time to try to compile our code as <strong>Golem components</strong> - these are WebAssembly components (using the <a href="https://component-model.bytecodealliance.org">component model</a>) exporting an API described with the Wasm Interface Type (WIT) language.</p>
+<h3 id="bindings">Bindings</h3>
+<p>In the current world of the WASM component model, components are defined in a spec-first way - first we write the WIT files describing types and exported interfaces, and then use a <em>binding generator</em> to generate language-specific glue code from them. Fortunately the <a href="https://github.com/bytecodealliance/wit-bindgen"> <code>wit-bindgen</code> tool</a> already has MoonBit support, so we can start by installing the latest version:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>cargo install wit-bindgen-cli
+</span></code></pre>
+<p>Note that Golem's documentation recommends an older, specific version of <code>wit-bindgen</code> - but that version did not support MoonBit yet. The new version should work well but the example codes for Golem were not tested with it.</p>
+<p>We will reuse the WIT definitions that were created for the Golem 1.0 launch demo.</p>
+<p>For the <code>list</code> component, it is the following:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">package </span><span>demo:lst;
+</span><span>
+</span><span style="color:#a626a4;">interface </span><span>api {
+</span><span>  </span><span style="color:#a626a4;">record </span><span>connection {
+</span><span>    </span><span style="color:#e45649;">id</span><span>: </span><span style="color:#a626a4;">u64
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">record </span><span>insert-params {
+</span><span>    </span><span style="color:#e45649;">after</span><span>: </span><span style="color:#a626a4;">string</span><span>,
+</span><span>    </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#a626a4;">string
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">variant </span><span>change {
+</span><span>    added(</span><span style="color:#a626a4;">string</span><span>),
+</span><span>    deleted(</span><span style="color:#a626a4;">string</span><span>),
+</span><span>    inserted(insert-params)
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">add</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">c</span><span>: connection, </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#a626a4;">string</span><span>) </span><span style="color:#a626a4;">-&gt; result</span><span>&lt;</span><span style="color:#a626a4;">_</span><span>, </span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>  </span><span style="color:#0184bc;">delete</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">c</span><span>: connection, </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#a626a4;">string</span><span>) </span><span style="color:#a626a4;">-&gt; result</span><span>&lt;</span><span style="color:#a626a4;">_</span><span>, </span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>  </span><span style="color:#0184bc;">insert</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">c</span><span>: connection, </span><span style="color:#e45649;">after</span><span>: </span><span style="color:#a626a4;">string</span><span>, </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#a626a4;">string</span><span>) </span><span style="color:#a626a4;">-&gt; result</span><span>&lt;</span><span style="color:#a626a4;">_</span><span>, </span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>  </span><span style="color:#0184bc;">get</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; list</span><span>&lt;</span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">poll</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">c</span><span>: connection) </span><span style="color:#a626a4;">-&gt; result</span><span>&lt;</span><span style="color:#a626a4;">list</span><span>&lt;change&gt;, </span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">connect</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">email</span><span>: </span><span style="color:#a626a4;">string</span><span>) </span><span style="color:#a626a4;">-&gt; tuple</span><span>&lt;connection, </span><span style="color:#a626a4;">list</span><span>&lt;</span><span style="color:#a626a4;">string</span><span>&gt;&gt;;
+</span><span>  </span><span style="color:#0184bc;">disconnect</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">c</span><span>: connection) </span><span style="color:#a626a4;">-&gt; result</span><span>&lt;</span><span style="color:#a626a4;">_</span><span>, </span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>  </span><span style="color:#0184bc;">connected-editors</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; list</span><span>&lt;</span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">archive</span><span>: </span><span style="color:#a626a4;">func</span><span>();
+</span><span>  </span><span style="color:#0184bc;">is-archived</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; bool</span><span>;
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">interface </span><span>email-query {
+</span><span>  </span><span style="color:#0184bc;">deadline</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; option</span><span>&lt;</span><span style="color:#a626a4;">u64</span><span>&gt;;
+</span><span>  </span><span style="color:#0184bc;">recipients</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; list</span><span>&lt;</span><span style="color:#a626a4;">string</span><span>&gt;;
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">world </span><span>lst  {
+</span><span>  </span><span style="color:#a0a1a7;">// .. imports to be explained later ..
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">export </span><span>api;
+</span><span>  </span><span style="color:#a626a4;">export </span><span>email-query;
+</span><span>}
+</span></code></pre>
+<p>This interface definition exports two APIs - one is the public API of our list editors, very similar to the methods we already implemented for the <code>State</code> type. The other is an internal API for the <code>email</code> component to query the deadline and recipients as it was explained earlier.</p>
+<p>For simplicity, we are using <code>string</code> as an error type on the public API.</p>
+<p>For the <code>archive</code> component, we define a much simpler interface:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">package </span><span>demo:archive;
+</span><span>
+</span><span style="color:#a626a4;">interface </span><span>api {
+</span><span>  </span><span style="color:#a626a4;">record </span><span>archived-list {
+</span><span>    </span><span style="color:#e45649;">name</span><span>: </span><span style="color:#a626a4;">string</span><span>,
+</span><span>    </span><span style="color:#e45649;">items</span><span>: </span><span style="color:#a626a4;">list</span><span>&lt;</span><span style="color:#a626a4;">string</span><span>&gt;
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">store</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#a626a4;">string</span><span>, </span><span style="color:#e45649;">items</span><span>: </span><span style="color:#a626a4;">list</span><span>&lt;</span><span style="color:#a626a4;">string</span><span>&gt;);
+</span><span>  </span><span style="color:#0184bc;">get-all</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; list</span><span>&lt;archived-list&gt;;
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">world </span><span>archive {
+</span><span>  </span><span style="color:#a0a1a7;">// .. imports to be explained later ..
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">export </span><span>api;
+</span><span>}
+</span></code></pre>
+<p>And finally, for the <code>email</code> component:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">package </span><span>demo:email;
+</span><span>
+</span><span style="color:#a626a4;">interface </span><span>api {
+</span><span>  </span><span style="color:#a626a4;">use </span><span>golem:rpc/types@</span><span style="color:#c18401;">0.1.0</span><span>.{</span><span style="color:#e45649;">uri</span><span>};
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">send-email</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">list-uri</span><span>: uri);
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">world </span><span>email {
+</span><span>  </span><span style="color:#a0a1a7;">// .. imports to be explained later ..
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">export </span><span>api;
+</span><span>}
+</span></code></pre>
+<p>Here we are using a Golem specific type: <code>uri</code>. This is needed because the <code>email</code> workers need to call the specific <code>list</code> worker it was spawned from. The details of this will be explained later.</p>
+<p>These WIT definitions need to be put in <code>wit</code> directories of each package, and dependencies in subdirectories of <code>wit/deps</code>. Check the <a href="https://github.com/vigoo/golem-moonbit-example">repository</a> for reference.</p>
+<p>We started with defining a single MoonBit <strong>module</strong> (identified by <code>moon.mod.json</code> in the root) and just created <code>list</code>, <code>email</code> and <code>archive</code> as internal packages. At this point we have to change this because we need to have a separate module for each chunk of code we want to compile to a separate Golem component. By running <code>wit-bindgen</code> in each of the three subdirectories (shown below), it actually generates module definitions for us.</p>
+<p>We reorganize the directory structure a bit, moving <code>src/archive</code> to <code>archive</code> etc, and moving the previously written source code to <code>archive/src</code>. This way the generated bindings and our hand-written implementation will be put next to each other. We can also delete the top-level module definition JSON.</p>
+<p>Now in all the three directories we can generate the bindings:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">wit-bindgen</span><span> moonbit wit
+</span></code></pre>
+<p>Note that once we start modifying the generated <code>stub.wit</code> files, running this command again will overwrite our changes. To avoid that, it can be run in the following way:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">wit-bindgen</span><span> moonbit wit</span><span style="color:#e45649;"> --ignore-stub
+</span></code></pre>
+<p>With this done,</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">moon</span><span> build</span><span style="color:#e45649;"> --target</span><span> wasm
+</span></code></pre>
+<p>will compile a WASM module for us in <code>./target/wasm/release/build/gen/gen.wasm</code>. This is not yet a WASM <strong>component</strong> - so it's not ready to be used directly in Golem. To do so, we will have to use another command line tool, <a href="https://github.com/bytecodealliance/wasm-tools"><code>wasm-tools</code></a> to convert this module into a component that self-describes its higher level exported interface.</p>
+<h3 id="wit-dependencies">WIT dependencies</h3>
+<p>We are going to need to depend on some WIT packages, some from WASI (WebAssembly System Interface) to access things like environment variables and the current date/time, and some Golem specific ones to implement worker-to-worker communication.</p>
+<p>The simplest way to get the appropriate version of all the dependencies Golem provides is to use Golem's "all" packaged interfaces with the <a href="https://github.com/bytecodealliance/wit-deps"><code>wit-deps</code></a> tool.</p>
+<p>So first we install <code>wit-deps</code>:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">cargo</span><span> install wit-deps-cli
+</span></code></pre>
+<p>And create a <code>deps.toml</code> file in each <code>wit</code> directory we have created with the following contents:</p>
+<pre data-lang="toml" style="background-color:#fafafa;color:#383a42;" class="language-toml "><code class="language-toml" data-lang="toml"><span style="color:#e45649;">all </span><span>= </span><span style="color:#50a14f;">&quot;https://github.com/golemcloud/golem-wit/archive/main.tar.gz&quot;
+</span></code></pre>
+<p>And finally we run the following command to fill the <code>wit/deps</code> directory:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">wit-deps</span><span> update
+</span></code></pre>
+<h3 id="implementing-the-exports">Implementing the exports</h3>
+<p>Before setting up this compilation chain let's see how we can connect the generated bindings with our existing code. Let's start with the <code>archive</code> component, as it is the simplest one.</p>
+<p>The binding generator creates a <code>stub.mbt</code> file at <code>archive/gen/interface/demo/archive/api/stub.mbt</code> with the two exported functions to be implemented. Here we face the usual question when working with code generators: we have a definition of <code>archived-list</code> in WIT and the binding generator generated the following MoonBit definition from it:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">// Generated by `wit-bindgen` 0.36.0. DO NOT EDIT!
+</span><span>
+</span><span style="color:#a626a4;">pub struct </span><span>ArchivedList {
+</span><span>      </span><span style="color:#e45649;">name</span><span> : String; </span><span style="color:#e45649;">items</span><span> : Array[String]
+</span><span>} </span><span style="color:#a626a4;">derive</span><span>()
+</span></code></pre>
+<p>But we already defined a very similar structure called <code>ArchivedDocument</code>! The only differences are the use of the <code>DocumentName</code> newtype and that our version was deriving a <code>Show</code> instance. We could decide to give up using the newtype, and use the generated type in our business logic, or we could keep the generated types separated from our actual code. (This is not really specific to MoonBit or the WASM tooling, we face the same issue with any code generator based approach).</p>
+<p>In this post I will keep the generated code separate from our already written business logic, and just show how to implement the necessary conversions to implement the <code>stub.mbt</code> file(s).</p>
+<p>The first exported function to implement is called <code>store</code>. We can implement it by just calling <code>insert</code> on our singleton top level <code>Archive</code> as we did before when we directly wired the <code>archive</code> package to the <code>list</code> package:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">pub</span><span> fn store(</span><span style="color:#e45649;">name</span><span> : String, </span><span style="color:#e45649;">items</span><span> : Array[String]) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>      @src.archive.insert(@src.DocumentName(</span><span style="color:#e45649;">name</span><span>), </span><span style="color:#e45649;">items</span><span>)
+</span><span>}
+</span></code></pre>
+<p>Note that we need to import our main <code>archive</code> source in the stub's package JSON:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>{
+</span><span>    </span><span style="color:#50a14f;">&quot;import&quot;</span><span>: [
+</span><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/archive/ffi&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot; </span><span>: </span><span style="color:#50a14f;">&quot;ffi&quot; </span><span>},
+</span><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/archive/src&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot; </span><span>: </span><span style="color:#50a14f;">&quot;src&quot; </span><span>}
+</span><span>    ]
+</span><span>}
+</span></code></pre>
+<p>The second function to be implemented needs to convert between the two representations of an archived document:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">pub</span><span> fn get_all() </span><span style="color:#a626a4;">-&gt; </span><span>Array[ArchivedList] {
+</span><span>  @src.archive
+</span><span>  .iter()
+</span><span>  .map(fn(</span><span style="color:#e45649;">archived</span><span>) { { </span><span style="color:#e45649;">name</span><span>: </span><span style="color:#e45649;">archived</span><span>.name._, </span><span style="color:#e45649;">items</span><span>: </span><span style="color:#e45649;">archived</span><span>.items } })
+</span><span>  .to_array()
+</span><span>}
+</span></code></pre>
+<p>Note that for this to work, we also have to make the previously defined <code>struct ArchivedDocument</code> a <code>pub struct</code> otherwise we cannot access it's <code>name</code> and <code>items</code> fields from the stub package.</p>
+<p>(Note: at the time of writing https://github.com/bytecodealliance/wit-bindgen/pull/1100 was not merged yet, and it is needed for the binding generator to produce working code with Golem wasm-rpc; Until it is merged, it is possible to compile the fork and use it directly)</p>
+<p>The same way we can implement the two generated stubs in the <code>list</code> module (in <code>list/gen/interface/demo/lst/api/stub.mbt</code> and <code>list/gen/interface/demo/lst/emailQuery/stub.mbt</code>) using our existing implementation of <code>State</code>.</p>
+<p>One interesting details is how we can map the <code>EditorError</code> failures into the string errors used in the WIT definition. First we define a <code>to_string</code> method for <code>EditorError</code>:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">pub</span><span> fn to_string(</span><span style="color:#e45649;">self</span><span> : EditorError) </span><span style="color:#a626a4;">-&gt; </span><span>String {
+</span><span>  </span><span style="color:#a626a4;">match </span><span style="color:#e45649;">self</span><span> {
+</span><span>    InvalidConnection(</span><span style="color:#e45649;">id</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span style="color:#50a14f;">&quot;</span><span>Invalid connection ID: \{id._}</span><span style="color:#50a14f;">&quot;
+</span><span>    AlreadyArchived </span><span style="color:#a626a4;">=&gt; </span><span style="color:#50a14f;">&quot;</span><span>Document is already archived</span><span style="color:#50a14f;">&quot;
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<p>Then use <code>?</code> and <code>map_err</code> in the stubs:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">pub</span><span> fn add(</span><span style="color:#e45649;">c</span><span> : Connection, </span><span style="color:#e45649;">value</span><span> : String) </span><span style="color:#a626a4;">-&gt; </span><span>Result[Unit, String] {
+</span><span>  @src.state
+</span><span>  .add?(to_connection_id(</span><span style="color:#e45649;">c</span><span>), </span><span style="color:#e45649;">value</span><span>)
+</span><span>  .map_err(fn(</span><span style="color:#e45649;">err</span><span>) { </span><span style="color:#e45649;">err</span><span>.to_string() })
+</span><span>}
+</span></code></pre>
+<h3 id="using-host-functions">Using host functions</h3>
+<p>When we implemented the <code>update_email_properties</code> function earlier, we could not properly query the current time to calculate the proper deadline. Now that we are targeting Golem, we can use the WebAssembly system interface (WASI) to access things like the system time. One way would be to use the published <a href="https://mooncakes.io/docs/#/yamajik/wasi-bindings/"><code>wasi-bindings</code> package</a> but as we are already generating bindings from WIT anyway, we can just use our own generated bindings to imported host functions.</p>
+<p>First, we need to import the WASI wall-clock interface into our WIT world:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">world </span><span>lst  {
+</span><span>  </span><span style="color:#a626a4;">export </span><span>api;
+</span><span>  </span><span style="color:#a626a4;">export </span><span>email-query;
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">import </span><span>wasi:clocks/wall-clock@</span><span style="color:#c18401;">0.2.0</span><span>;
+</span><span>}
+</span></code></pre>
+<p>Then we regenerate the bindings (make sure to use <code>--ignore-stub</code> to avoid rewriting our stub implementation!) and import it into our main (<code>src</code>) package:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>{
+</span><span>    </span><span style="color:#50a14f;">&quot;import&quot;</span><span>: [
+</span><span>        </span><span style="color:#50a14f;">&quot;suiyunonghen/datetime&quot;</span><span>,
+</span><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/lst/interface/wasi/clocks/wallClock&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot; </span><span>: </span><span style="color:#50a14f;">&quot;wallClock&quot; </span><span>}
+</span><span>    ]
+</span><span>}
+</span></code></pre>
+<p>With that we can call the WASI <code>now</code> function to query the current system time, and convert it to the <code>datetime</code> module's <code>DateTime</code> type which we were using before:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Queries the WASI wall clock and returns it as a @datetime.DateTime
+</span><span style="color:#a0a1a7;">///
+</span><span style="color:#a0a1a7;">/// Note that DateTime has only millisecond precision
+</span><span>fn now() </span><span style="color:#a626a4;">-&gt; </span><span>@datetime.DateTime {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">wasi_now </span><span style="color:#a626a4;">= </span><span>@wallClock.now()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">base_ms </span><span style="color:#a626a4;">=  </span><span style="color:#e45649;">wasi_now</span><span>.seconds.reinterpret_as_int64() </span><span style="color:#a626a4;">* </span><span style="color:#c18401;">1000</span><span>;
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">nano_ms </span><span style="color:#a626a4;">=</span><span> (</span><span style="color:#e45649;">wasi_now</span><span>.nanoseconds.reinterpret_as_int() </span><span style="color:#a626a4;">/ </span><span style="color:#c18401;">1000000</span><span>).to_int64();
+</span><span>  @datetime.DateTime::from_unix_mseconds(</span><span style="color:#e45649;">base_ms </span><span style="color:#a626a4;">+ </span><span style="color:#e45649;">nano_ms</span><span>)
+</span><span>}
+</span></code></pre>
+<h2 id="golem-app-manifest">Golem app manifest</h2>
+<p>In the next step of our implementation we will have to connect our two existing components: <code>list</code> and <code>archive</code> in a way that <code>list</code> can do remote procedure calls to <code>archive</code>. With the same technique we will be able to implement the third component, <code>email</code> which needs to be both called <em>from</em><code> list</code> (when started) and called back (when getting the deadline and recipients).</p>
+<p>Golem has tooling supporting this - but before trying to use it, let's convert our project into a <strong>golem application</strong> described by <strong>app manifests</strong>. This will enable us to use <code>golem-cli</code> to generate the necessary files for worker-to-worker communication, and will also make it easier to deploy the compiled components into Golem.</p>
+<h3 id="the-build-steps">The build steps</h3>
+<p>To build a single MoonBit module into a Golem component, without any worker-to-worker communication involved, we have to perform the following steps:</p>
+<ul>
+<li>(Optionally) regenerate the WIT bindings with <code>wit-bindgen ... --ignore-stub</code></li>
+<li>Compile the MoonBit source code into a WASM module with <code>moon build --target wasm</code></li>
+<li>Embed the WIT specification into a custom WASM section using <code>wasm-tools component embed</code></li>
+<li>Convert the WASM module into a WASM <em>component</em> using <code>wasm-tools component new</code></li>
+</ul>
+<p>When we will start to use worker-to-worker communication it will require even more steps, as we are going to generate stub WIT interfaces, and compile and link multiple WASM components. An earlier version of this was <a href="https://blog.vigoo.dev/posts/w2w-communication-golem/">described in the Worker to Worker communication in Golem</a> blog post last year.</p>
+<p>The Golem app manifest and the corresponding CLI tool, introduced with <strong>Golem 1.1</strong>, automates all these steps for us.</p>
+<h3 id="manifest-template">Manifest template</h3>
+<p>We start by creating a root app manifest, <code>golem.yaml</code>, in the root of our project. We start by setting up a temporary directory and a shared directory for the WIT dependencies we previously fetched with <code>wit-deps</code>:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span style="color:#a0a1a7;"># Schema for IDEA:
+</span><span style="color:#a0a1a7;"># $schema: https://schema.golem.cloud/app/golem/1.1.0/golem.schema.json
+</span><span style="color:#a0a1a7;"># Schema for vscode-yaml
+</span><span style="color:#a0a1a7;"># yaml-language-server: $schema=https://schema.golem.cloud/app/golem/1.1.0/golem.schema.json
+</span><span>
+</span><span style="color:#e45649;">tempDir</span><span>: </span><span style="color:#50a14f;">target/golem-temp
+</span><span style="color:#e45649;">witDeps</span><span>:
+</span><span> - </span><span style="color:#50a14f;">common-wit/deps
+</span></code></pre>
+<p>By moving our previous <code>deps.toml</code> into <code>common-wit</code> and doing a <code>wit-deps update</code> in the root, we can fill up this <code>deps</code> directory with all the WASI and Golem APIs we need.</p>
+<p>Then we define a <strong>template</strong> for building MoonBit components with Golem CLI. In the template, we are going to define two <strong>profiles</strong> - one for doing a <strong>release</strong> build and one for <strong>debug</strong>. In the post I'm only going to show the release build.</p>
+<p>It starts by specifying some directory names and where the final WASM files will be placed:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span style="color:#e45649;">templates</span><span>:
+</span><span>  </span><span style="color:#e45649;">moonbit</span><span>:
+</span><span>    </span><span style="color:#e45649;">profiles</span><span>:
+</span><span>      </span><span style="color:#e45649;">release</span><span>:
+</span><span>        </span><span style="color:#e45649;">sourceWit</span><span>: </span><span style="color:#50a14f;">wit
+</span><span>        </span><span style="color:#e45649;">generatedWit</span><span>: </span><span style="color:#50a14f;">wit-generated
+</span><span>        </span><span style="color:#e45649;">componentWasm</span><span>: </span><span style="color:#50a14f;">../target/release/{{ componentName }}.wasm
+</span><span>        </span><span style="color:#e45649;">linkedWasm</span><span>: </span><span style="color:#50a14f;">../target/release/{{ componentName }}-linked.wasm
+</span></code></pre>
+<p>These directories are relative to the components subdirectories (for example <code>archive</code>) so what we say here is that once all the components are built, they al will be put in the root <code>target/release</code> directory.</p>
+<p>Then we specify the <strong>build steps</strong>, described in the previous section:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span>        </span><span style="color:#e45649;">build</span><span>:
+</span><span>        - </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#50a14f;">wit-bindgen moonbit wit-generated --ignore-stub --derive-error --derive-show
+</span><span>          </span><span style="color:#e45649;">sources</span><span>:
+</span><span>            - </span><span style="color:#50a14f;">wit-generated
+</span><span>          </span><span style="color:#e45649;">targets</span><span>:
+</span><span>            - </span><span style="color:#50a14f;">ffi
+</span><span>            - </span><span style="color:#50a14f;">interface
+</span><span>            - </span><span style="color:#50a14f;">world
+</span><span>        - </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#50a14f;">moon build --target wasm
+</span><span>        - </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#50a14f;">wasm-tools component embed wit-generated target/wasm/release/build/gen/gen.wasm -o ../target/release/{{ componentName }}.module.wasm --encoding utf16
+</span><span>          </span><span style="color:#e45649;">mkdirs</span><span>:
+</span><span>            - </span><span style="color:#50a14f;">../target/release
+</span><span>        - </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#50a14f;">wasm-tools component new ../target/release/{{ componentName }}.module.wasm -o ../target/release/{{ componentName }}.wasm
+</span></code></pre>
+<p>Finally, we can define additional directories to be cleaned by the <code>golem app clean</code> command, and we can even define custom commands to be executed with <code>golem app xxx</code>:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span>        </span><span style="color:#e45649;">clean</span><span>:
+</span><span>        - </span><span style="color:#50a14f;">target
+</span><span>        - </span><span style="color:#50a14f;">wit-generated
+</span><span>        </span><span style="color:#e45649;">customCommands</span><span>:
+</span><span>          </span><span style="color:#e45649;">update-deps</span><span>:
+</span><span>          - </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#50a14f;">wit-deps update
+</span><span>            </span><span style="color:#e45649;">dir</span><span>: </span><span style="color:#c18401;">..
+</span><span>          </span><span style="color:#e45649;">regenerate-stubs</span><span>:
+</span><span>          - </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#50a14f;">wit-bindgen moonbit wit-generated
+</span></code></pre>
+<p>With this set, we can add a new <em>MoonBit module</em>* to this <strong>Golem project</strong> by creating a <code>golem.yaml</code> in its directory - so <code>archive/golem.yaml</code> and <code>list/golem.yaml</code> for now.</p>
+<p>In these sub-manifests we can use the above defined template to tell Golem that this is a MoonBit module. It is possible to mix Golem components written in different languages in a single application.</p>
+<p>For example the <code>archive</code> component's manifest will look like this:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span style="color:#a0a1a7;"># Schema for IDEA:
+</span><span style="color:#a0a1a7;"># $schema: https://schema.golem.cloud/app/golem/1.1.0/golem.schema.json
+</span><span style="color:#a0a1a7;"># Schema for vscode-yaml
+</span><span style="color:#a0a1a7;"># yaml-language-server: $schema=https://schema.golem.cloud/app/golem/1.1.0/golem.schema.json
+</span><span>
+</span><span style="color:#e45649;">components</span><span>:
+</span><span>  </span><span style="color:#e45649;">archive</span><span>:
+</span><span>    </span><span style="color:#e45649;">template</span><span>: </span><span style="color:#50a14f;">moonbit
+</span></code></pre>
+<h3 id="building-the-components">Building the components</h3>
+<p>With this set, the whole application (with its two already written components) can be compiled by simply saying</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>golem app build
+</span></code></pre>
+<p>There are a few organizational things to do first, as <code>golem app build</code> does some transformations on the WIT definitions. This means that our previously written <strong>stubs</strong> are a wrong place. The easiest way to fix this is to delete all the wit-bindgen generated directories (but first backup the hand-written stubs!) and then copy back the stubs into the new directories created. We are not going to discuss this in more details here. The blog post incrementally discovers how to build Golem applications with MoonBit and introduces the app manifest in a late stage, but the recommended way is to start immediately with an app manifest and then there is no need to do these fixes.</p>
+<h3 id="first-try">First try</h3>
+<p>Running the build command results in two WASM files that are ready to be used with Golem! Although they are not able to communicate with each other yet (so the archiving functionality does not work), it is already possible to try them out with Golem.</p>
+<p>To do so, we can start Golem locally by downloading the latest release of <a href="https://github.com/golemcloud/golem/releases/tag/v1.1.0">single-executable Golem</a> or using our hosted Golem Cloud. With the <code>golem</code> binary, we just use the following command to start up the services locally:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem start</span><span style="color:#e45649;"> -vv
+</span></code></pre>
+<p>Then, from the root of our project, we can upload the two compiled components using the same command:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem component add</span><span style="color:#e45649;"> --component-name</span><span> archive
+</span><span style="color:#e45649;">Added</span><span> new component archive
+</span><span>
+</span><span style="color:#e45649;">Component</span><span> URN:     urn:component:bde2da89-75a8-4adf-953f-33b360c978d0
+</span><span style="color:#e45649;">Component</span><span> name:    archive
+</span><span style="color:#e45649;">Component</span><span> version: 0
+</span><span style="color:#e45649;">Component</span><span> size:    9.35 KiB
+</span><span style="color:#e45649;">Created</span><span> at:        2025-01-03 15:09:05.166785 UTC
+</span><span style="color:#e45649;">Exports:
+</span><span>  </span><span style="color:#0184bc;">demo:archive-interface/api.</span><span>{</span><span style="color:#0184bc;">get-all}</span><span>() -&gt; list&lt;record { </span><span style="color:#e45649;">name:</span><span> string, items: list</span><span style="color:#a626a4;">&lt;</span><span>string</span><span style="color:#a626a4;">&gt;</span><span> }</span><span style="color:#a626a4;">&gt;
+</span><span>  </span><span style="color:#e45649;">demo:archive-interface/api.{store</span><span>}(</span><span style="color:#e45649;">name:</span><span> string, items: list</span><span style="color:#a626a4;">&lt;</span><span>string</span><span style="color:#a626a4;">&gt;</span><span>)
+</span></code></pre>
+<p>and</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem component add</span><span style="color:#e45649;"> --component-name</span><span> list
+</span><span style="color:#e45649;">Added</span><span> new component list
+</span><span>
+</span><span style="color:#e45649;">Component</span><span> URN:     urn:component:b6420554-62b5-4902-8994-89c692a937f7
+</span><span style="color:#e45649;">Component</span><span> name:    list
+</span><span style="color:#e45649;">Component</span><span> version: 0
+</span><span style="color:#e45649;">Component</span><span> size:    28.46 KiB
+</span><span style="color:#e45649;">Created</span><span> at:        2025-01-03 15:09:09.743733 UTC
+</span><span style="color:#e45649;">Exports:
+</span><span>  </span><span style="color:#e45649;">demo:lst-interface/api.{add</span><span>}(</span><span style="color:#e45649;">c:</span><span> record { id: u64 }, value: string) -</span><span style="color:#a626a4;">&gt;</span><span> result</span><span style="color:#a626a4;">&lt;</span><span>_, string</span><span style="color:#a626a4;">&gt;
+</span><span>  </span><span style="color:#0184bc;">demo:lst-interface/api.</span><span>{</span><span style="color:#0184bc;">archive}</span><span>()
+</span><span>  demo:lst-interface/api.{</span><span style="color:#e45649;">connect</span><span>}(</span><span style="color:#e45649;">email:</span><span> string) -</span><span style="color:#a626a4;">&gt;</span><span> tuple</span><span style="color:#a626a4;">&lt;</span><span>record { id: u64 }, list</span><span style="color:#a626a4;">&lt;</span><span>string</span><span style="color:#a626a4;">&gt;&gt;
+</span><span>  </span><span style="color:#0184bc;">demo:lst-interface/api.</span><span>{</span><span style="color:#0184bc;">connected-editors}</span><span>() -&gt; list&lt;string&gt;
+</span><span>  demo:lst-interface/api.{</span><span style="color:#e45649;">delete</span><span>}(</span><span style="color:#e45649;">c:</span><span> record { id: u64 }, value: string) -</span><span style="color:#a626a4;">&gt;</span><span> result</span><span style="color:#a626a4;">&lt;</span><span>_, string</span><span style="color:#a626a4;">&gt;
+</span><span>  </span><span style="color:#e45649;">demo:lst-interface/api.{disconnect</span><span>}(</span><span style="color:#e45649;">c:</span><span> record { id: u64 }) -</span><span style="color:#a626a4;">&gt;</span><span> result</span><span style="color:#a626a4;">&lt;</span><span>_, string</span><span style="color:#a626a4;">&gt;
+</span><span>  </span><span style="color:#0184bc;">demo:lst-interface/api.</span><span>{</span><span style="color:#0184bc;">get}</span><span>() -&gt; list&lt;string&gt;
+</span><span>  demo:lst-interface/api.{</span><span style="color:#e45649;">insert</span><span>}(</span><span style="color:#e45649;">c:</span><span> record { id: u64 }, after: string, value: string) -</span><span style="color:#a626a4;">&gt;</span><span> result</span><span style="color:#a626a4;">&lt;</span><span>_, string</span><span style="color:#a626a4;">&gt;
+</span><span>  </span><span style="color:#0184bc;">demo:lst-interface/api.</span><span>{</span><span style="color:#0184bc;">is-archived}</span><span>() -&gt; bool
+</span><span>  demo:lst-interface/api.{</span><span style="color:#e45649;">poll</span><span>}(</span><span style="color:#e45649;">c:</span><span> record { id: u64 }) -</span><span style="color:#a626a4;">&gt;</span><span> result</span><span style="color:#a626a4;">&lt;</span><span>list</span><span style="color:#a626a4;">&lt;</span><span>variant { added(string), deleted(string), inserted(record { after: string, value: string }) }</span><span style="color:#a626a4;">&gt;</span><span>, string</span><span style="color:#a626a4;">&gt;
+</span><span>  </span><span style="color:#0184bc;">demo:lst-interface/email-query.</span><span>{</span><span style="color:#0184bc;">deadline}</span><span>() -&gt; option&lt;u64&gt;
+</span><span>  demo:lst-interface/email-query.{</span><span style="color:#0184bc;">recipients}</span><span>() -&gt; list&lt;string&gt;
+</span></code></pre>
+<p>We can try out the <code>archive</code> component by first invoking the <code>store</code> function, and then the <code>get-all</code> function, using the CLI's <code>worker invoke-and-await</code> command:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem worker invoke-and-await</span><span style="color:#e45649;"> --worker</span><span> urn:worker:bde2da89-75a8-4adf-953f-33b360c978d0/archive</span><span style="color:#e45649;"> --function </span><span style="color:#50a14f;">&#39;demo:archive-interface/api.{store}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;&quot;list1&quot;&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;[&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]&#39;
+</span><span style="color:#e45649;">Empty</span><span> result.
+</span><span>
+</span><span style="color:#e45649;">$</span><span> golem worker invoke-and-await</span><span style="color:#e45649;"> --worker</span><span> urn:worker:bde2da89-75a8-4adf-953f-33b360c978d0/archive</span><span style="color:#e45649;"> --function </span><span style="color:#50a14f;">&#39;demo:archive-interface/api.{get-all}&#39;
+</span><span style="color:#e45649;">Invocation</span><span> results in WAVE format:
+</span><span style="color:#e45649;">- </span><span style="color:#50a14f;">&#39;[{name: &quot;list1&quot;, items: [&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]}]&#39;
+</span></code></pre>
+<p>Similarly we can try out the <code>list</code> component, keeping in mind that the <strong>worker name</strong> is the list name:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span>
+</span></code></pre>
+<p>When we try out list, we get an error (and if we used the <code>debug</code> profile - using <code>--build-profile debug</code> then we also get a nice call stack):</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>Failed to create worker b6420554-62b5-4902-8994-89c692a937f7/list6: Failed to instantiate worker -1/b6420554-62b5-4902-8994-89c692a937f7/list6: error while executing at wasm backtrace:
+</span><span>    0: 0x19526 - wit-component:shim!indirect-wasi:clocks/wall-clock@0.2.0-now
+</span><span>    1: 0x414b - &lt;unknown&gt;!demo/lst/interface/wasi/clocks/wallClock.wasmImportNow
+</span><span>    2: 0x4165 - &lt;unknown&gt;!demo/lst/interface/wasi/clocks/wallClock.now
+</span><span>    3: 0x42c1 - &lt;unknown&gt;!demo/lst/src.now
+</span><span>    4: 0x433d - &lt;unknown&gt;!@demo/lst/src.State::update_email_properties
+</span><span>    5: 0x440e - &lt;unknown&gt;!@demo/lst/src.State::new
+</span><span>    6: 0x5d81 - &lt;unknown&gt;!*init*/38
+</span></code></pre>
+<p>The reason is we are creating a global variable of <code>State</code> and in its constructor we are tryting to call a WASI function (to get the current date-time). This is too early for that; so let's modify the <code>State::new</code> method to not call any host functions:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Creates a new empty document editing state
+</span><span style="color:#a626a4;">pub</span><span> fn State::new() </span><span style="color:#a626a4;">-&gt; </span><span>State {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">state </span><span style="color:#a626a4;">=</span><span> {
+</span><span>    </span><span style="color:#e45649;">document</span><span>: Document::new(),
+</span><span>    </span><span style="color:#e45649;">connected</span><span>: Map::new(),
+</span><span>    </span><span style="color:#e45649;">last_connection_id</span><span>: ConnectionId(</span><span style="color:#c18401;">0</span><span>),
+</span><span>    </span><span style="color:#e45649;">archived</span><span>: </span><span style="color:#c18401;">false</span><span>,
+</span><span>    </span><span style="color:#e45649;">email_deadline</span><span>: @datetime.DateTime::from_unix_mseconds(</span><span style="color:#c18401;">0</span><span>), </span><span style="color:#a0a1a7;">// Note: can&#39;t use now() here because it will run in initialization-time (due to the global `state` variable)
+</span><span>    </span><span style="color:#e45649;">email_recipients</span><span>: [],
+</span><span>  }
+</span><span>  </span><span style="color:#e45649;">state
+</span><span>}
+</span></code></pre>
+<p>This fixes the issue! Now we can create and play with our collaboratively editable lists:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem worker start</span><span style="color:#e45649;"> --component</span><span> urn:component:b6420554-62b5-4902-8994-89c692a937f7</span><span style="color:#e45649;"> --worker-name</span><span> list7
+</span><span style="color:#e45649;">Added</span><span> worker list7
+</span><span>
+</span><span style="color:#e45649;">Worker</span><span> URN:    urn:worker:b6420554-62b5-4902-8994-89c692a937f7/list7
+</span><span style="color:#e45649;">Component</span><span> URN: urn:component:b6420554-62b5-4902-8994-89c692a937f7
+</span><span style="color:#e45649;">Worker</span><span> name:   list7
+</span><span>
+</span><span style="color:#e45649;">$</span><span> golem worker invoke-and-await</span><span style="color:#e45649;"> --component</span><span> urn:component:b6420554-62b5-4902-8994-89c692a937f7</span><span style="color:#e45649;"> --worker-name</span><span> list7</span><span style="color:#e45649;"> --function </span><span style="color:#50a14f;">&#39;demo:lst-interface/api.{connect}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;&quot;demo@vigoo.dev&quot;&#39;
+</span><span style="color:#e45649;">Invocation</span><span> results in WAVE format:
+</span><span style="color:#e45649;">- </span><span style="color:#50a14f;">&#39;({id: 1}, [])&#39;
+</span><span>
+</span><span style="color:#e45649;">$</span><span> golem worker invoke-and-await</span><span style="color:#e45649;"> --component</span><span> urn:component:b6420554-62b5-4902-8994-89c692a937f7</span><span style="color:#e45649;"> --worker-name</span><span> list7</span><span style="color:#e45649;"> --function </span><span style="color:#50a14f;">&#39;demo:lst-interface/api.{add}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;{ id: 1}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;&quot;a&quot;&#39;
+</span><span style="color:#e45649;">Invocation</span><span> results in WAVE format:
+</span><span style="color:#e45649;">-</span><span> ok
+</span><span>
+</span><span style="color:#e45649;">$</span><span> golem worker invoke-and-await</span><span style="color:#e45649;"> --component</span><span> urn:component:b6420554-62b5-4902-8994-89c692a937f7</span><span style="color:#e45649;"> --worker-name</span><span> list7</span><span style="color:#e45649;"> --function </span><span style="color:#50a14f;">&#39;demo:lst-interface/api.{add}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;{ id: 1}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;&quot;b&quot;&#39;
+</span><span style="color:#e45649;">Invocation</span><span> results in WAVE format:
+</span><span style="color:#e45649;">-</span><span> ok
+</span><span>
+</span><span style="color:#e45649;">$</span><span> golem worker invoke-and-await</span><span style="color:#e45649;"> --component</span><span> urn:component:b6420554-62b5-4902-8994-89c692a937f7</span><span style="color:#e45649;"> --worker-name</span><span> list7</span><span style="color:#e45649;"> --function </span><span style="color:#50a14f;">&#39;demo:lst-interface/api.{connect}&#39;</span><span style="color:#e45649;"> --arg </span><span style="color:#50a14f;">&#39;&quot;demo2@vigoo.dev&quot;&#39;
+</span><span style="color:#e45649;">Invocation</span><span> results in WAVE format:
+</span><span style="color:#e45649;">- </span><span style="color:#50a14f;">&#39;({id: 2}, [&quot;a&quot;, &quot;b&quot;])&#39;
+</span></code></pre>
+<h2 id="worker-to-worker-communication">Worker to Worker communication</h2>
+<h3 id="list-calling-archive">List calling archive</h3>
+<p>The first worker-to-worker communication we want to set up is the <code>list</code> component calling the <code>archive</code> component - basically, when we call <code>archive()</code> on the list, it needs to call <code>store</code> in a singleton archive worker, sending its data to it.</p>
+<p>The first step is to simply state this dependency in the app manifest of <code>list</code>:</p>
+<pre data-lang="yaml" style="background-color:#fafafa;color:#383a42;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span style="color:#e45649;">components</span><span>:
+</span><span>  </span><span style="color:#e45649;">list</span><span>:
+</span><span>    </span><span style="color:#e45649;">template</span><span>: </span><span style="color:#50a14f;">moonbit
+</span><span>
+</span><span style="color:#e45649;">dependencies</span><span>:
+</span><span>  </span><span style="color:#e45649;">list</span><span>:
+</span><span>  - </span><span style="color:#e45649;">type</span><span>: </span><span style="color:#50a14f;">wasm-rpc
+</span><span>    </span><span style="color:#e45649;">target</span><span>: </span><span style="color:#50a14f;">archive
+</span></code></pre>
+<p>Running <code>golem app build</code> after this will run a lot of new build steps - including generating and compiling some Rust source code, which is something that will no longer be needed in the next release of Golem.</p>
+<p>We are not going into details of what is generated for worker to worker communication in this post - what is important is that after this change, and running build once, we can <strong>import</strong> a generated <strong>stub</strong> of our <code>archive</code> component in our <code>list</code> component's moonbit package:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>{
+</span><span>    </span><span style="color:#50a14f;">&quot;import&quot;</span><span>: [
+</span><span>        </span><span style="color:#50a14f;">&quot;suiyunonghen/datetime&quot;</span><span>,
+</span><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/lst/interface/wasi/clocks/wallClock&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot; </span><span>: </span><span style="color:#50a14f;">&quot;wallClock&quot; </span><span>},
+</span><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/lst/interface/demo/archive_stub/stubArchive&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot;</span><span>: </span><span style="color:#50a14f;">&quot;stubArchive&quot; </span><span>},
+</span><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/lst/interface/golem/rpc/types&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot;</span><span>: </span><span style="color:#50a14f;">&quot;rpcTypes&quot; </span><span>}
+</span><span>    ]
+</span><span>}
+</span></code></pre>
+<p>Then we can add the following code into our <code>archive</code> function to call the remote worker:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">archive_component_id </span><span style="color:#a626a4;">= </span><span style="color:#50a14f;">&quot;</span><span>bde2da89-75a8-4adf-953f-33b360c978d0</span><span style="color:#50a14f;">&quot;</span><span>; </span><span style="color:#a0a1a7;">// TODO
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">archive </span><span style="color:#a626a4;">= </span><span>@stubArchive.Api::api({ </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>urn:worker:\{archive_component_id}/archive</span><span style="color:#50a14f;">&quot;</span><span>});
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">name </span><span style="color:#a626a4;">= </span><span style="color:#50a14f;">&quot;</span><span>TODO</span><span style="color:#50a14f;">&quot;</span><span>; </span><span style="color:#a0a1a7;">// TODO
+</span><span>
+</span><span>  </span><span style="color:#e45649;">archive</span><span>.blocking_store(</span><span style="color:#e45649;">name</span><span>, </span><span style="color:#e45649;">self</span><span>.document.iter().to_array())
+</span></code></pre>
+<p>In line 2 we construct the remote interface by pointing to a specific <strong>worker</strong>, by using the component ID and the worker's name. (In the next Golem release this is going to be simplified by being able to use the component's name instead). In line 5 we call the remote <code>store</code> function.</p>
+<p>What is missing are two things:</p>
+<ul>
+<li>We should not hard-code the archive component's ID as it is automatically generated when the component is first uploaded to Golem</li>
+<li>We need to know our own <strong>worker name</strong> to be used as the list's name</li>
+</ul>
+<p>The solution to both is to use <strong>environment variables</strong> - Golem automatically sets the <code>GOLEM_WORKER_NAME</code> environment variable to the worker's name, and we can manually provide values to workers through custom environment variables. This allows us to inject the component ID from the outside (until a more sophisticated configuration feature is added in Golem 1.2).</p>
+<p>We have already seen how we can use WASI to query the current date/time; we can use another WASI interface to get environment variables. So once again, we add an import to our WIT file:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span>  </span><span style="color:#a626a4;">import </span><span>wasi:cli/environment@</span><span style="color:#c18401;">0.2.0</span><span>;
+</span></code></pre>
+<p>Then run <code>golem app build</code> to regenerate the bindings, and import it in the <code>list/src</code> MoonBit package:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>        { </span><span style="color:#50a14f;">&quot;path&quot; </span><span>: </span><span style="color:#50a14f;">&quot;demo/lst/interface/wasi/cli/environment&quot;</span><span>, </span><span style="color:#50a14f;">&quot;alias&quot;</span><span>: </span><span style="color:#50a14f;">&quot;environment&quot; </span><span>}
+</span></code></pre>
+<p>and implement a helper function to get a specific key from the environment variables:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Gets an environment variable using WASI
+</span><span>fn get_env(</span><span style="color:#e45649;">key</span><span> : String) </span><span style="color:#a626a4;">-&gt; </span><span>String? {
+</span><span>  @environment.get_environment()
+</span><span>  .iter()
+</span><span>  .find_first(fn(</span><span style="color:#e45649;">pair</span><span>) {
+</span><span>    </span><span style="color:#e45649;">pair</span><span>.</span><span style="color:#c18401;">0 </span><span style="color:#a626a4;">== </span><span style="color:#e45649;">key
+</span><span>  })
+</span><span>  .map(fn(</span><span style="color:#e45649;">pair</span><span>) {
+</span><span>    </span><span style="color:#e45649;">pair</span><span>.</span><span style="color:#c18401;">1
+</span><span>  })
+</span><span>}
+</span></code></pre>
+<p>We can use this to get the worker's name and the archive component ID:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">let </span><span style="color:#e45649;">archive_component_id </span><span style="color:#a626a4;">= </span><span>get_env(</span><span style="color:#50a14f;">&quot;</span><span>ARCHIVE_COMPONENT_ID</span><span style="color:#50a14f;">&quot;</span><span>).or(</span><span style="color:#50a14f;">&quot;</span><span>unknown</span><span style="color:#50a14f;">&quot;</span><span>);
+</span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#a626a4;">let </span><span style="color:#e45649;">name </span><span style="color:#a626a4;">= </span><span>get_env(</span><span style="color:#50a14f;">&quot;</span><span>GOLEM_WORKER_NAME</span><span style="color:#50a14f;">&quot;</span><span>).or(</span><span style="color:#50a14f;">&quot;</span><span>unknown</span><span style="color:#50a14f;">&quot;</span><span>);
+</span></code></pre>
+<p>When starting the list workers, we have to explicitly specify <code>ARCHIVE_COMPONENT_ID</code>:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem worker start</span><span style="color:#e45649;"> --component</span><span> urn:component:b6420554-62b5-4902-8994-89c692a937f7</span><span style="color:#e45649;"> --worker-name</span><span> list10</span><span style="color:#e45649;"> --env </span><span style="color:#50a14f;">&quot;ARCHIVE_COMPONENT_ID=bde2da89-75a8-4adf-953f-33b360c978d0&quot;
+</span></code></pre>
+<p>With that we can try connecting to the list, adding some items and then calling <code>archive</code> on it, and finally calling <code>get-all</code> on the archive worker - we can see that the remote procedure call works!</p>
+<h3 id="list-and-email">List and email</h3>
+<p>We haven't implemented the third component of the application yet - the one responsible for sending an email after some deadline. Setting up the component and the worker-to-worker communication works exactly the same as it was demonstrated above. The app manifest supports circular dependencies, so we can add say that <code>list</code> depends on <code>email</code> via <code>wasm-rpc</code>, and also <code>email</code> depends on <code>list</code> via <code>wasm-rpc</code>. We need to communicate in both directions.</p>
+<p>We will have to use the WASI <code>monotonic-clock</code> interface's <code>subscribe-instant</code> function to <strong>sleep</strong> until the given deadline.</p>
+<p>Without showing all the details, here is the MoonBit code implementing the single <code>send-email</code> function we defined in the <code>email.wit</code> file:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Structure holding an email sender&#39;s configuration
+</span><span style="color:#a626a4;">pub</span><span>(</span><span style="color:#e45649;">all</span><span>) </span><span style="color:#a626a4;">struct </span><span>Email {
+</span><span>  </span><span style="color:#e45649;">list_worker_urn</span><span> : String
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Run the email sending loop
+</span><span style="color:#a626a4;">pub</span><span> fn run(</span><span style="color:#e45649;">self</span><span> : Email) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#a626a4;">while </span><span style="color:#c18401;">true</span><span> {
+</span><span>    </span><span style="color:#a626a4;">match </span><span style="color:#e45649;">self</span><span>.get_deadline() {
+</span><span>      Some(</span><span style="color:#e45649;">epoch_ms</span><span>) </span><span style="color:#a626a4;">=&gt;</span><span> {
+</span><span>        </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">now </span><span style="color:#a626a4;">= </span><span>@wallClock.now()
+</span><span>        </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">now_ms </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">now</span><span>.seconds </span><span style="color:#a626a4;">* </span><span style="color:#c18401;">1000 </span><span style="color:#a626a4;">+
+</span><span>          (</span><span style="color:#e45649;">now</span><span>.nanoseconds.reinterpret_as_int() </span><span style="color:#a626a4;">/ </span><span style="color:#c18401;">1000000</span><span>).to_uint64()
+</span><span>        </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">duration_ms </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">epoch_ms</span><span>.reinterpret_as_int64() </span><span style="color:#a626a4;">-
+</span><span>          </span><span style="color:#e45649;">now_ms</span><span>.reinterpret_as_int64()
+</span><span>        </span><span style="color:#a626a4;">if </span><span style="color:#e45649;">duration_ms </span><span style="color:#a626a4;">&gt; </span><span style="color:#c18401;">0</span><span> {
+</span><span>          sleep(</span><span style="color:#e45649;">duration_ms</span><span>.reinterpret_as_uint64())
+</span><span>        } </span><span style="color:#a626a4;">else</span><span> {
+</span><span>          send_emails(</span><span style="color:#e45649;">self</span><span>.get_recipients())
+</span><span>        }
+</span><span>        </span><span style="color:#a626a4;">continue
+</span><span>      }
+</span><span>      None </span><span style="color:#a626a4;">=&gt; break
+</span><span>    }
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<p>We use the <code>wall-clock</code> interface again to query the current time and calculate the duration to sleep for based on the deadline got from the corresponding list worker. The <code>get_deadline</code> and <code>get_recipients</code> methods are just using Golem's Worker to Worker communication as shown before:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Get the current deadline from the associated list worker
+</span><span>fn get_deadline(</span><span style="color:#e45649;">self</span><span> : Email) </span><span style="color:#a626a4;">-&gt; </span><span>UInt64? {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">api </span><span style="color:#a626a4;">= </span><span>@stubLst.EmailQuery::email_query({ </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#e45649;">self</span><span>.list_worker_urn })
+</span><span>  </span><span style="color:#e45649;">api</span><span>.blocking_deadline()
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Get the current list of recipients from the associated list worker
+</span><span>fn get_recipients(</span><span style="color:#e45649;">self</span><span> : Email) </span><span style="color:#a626a4;">-&gt; </span><span>Array[String] {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">api </span><span style="color:#a626a4;">= </span><span>@stubLst.EmailQuery::email_query({ </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#e45649;">self</span><span>.list_worker_urn })
+</span><span>  </span><span style="color:#e45649;">api</span><span>.blocking_recipients()
+</span><span>}
+</span></code></pre>
+<p>The two remaining interesting part are sleeping and sending emails.</p>
+<p>We can <strong>sleep</strong> by calling the <code>subscribe-duration</code> function in the WASI <code>monotonic-clock</code> package to get a pollable, and then poll for it. As we only pass a single pollable to the list, it won't return until the deadline we want to wait for expires:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Sleep for the given amount of milliseconds
+</span><span>fn sleep(</span><span style="color:#e45649;">ms</span><span> : UInt64) </span><span style="color:#a626a4;">-&gt; </span><span>Unit {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">ns </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">ms </span><span style="color:#a626a4;">* </span><span style="color:#c18401;">1000000
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">pollable </span><span style="color:#a626a4;">= </span><span>@monotonicClock.subscribe_duration(</span><span style="color:#e45649;">ns</span><span>)
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">= </span><span>@poll.poll([</span><span style="color:#e45649;">pollable</span><span>])
+</span><span>}
+</span></code></pre>
+<p>On the <code>list</code> side, we don't want to block until this email sending loop runs - as it would block our list from receiving new requests. The generated RPC stubs support this, we simply use the non-blocking version on the generated <code>Api</code> type:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span>  </span><span style="color:#a626a4;">if not</span><span>(</span><span style="color:#e45649;">self</span><span>.email_worker_started) {
+</span><span>    </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">email_component_id </span><span style="color:#a626a4;">= </span><span>get_env(</span><span style="color:#50a14f;">&quot;</span><span>EMAIL_COMPONENT_ID</span><span style="color:#50a14f;">&quot;</span><span>).or(</span><span style="color:#50a14f;">&quot;</span><span>unknown</span><span style="color:#50a14f;">&quot;</span><span>);
+</span><span>    </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">name </span><span style="color:#a626a4;">= </span><span>get_env(</span><span style="color:#50a14f;">&quot;</span><span>GOLEM_WORKER_NAME</span><span style="color:#50a14f;">&quot;</span><span>).or(</span><span style="color:#50a14f;">&quot;</span><span>unknown</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">self_component_id </span><span style="color:#a626a4;">= </span><span>get_env(</span><span style="color:#50a14f;">&quot;</span><span>GOLEM_COMPONENT_ID</span><span style="color:#50a14f;">&quot;</span><span>).or(</span><span style="color:#50a14f;">&quot;</span><span>unknown</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">api </span><span style="color:#a626a4;">= </span><span>@stubEmail.Api::api({ </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>urn:worker:\{email_component_id}:\{name}</span><span style="color:#50a14f;">&quot;</span><span>})
+</span><span>    </span><span style="color:#e45649;">api</span><span>.send_email({ </span><span style="color:#e45649;">value</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>urn:worker:\{self_component_id}:\{name}</span><span style="color:#50a14f;">&quot;</span><span>})
+</span><span>    </span><span style="color:#e45649;">self</span><span>.email_worker_started  </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">true</span><span>;
+</span><span>  }
+</span></code></pre>
+<h2 id="sending-emails">Sending emails</h2>
+<p>Sending actual emails is a bit more difficult, as there are no HTTP client libraries in the MoonBit ecosystem at the moment. But Golem implements the WASI HTTP interface, so we can use the already demonstrated techniques to import WASI HTTP through WIT, generate bindings for it, and then use it from MoonBit code to send emails through a third party provider.</p>
+<p>In the example we are going to use <a href="https://sendgrid.com/en-us">Sendgrid</a> as a provider. This means we have to send a HTTP <strong>POST</strong> request to <code>https://api.sendgrid.com/v3/mail/send</code> with a pre-configured authorization header, and a JSON body describing our email sending request.</p>
+<p>First we are going to define a few helper constants and functions to assemble the parts of the requests:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">const </span><span>AUTHORITY : String </span><span style="color:#a626a4;">= </span><span style="color:#50a14f;">&quot;</span><span>api.sendgrid.com</span><span style="color:#50a14f;">&quot;
+</span><span style="color:#a626a4;">const </span><span>PATH : String </span><span style="color:#a626a4;">= </span><span style="color:#50a14f;">&quot;</span><span>/v3/mail/send</span><span style="color:#50a14f;">&quot;
+</span><span>
+</span><span style="color:#a626a4;">type! </span><span>HttpClientError String
+</span></code></pre>
+<p>The payload is a JSON, which can be constructed using MoonBit's built-in JSON literal feature. However in the WASI HTTP interface we have to write it out as a byte array. MoonBit strings are UTF-16 but SendGrid requires the payload to be in UTF-8. Unfortunately there isn't any string encoding library available for MoonBit yet, so we write a simple function that fails if any of the characters is not ASCII:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Converts a string to ASCII byte array if all characters are ASCII characters, otherwise fails
+</span><span>fn string_to_ascii(
+</span><span>  </span><span style="color:#e45649;">what</span><span> : String,
+</span><span>  </span><span style="color:#e45649;">value</span><span> : String
+</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>FixedArray[Byte]!HttpClientError {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">result </span><span style="color:#a626a4;">= </span><span>FixedArray::makei(</span><span style="color:#e45649;">value</span><span>.length(), fn(</span><span style="color:#e45649;">_</span><span>) { </span><span style="color:#e45649;">b</span><span style="color:#50a14f;">&#39; &#39;</span><span> })
+</span><span>  </span><span style="color:#a626a4;">for </span><span style="color:#e45649;">i</span><span>, </span><span style="color:#e45649;">ch </span><span style="color:#a626a4;">in </span><span style="color:#e45649;">value</span><span> {
+</span><span>    </span><span style="color:#a626a4;">if </span><span style="color:#e45649;">ch</span><span>.to_int() </span><span style="color:#a626a4;">&lt; </span><span style="color:#c18401;">256</span><span> {
+</span><span>      </span><span style="color:#e45649;">result</span><span>[</span><span style="color:#e45649;">i</span><span>] </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">ch</span><span>.to_int().to_byte()
+</span><span>    } </span><span style="color:#a626a4;">else</span><span> {
+</span><span>      </span><span style="color:#a626a4;">raise </span><span>HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>The \{what} contains non-ASCII characters</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    }
+</span><span>  }
+</span><span>  </span><span style="color:#e45649;">result
+</span><span>}
+</span></code></pre>
+<p>With this we can construct the payload and we can also read the sendgrid API key from an environment variable:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a0a1a7;">///| Constructs a SendGrid send message payload as an ASCII byte array
+</span><span>fn payload(</span><span style="color:#e45649;">recipients</span><span> : Array[String]) </span><span style="color:#a626a4;">-&gt; </span><span>FixedArray[Byte]!HttpClientError {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">email_addresses </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">recipients
+</span><span>    .iter()
+</span><span>    .map(fn(</span><span style="color:#e45649;">email</span><span>) { { </span><span style="color:#50a14f;">&quot;</span><span>email</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#e45649;">email</span><span>, </span><span style="color:#50a14f;">&quot;</span><span>name</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#e45649;">email</span><span> } })
+</span><span>    .to_array()
+</span><span>    .to_json()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">from</span><span> : Json </span><span style="color:#a626a4;">=</span><span> { </span><span style="color:#50a14f;">&quot;</span><span>email</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>demo@vigoo.dev</span><span style="color:#50a14f;">&quot;</span><span>, </span><span style="color:#50a14f;">&quot;</span><span>name</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>Daniel Vigovszky</span><span style="color:#50a14f;">&quot;</span><span> }
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">json</span><span> : Json </span><span style="color:#a626a4;">=</span><span> {
+</span><span>    </span><span style="color:#50a14f;">&quot;</span><span>personalizations</span><span style="color:#50a14f;">&quot;</span><span>: [{ </span><span style="color:#50a14f;">&quot;</span><span>to</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#e45649;">email_addresses</span><span>, </span><span style="color:#50a14f;">&quot;</span><span>cc</span><span style="color:#50a14f;">&quot;</span><span>: [], </span><span style="color:#50a14f;">&quot;</span><span>bcc</span><span style="color:#50a14f;">&quot;</span><span>: [] }],
+</span><span>    </span><span style="color:#50a14f;">&quot;</span><span>from</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#e45649;">from</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;</span><span>subject</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>Collaborative list editor warning</span><span style="color:#50a14f;">&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;</span><span>content</span><span style="color:#50a14f;">&quot;</span><span>: [
+</span><span>      {
+</span><span>        </span><span style="color:#50a14f;">&quot;</span><span>type</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>text/html</span><span style="color:#50a14f;">&quot;</span><span>,
+</span><span>        </span><span style="color:#50a14f;">&quot;</span><span>value</span><span style="color:#50a14f;">&quot;</span><span>: </span><span style="color:#50a14f;">&quot;</span><span>&lt;p&gt;The list opened for editing has not been changed in the last 12 hours&lt;/p&gt;</span><span style="color:#50a14f;">&quot;</span><span>,
+</span><span>      },
+</span><span>    ],
+</span><span>  }
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">json_str </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">json</span><span>.to_string()
+</span><span>  string_to_ascii!(</span><span style="color:#50a14f;">&quot;</span><span>constructed JSON body</span><span style="color:#50a14f;">&quot;</span><span>, </span><span style="color:#e45649;">json_str</span><span>)
+</span><span>}
+</span><span>
+</span><span style="color:#a0a1a7;">///| Gets the SENDGRID_API_KEY environment variable as an  ASCII byte array
+</span><span>fn authorization_header() </span><span style="color:#a626a4;">-&gt; </span><span>FixedArray[Byte]!HttpClientError {
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">key_str </span><span style="color:#a626a4;">= </span><span>@environment.get_environment()
+</span><span>    .iter()
+</span><span>    .find_first(fn(</span><span style="color:#e45649;">pair</span><span>) { </span><span style="color:#e45649;">pair</span><span>.</span><span style="color:#c18401;">0 </span><span style="color:#a626a4;">== </span><span style="color:#50a14f;">&quot;</span><span>SENDGRID_API_KEY</span><span style="color:#50a14f;">&quot;</span><span> })
+</span><span>    .map(fn(</span><span style="color:#e45649;">pair</span><span>) { </span><span style="color:#e45649;">pair</span><span>.</span><span style="color:#c18401;">1</span><span> })
+</span><span>    .unwrap()
+</span><span>  string_to_ascii!(
+</span><span>    </span><span style="color:#50a14f;">&quot;</span><span>provided authorization header via SENDGRID_API_KEY</span><span style="color:#50a14f;">&quot;</span><span>, </span><span style="color:#e45649;">key_str</span><span>,
+</span><span>  )
+</span><span>}
+</span></code></pre>
+<p>The next step is to create the data structures for sending out the HTTP request. In WASI HTTP, outgoing requests are modeled as WIT <strong>resources</strong>, which means we have to construct them with a constructor and call various methods to set properties of the request. All these methods have a <code>Result</code> result type so our code is going to be quite verbose:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">headers </span><span style="color:#a626a4;">= </span><span>@httpTypes.Fields::fields()
+</span><span>  </span><span style="color:#e45649;">headers
+</span><span>  .append(</span><span style="color:#50a14f;">&quot;</span><span>Authorization</span><span style="color:#50a14f;">&quot;</span><span>, authorization_header!())
+</span><span>  .map_err(fn(</span><span style="color:#e45649;">error</span><span>) {
+</span><span>    HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to set Authorization header: \{error}</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>  })
+</span><span>  .unwrap_or_error!()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">request </span><span style="color:#a626a4;">= </span><span>@httpTypes.OutgoingRequest::outgoing_request(</span><span style="color:#e45649;">headers</span><span>)
+</span><span>  </span><span style="color:#e45649;">request
+</span><span>  .set_authority(Some(AUTHORITY))
+</span><span>  .map_err(fn(</span><span style="color:#e45649;">_</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to set request authority</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>  .unwrap_or_error!()
+</span><span>  </span><span style="color:#e45649;">request
+</span><span>  .set_method(@httpTypes.Method::Post)
+</span><span>  .map_err(fn(</span><span style="color:#e45649;">_</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to set request method</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>  .unwrap_or_error!()
+</span><span>  </span><span style="color:#e45649;">request
+</span><span>  .set_path_with_query(Some(PATH))
+</span><span>  .map_err(fn(</span><span style="color:#e45649;">_</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to set request path</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>  .unwrap_or_error!()
+</span><span>  </span><span style="color:#e45649;">request
+</span><span>  .set_scheme(Some(@httpTypes.Scheme::Https))
+</span><span>  .map_err(fn(</span><span style="color:#e45649;">_</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to set request scheme</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>  .unwrap_or_error!()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">outgoing_body </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">request
+</span><span>    .body()
+</span><span>    .map_err(fn(</span><span style="color:#e45649;">_</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to get the outgoing body</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>    .unwrap_or_error!()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">stream </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">outgoing_body
+</span><span>    .write()
+</span><span>    .map_err(fn(</span><span style="color:#e45649;">_</span><span>) {
+</span><span>      HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to open the outgoing body stream</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    })
+</span><span>    .unwrap_or_error!()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">stream
+</span><span>    .blocking_write_and_flush(payload!(</span><span style="color:#e45649;">recipients</span><span>))
+</span><span>    .map_err(fn(</span><span style="color:#e45649;">error</span><span>) {
+</span><span>      HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to write request body: \{error}</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>    })
+</span><span>    .unwrap_or_error!()
+</span><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">outgoing_body
+</span><span>    .finish(None)
+</span><span>    .map_err(fn(</span><span style="color:#e45649;">_</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to close the outgoing body</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>    .unwrap_or_error!()
+</span></code></pre>
+<p>At this point we have our <code>request</code> variable initialized with everything we need, so we can call the <code>handle</code> function to initiate the HTTP request:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span>  </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">future_incoming_response </span><span style="color:#a626a4;">= </span><span>@outgoingHandler.handle(</span><span style="color:#e45649;">request</span><span>, None)
+</span><span>    .map_err(fn(</span><span style="color:#e45649;">error</span><span>) { HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Failed to send request: \{error}</span><span style="color:#50a14f;">&quot;</span><span>) })
+</span><span>    .unwrap_or_error!()
+</span></code></pre>
+<p>Sending a request is an async operation and what we have a result here is just a handle for a future value we have to await somehow. As we don't want to do anything else in parallel in this example, we just write a loop that awaits for the result and checks for errors:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span>  </span><span style="color:#a626a4;">while </span><span style="color:#c18401;">true</span><span> {
+</span><span>    </span><span style="color:#a626a4;">match </span><span style="color:#e45649;">future_incoming_response</span><span>.get() {
+</span><span>      Some(Ok(Ok(</span><span style="color:#e45649;">response</span><span>))) </span><span style="color:#a626a4;">=&gt;</span><span> {
+</span><span>        </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">status </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">response</span><span>.status()
+</span><span>        </span><span style="color:#a626a4;">if </span><span style="color:#e45649;">status </span><span style="color:#a626a4;">&gt;= </span><span style="color:#c18401;">200 </span><span style="color:#a626a4;">&amp;&amp; </span><span style="color:#e45649;">status </span><span style="color:#a626a4;">&lt; </span><span style="color:#c18401;">300</span><span> {
+</span><span>          </span><span style="color:#a626a4;">break
+</span><span>        } </span><span style="color:#a626a4;">else</span><span> {
+</span><span>          </span><span style="color:#a626a4;">raise </span><span>HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Http request returned with status \{status}</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>        }
+</span><span>      }
+</span><span>      Some(Ok(Err(</span><span style="color:#e45649;">code</span><span>))) </span><span style="color:#a626a4;">=&gt;
+</span><span>        </span><span style="color:#a626a4;">raise </span><span>HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Http request failed with \{code}</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>      Some(Err(</span><span style="color:#e45649;">_</span><span>)) </span><span style="color:#a626a4;">=&gt; raise </span><span>HttpClientError(</span><span style="color:#50a14f;">&quot;</span><span>Http request failed</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>      None </span><span style="color:#a626a4;">=&gt;</span><span> {
+</span><span>        </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">pollable </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">future_incoming_response</span><span>.subscribe()
+</span><span>        </span><span style="color:#a626a4;">let </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">= </span><span>@poll.poll([</span><span style="color:#e45649;">pollable</span><span>])
+</span><span>
+</span><span>      }
+</span><span>    }
+</span><span>  }
+</span></code></pre>
+<p>We are ignoring the response body in this example - but in other applications, <code>response</code> could be used to open an incoming body stream and read chunks from it.</p>
+<p>With this we implemented the simplest possible way to call the SendGrid API for sending an e-mail using WASI HTTP provided by Golem.</p>
+<h2 id="debugging">Debugging</h2>
+<p>When compiled to debug (using <code>golem app build --build-profile debug</code>), Golem shows a nice stack trace when something goes wrong in a MoonBit component. Another useful way to observe a worker is to write a <strong>log</strong> in it, which can be realtime watched (or queried later) using tools like <code>golem worker connect</code> or the Golem Console.</p>
+<p>The best way to write logs from MoonBit is to use the WASI Logging interface. We can import it as usual in our WITs:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">import </span><span>wasi:logging/logging;
+</span></code></pre>
+<p>and then to our MoonBit packages:</p>
+<pre data-lang="json" style="background-color:#fafafa;color:#383a42;" class="language-json "><code class="language-json" data-lang="json"><span>        </span><span style="color:#50a14f;">&quot;demo/archive/interface/wasi/logging/logging&quot;
+</span></code></pre>
+<p>and then write out log messages of various levels from our application logic:</p>
+<pre data-lang="moonbit" style="background-color:#fafafa;color:#383a42;" class="language-moonbit "><code class="language-moonbit" data-lang="moonbit"><span style="color:#a626a4;">let </span><span style="color:#e45649;">recipients </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.get_recipients();
+</span><span>@logging.log(@logging.Level::INFO, </span><span style="color:#50a14f;">&quot;&quot;</span><span>, </span><span style="color:#50a14f;">&quot;</span><span>Sending emails to recipients: \{recipients}</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span style="color:#a626a4;">match </span><span>send_emails?(</span><span style="color:#e45649;">recipients</span><span>) {
+</span><span>  Ok(</span><span style="color:#e45649;">_</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>@logging.log(@logging.Level::INFO, </span><span style="color:#50a14f;">&quot;&quot;</span><span>, </span><span style="color:#50a14f;">&quot;</span><span>Sending emails succeeded</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>  Err(</span><span style="color:#e45649;">error</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>@logging.log(@logging.Level::ERROR, </span><span style="color:#50a14f;">&quot;&quot;</span><span>, </span><span style="color:#50a14f;">&quot;</span><span>Failed to send emails: \{error}</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>}
+</span></code></pre>
+<h2 id="conclusion">Conclusion</h2>
+<p>MoonBit is a nice new language that is quite powerful and expressive, and seems to be a very good fit for developing applications for Golem. The resulting WASM binaries are very small - a few tens of kilobytes for this application (only increased by the generated Rust stubs - but those are going away soon). A few things in the language felt a little bit inconvenient - but maybe it is just a matter of personal taste - mostly the JSON files describing MoonBit packages, the anonymous function syntax and the way the built-in formatter organizes things. I'm sure some of these, especially the tooling, will greatly improve in the future.</p>
+<p>The support for WASM and the Component Model are still in an early stage - but working. It requires many manual steps, but fortunately Golem's app manifest feature can automate most of this for us. Still the generated directory structure of <code>wit-bindgen moonbit</code> felt a little overwhelming first.</p>
+<p>I hope the MoonBit ecosystem will get some useful libraries in the near future, convenient wappers for WASI and WASI HTTP, (and Golem specific ones!), string encoding utilities, etc. As there are not many libraries yet, it is very easy to find something useful to work on.</p>
+<p>I'm looking forward to have official support for MoonBit in Golem, such as templates for the <code>golem new ...</code> command and extensive documentation on our website.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

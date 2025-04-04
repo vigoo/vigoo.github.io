@@ -1,0 +1,159 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>A python&#x2F;thrift profiling story</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;thrift-profiling&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>A python&#x2F;thrift profiling story</h1>
+            
+            <p class="posted-on">Posted on September 15, 2014</p>
+        </header>
+
+        <p>A few weeks ago I met a problem where a script, running once every night sending out some emails did not run correctly because a remote thrift call timed out in it. As I started investigating it, turned out that it's a <em>search</em> call:</p>
+<pre data-lang="python" style="background-color:#fafafa;color:#383a42;" class="language-python "><code class="language-python" data-lang="python"><span>staff_users </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">RemoteUserFactory</span><span>().</span><span style="color:#e45649;">search</span><span>(</span><span style="color:#e45649;">is_staff</span><span style="color:#a626a4;">=</span><span style="color:#c18401;">True</span><span>)
+</span></code></pre>
+<p>The details here are not really important, what this call does is that it asks a service to return a <em>set of users</em>, and the communication is going on <a href="https://thrift.apache.org/">thrift</a>.</p>
+<p>Executing it manually on the server revealed that it should return <em>5649</em> users. Checking out the logs I could see that the call took extremely long time, between 8 to 12 seconds. Even when the cron job was moved from 3:00 AM to a less busy time (several other jobs were executing at the same time), it took more than 6 seconds!</p>
+<p>This was suspicious so I also checked the log of a <em>proxy</em> which runs on the same host as the script itself and provides client side load balancing, circuit breaking, retry logic etc. for thrift connections. This log showed that the service replied in <em>2.5 seconds</em>, but it took almost 4 seconds to get this response from the proxy to the client on localhost! This seemed to be completely unacceptable, and also the 2.5 second response time from the service seemed to be too big (I ran the query on one of the server nodes and it returned the users from the database almost instantly). I also had similar experience (but without measurements) before.</p>
+<p>So I decided to find out what's going on. And I found the process interesting enough to write this post about it :)</p>
+<h2 id="test-environment">Test environment</h2>
+<p>I started by adding a test method to the service's thrift API called <code>test_get_users(count, sleep)</code> which returns <code>count</code> fake users after waiting <code>sleep</code> seconds. Then in the following experiments I called it with <code>(5499, 1)</code>. The 1 second sleep was intended to simulate the network latency and database query; there was no advantage from having it at the end, but as it is visible everywhere in the results, I had to mention.</p>
+<p>For finding out what's going on I used <a href="https://docs.python.org/2/library/profile.html">cProfile</a> with <a href="https://code.google.com/p/jrfonseca/">gprof2dot</a>, calling the remote test method from a django shell, while everything is running on localhost.</p>
+<h3 id="first-measurement">First measurement</h3>
+<p>Without touching anything, returning 5499 dummy users on localhost took <strong>5.272 seconds</strong>!</p>
+<p>The client side of the call looked like this:</p>
+<p><a href="/images/profile1.png" class="zimg"><img width="600" src="/images/profile1.png" alt="profile1"></a></p>
+<p>Here we can see that the call has two major phases:</p>
+<ul>
+<li>The thrift call itself (65%)</li>
+<li>Converting the raw results to model objects with <code>_row_to_model</code> (35%)</li>
+</ul>
+<p>Let's see first the thrift call (the green branch on the picture). Once again it has two, nearly equivalent branches:</p>
+<ul>
+<li><code>send_test_get_users</code> which sends the request and waits for the response. This includes the 1 second sleep as well.</li>
+<li><code>recv_test_get_users</code> processes the response</li>
+</ul>
+<p>What's interesting here is that <code>recv_test_get_users</code> took ~32% of the overall time which is around ~1.6 seconds for simple data deserialization.</p>
+<h3 id="optimizing-thrift-deserialization">Optimizing thrift deserialization</h3>
+<p>I did not want to believe that the python thrift deserialization is that slow, so I did a search and found that the <code>TBinaryProtocol</code> which we are using is really that slow.</p>
+<p>But the thrift library contains a class called <code>TBinaryProtocolAccelerated</code> which is about 10x faster (according to a stackoverflow post).</p>
+<p>First I simply changed the used protocol to this, but nothing happened. Digging deeper I found that this is not a real protocol implementation, but a lower level hack.</p>
+<p>The documentation of the protocol class says:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>  C-Accelerated version of TBinaryProtocol.
+</span><span>
+</span><span>  This class does not override any of TBinaryProtocol&#39;s methods,
+</span><span>  but the generated code recognizes it directly and will call into
+</span><span>  our C module to do the encoding, bypassing this object entirely.
+</span><span>  We inherit from TBinaryProtocol so that the normal TBinaryProtocol
+</span><span>  encoding can happen if the fastbinary module doesn&#39;t work for some
+</span><span>  reason.  (TODO(dreiss): Make this happen sanely in more cases.)
+</span><span>
+</span><span>  In order to take advantage of the C module, just use
+</span><span>  TBinaryProtocolAccelerated instead of TBinaryProtocol.
+</span></code></pre>
+<p>So why didn't it work? The answer is in <a href="https://github.com/apache/thrift/blob/master/lib/py/src/protocol/TBase.py#L52-L58">TBase.py</a>.</p>
+<p>The following conditions have to met in order to use the fast deserializer:</p>
+<ul>
+<li>Protocol must be <code>TBinaryProtocolAccelerated</code> (I changed that)</li>
+<li>Protocol's transport implementation must implement the <code>TTransport.CReadableTransport</code> interface</li>
+<li><code>thrift_spec</code> must be available (this was true in this case)</li>
+<li><code>fastbinary</code> must be available (also true)</li>
+</ul>
+<p>The problem was that we were replacing the <code>TTransport</code> implementation with a custom class called <code>ThriftifyTransport</code> in order to do thrift logging, HMAC authentication, etc.</p>
+<p>Fortunately all the default transport implementations implement the <code>CReadableTransport</code> interface, and one of them, <code>TBufferedTransport</code> can be used to wrap another transport to add buffering around it. That's what I did, and it immediately started using the fast deserialization code.</p>
+<p>The test call now ran in <strong>3.624 seconds</strong>.</p>
+<p>And the new profiling results with this change:</p>
+<p><a href="/images/profile2.png" class="zimg"><img width="600" src="/images/profile2.png" alt="profile2"></a></p>
+<p>The left-hand side of the call graph remained the same, but <code>recv_test_get_users</code> is now only 2.35% of the overall time which is ~0.08 seconds (to be compared with the 1.6 seconds with the original deserializer!)</p>
+<h3 id="optimizing-thrift-serialization">Optimizing thrift serialization</h3>
+<p>The obvious next step was to apply this change on the server side as well, so our service can use the fast binary protocol for serialization too. For this I simply copied the change and remeasured everything.</p>
+<p>The test call now ran in <strong>3.328 seconds</strong>!</p>
+<p>Let's see the call graph of this stage:</p>
+<p><a href="/images/profile3.png" class="zimg"><img width="600" src="/images/profile3.png" alt="profile3"></a></p>
+<h3 id="optimizing-result-processing">Optimizing result processing</h3>
+<p>The client side of the test method was written similar to how the original API method is written:</p>
+<pre data-lang="python" style="background-color:#fafafa;color:#383a42;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">test_get_users_thrift</span><span>(</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">count</span><span>, </span><span style="color:#e45649;">sleep</span><span>):
+</span><span>    rpc </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">ThriftRPC</span><span>(UserDataService, </span><span style="color:#e45649;">self</span><span>.name, </span><span style="color:#e45649;">service_name</span><span style="color:#a626a4;">=</span><span style="color:#e45649;">self</span><span>.service_name, </span><span style="color:#e45649;">client_config</span><span style="color:#a626a4;">=</span><span>client_config)
+</span><span>
+</span><span>    result </span><span style="color:#a626a4;">= </span><span>[]
+</span><span>    </span><span style="color:#a626a4;">for </span><span>row </span><span style="color:#a626a4;">in </span><span>rpc.</span><span style="color:#e45649;">test_get_users</span><span>(count, sleep).</span><span style="color:#e45649;">iteritems</span><span>():
+</span><span>        user </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.</span><span style="color:#e45649;">_row_to_model</span><span>(</span><span style="color:#e45649;">self</span><span>.user_factory, row)
+</span><span>        result.</span><span style="color:#e45649;">append</span><span>(user)
+</span><span>
+</span><span>    </span><span style="color:#a626a4;">return </span><span>result
+</span></code></pre>
+<p>It is clearly visible on the call graph that the 5499 call to <code>_row_to_model</code> takes 53% of the total time, which is ~1.7 seconds. There are two main branches of this call. The left hand side (<code>row_to_model</code>) seemed to be simple data conversion, and its slowest part is date-time deserialization.</p>
+<p>The other branch however looked like a real problem; why should we resolve HMAC host, or parse configuration for each row?</p>
+<p>It turned out to be a bug, <code>_row_to_model</code> created a new <em>model factory</em> in each call, which involves a lot of initialization, config parsing, and similar things.</p>
+<p>So the simple fix was to create a <code>_rows_to_model</code> helper function which does the same for multiple rows with a single factory.</p>
+<p>Running my test code once again showed that the optimization makes sense. Now it ran in <strong>2.448 seconds</strong>, with the following call graph:</p>
+<p><a href="/images/profile4.png" class="zimg"><img width="600" src="/images/profile4.png" alt="profile4"></a></p>
+<h3 id="further-optimizations">Further optimizations</h3>
+<p>I saw two possible ways to further optimize this case:</p>
+<ol>
+<li>
+<p>Lazy conversion of raw thrift data to model data (per field). This would make sense because many times only a few fields (the id for example) are used, but it seemed to be a too complex change</p>
+</li>
+<li>
+<p>Checking the server side as well</p>
+</li>
+</ol>
+<p>To profile the server side and only measure the thrift request processing I had to add profiling code to the django view class in the following way:</p>
+<pre data-lang="python" style="background-color:#fafafa;color:#383a42;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#a626a4;">import </span><span>cProfile
+</span><span>
+</span><span>cProfile.</span><span style="color:#e45649;">runctx</span><span>(</span><span style="color:#50a14f;">&#39;self._call_processor(op_data)&#39;</span><span>, </span><span style="color:#0184bc;">globals</span><span>(), </span><span style="color:#0184bc;">locals</span><span>(), </span><span style="color:#50a14f;">&#39;callstats&#39;</span><span>)
+</span><span style="color:#a0a1a7;"># self._call_processor(op_data)
+</span></code></pre>
+<p>The server-side call took <strong>1.691 seconds</strong> and looked like this:</p>
+<p><a href="/images/profile5.png" class="zimg"><img width="600" src="/images/profile5.png" alt="profile5"></a></p>
+<p>As expected, 60% of this was the 1 second sleep. The rest of the calls are data conversion with no obvious point to improve.</p>
+<h2 id="summary">Summary</h2>
+<p>These optimizations are decreasing the response time significantly, especially for calls returning multiple rows.</p>
+<p>The interesting was that the extremely slow performance was caused by both the slow perfomance of the python thrift serializer and a bug in our code.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>
