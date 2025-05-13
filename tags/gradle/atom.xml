@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - gradle</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/gradle/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2015-12-22T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/gradle/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Gradle-Haskell-plugin with experimental Stack support</title>
+        <published>2015-12-22T00:00:00+00:00</published>
+        <updated>2015-12-22T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/gradle-haskell-plugin-stack/"/>
+        <id>https://blog.vigoo.dev/posts/gradle-haskell-plugin-stack/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/gradle-haskell-plugin-stack/">&lt;p&gt;I&#x27;ve released a &lt;strong&gt;new version (0.4)&lt;&#x2F;strong&gt; of &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin&quot;&gt;gradle-haskell-plugin&lt;&#x2F;a&gt; today, with &lt;strong&gt;experimental stack support&lt;&#x2F;strong&gt;.
+It is not enabled by default, but I used it exclusively for months and it seems to get quite stable. To use it you need &lt;a href=&quot;https:&#x2F;&#x2F;haskellstack.com&quot;&gt;stack&lt;&#x2F;a&gt;,
+have it enabled with &lt;code&gt;-Puse-stack&lt;&#x2F;code&gt; and have to keep some rules in your &lt;code&gt;.cabal&lt;&#x2F;code&gt; file, as explained &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin#explanation-stack-mode&quot;&gt;in the README&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;how-does-it-work&quot;&gt;How does it work?&lt;&#x2F;h2&gt;
+&lt;p&gt;The core idea did not change &lt;a href=&quot;https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;gradle-haskell-plugin&#x2F;&quot;&gt;compared to the original, cabal based solution&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;To support chaining the binary artifacts, I had to add a new option to &lt;em&gt;stack&lt;&#x2F;em&gt; called &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;commercialhaskell&#x2F;stack&#x2F;pull&#x2F;990&quot;&gt;extra package databases&lt;&#x2F;a&gt;. The databases listed in this section are passed &lt;em&gt;after the global&lt;&#x2F;em&gt; but &lt;strong&gt;before&lt;&#x2F;strong&gt; the snapshot and the local databases, which means that the snapshot database cannot be used (the packages in the binary artifacts are not &quot;seeing&quot; them). This sounds bad, but &lt;em&gt;gradle-haskell-plugin&lt;&#x2F;em&gt; does a workaround; it &lt;strong&gt;generates&lt;&#x2F;strong&gt; the &lt;code&gt;stack.yaml&lt;&#x2F;code&gt; automatically, and in a way that:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;it disables snapshots on stack level (uses a resolver like &lt;code&gt;ghc-7.10.2&lt;&#x2F;code&gt;)&lt;&#x2F;li&gt;
+&lt;li&gt;lists all the dependencies explicitly in &lt;code&gt;extra-deps&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;but it still figures out the &lt;em&gt;versions&lt;&#x2F;em&gt; of the dependencies (to be listed in &lt;code&gt;extra-deps&lt;&#x2F;code&gt;) based on a given &lt;em&gt;stackage snapshot&lt;&#x2F;em&gt;!&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With this approach we get the same behavior that was already proven in cabal mode, but with the advantage that the generated &lt;code&gt;stack.yaml&lt;&#x2F;code&gt; completely defines the project for any tool that knows stack. So after gradle extracted the dependencies and generated the &lt;code&gt;stack.yaml&lt;&#x2F;code&gt;, it is no longer needed to succesfully compile&#x2F;run&#x2F;test the project, which means that tools like IDE integration will work much better than with the more hacky cabal mode of the plugin.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Haskell plugin for Gradle</title>
+        <published>2015-04-22T00:00:00+00:00</published>
+        <updated>2015-04-22T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/gradle-haskell-plugin/"/>
+        <id>https://blog.vigoo.dev/posts/gradle-haskell-plugin/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/gradle-haskell-plugin/">&lt;p&gt;My team at &lt;a href=&quot;https:&#x2F;&#x2F;prezi.com&quot;&gt;Prezi&lt;&#x2F;a&gt; uses &lt;strong&gt;Haskell&lt;&#x2F;strong&gt; for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As &lt;a href=&quot;https:&#x2F;&#x2F;gradle.org&#x2F;&quot;&gt;Gradle&lt;&#x2F;a&gt; is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.&lt;&#x2F;p&gt;
+&lt;p&gt;The result is &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin&quot;&gt;Gradle Haskell Plugin&lt;&#x2F;a&gt;, which we were using succesfully in the last 2 months in our daily work, and we have &lt;em&gt;open-sourced&lt;&#x2F;em&gt; recently.&lt;&#x2F;p&gt;
+&lt;p&gt;What makes this solution interesting is that it not just simply wraps &lt;em&gt;cabal&lt;&#x2F;em&gt; within Gradle tasks, but implements a way to define &lt;strong&gt;dependencies&lt;&#x2F;strong&gt; between Haskell projects and to upload the binary Haskell artifacts to a &lt;em&gt;repository&lt;&#x2F;em&gt; such as &lt;a href=&quot;http:&#x2F;&#x2F;www.jfrog.com&#x2F;open-source&#x2F;&quot;&gt;artifactory&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This makes it easy to modularize our projects, publish them, and also works perfectly with &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;pride&quot;&gt;pride&lt;&#x2F;a&gt;, an other &lt;em&gt;open-source&lt;&#x2F;em&gt; Prezi project. This means that we can work on a subset of our Haskell projects while the other dependencies are built on Jenkins, and it also integrates well with our non-Haskell projects.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;how-does-it-work&quot;&gt;How does it work?&lt;&#x2F;h2&gt;
+&lt;p&gt;The main idea is that we let &lt;em&gt;cabal&lt;&#x2F;em&gt; manage the Haskell packages, and handle whole Haskell &lt;em&gt;sandboxes&lt;&#x2F;em&gt; on Gradle level. So if you have a single Haskell project, it will be built using &lt;em&gt;cabal&lt;&#x2F;em&gt; and the result sandbox (the built project together with all the dependent cabal packages which are not installed in the &lt;em&gt;global package database&lt;&#x2F;em&gt;) will be packed&#x2F;published as a Gradle &lt;em&gt;artifact&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This is not very interesting so far, but when you introduce dependencies on Gradle level, the plugin does something which (as far as I know) is not really done by anyone else, which I call &lt;em&gt;sandbox chaining&lt;&#x2F;em&gt;. This basically means that to compile the haskell project, the plugin will pass all the dependent sandboxes&#x27; package database to cabal and GHC, so for the actual sandbox only the packages which are &lt;strong&gt;not&lt;&#x2F;strong&gt; in any of the dependent sandboxes will be installed.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;example&quot;&gt;Example&lt;&#x2F;h2&gt;
+&lt;p&gt;Let&#x27;s see an example scenario with &lt;em&gt;4 gradle-haskell projects&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;prezi&#x2F;gradle-haskell-plugin&#x2F;master&#x2F;doc&#x2F;gradle-haskell-plugin-drawing1.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;600&quot; src=&quot;https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;prezi&#x2F;gradle-haskell-plugin&#x2F;master&#x2F;doc&#x2F;gradle-haskell-plugin-drawing1.png&quot; alt=&quot;gradle-haskell-plugin&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;The project called &lt;em&gt;Haskell project&lt;&#x2F;em&gt; depends on two other projects, which taking into accound the transitive dependencies means it depends on &lt;em&gt;three other haskell projects&lt;&#x2F;em&gt;. Each project has its own haskell source and &lt;em&gt;cabal file&lt;&#x2F;em&gt;. Building this suite consists of the following steps:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;dependency 1&lt;&#x2F;strong&gt; is built using only the &lt;em&gt;global package database&lt;&#x2F;em&gt;, everything &lt;strong&gt;not&lt;&#x2F;strong&gt; in that database, together with the compiled project goes into its &lt;code&gt;build&#x2F;sandbox&lt;&#x2F;code&gt; directory, which is a combination of a &lt;em&gt;GHC package database&lt;&#x2F;em&gt; and the project&#x27;s build output. This is packed as &lt;strong&gt;dependency 1&lt;&#x2F;strong&gt;&#x27;s build artifact.&lt;&#x2F;li&gt;
+&lt;li&gt;For &lt;strong&gt;dependency 2&lt;&#x2F;strong&gt;, Gradle first downloads the build artifact of &lt;em&gt;dependency 1&lt;&#x2F;em&gt; and extracts it to &lt;code&gt;build&#x2F;deps&#x2F;dependency1&lt;&#x2F;code&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;Then it runs &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;exFalso&#x2F;sandfix&quot;&gt;SandFix&lt;&#x2F;a&gt; on it&lt;&#x2F;li&gt;
+&lt;li&gt;And compiles the second project, now passing &lt;strong&gt;both&lt;&#x2F;strong&gt; the &lt;em&gt;global package database&lt;&#x2F;em&gt; and &lt;strong&gt;dependency 1&lt;&#x2F;strong&gt;&#x27;s sandbox to cabal&#x2F;ghc. The result is that only the packages which are &lt;strong&gt;not&lt;&#x2F;strong&gt; in any of these two package databases will be installed in the project&#x27;s own sandbox, which becomes the build artifact of &lt;strong&gt;dependency 2&lt;&#x2F;strong&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;For &lt;strong&gt;dependency 3&lt;&#x2F;strong&gt;, Gradle extracts both the direct dependency and the transitive dependency&#x27;s sandbox, to &lt;code&gt;build&#x2F;deps&#x2F;dependency2&lt;&#x2F;code&gt; and &lt;code&gt;build&#x2F;deps&#x2F;dependency3&lt;&#x2F;code&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;Then it runs &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;exFalso&#x2F;sandfix&quot;&gt;SandFix&lt;&#x2F;a&gt; on both the dependencies&lt;&#x2F;li&gt;
+&lt;li&gt;And finally passes three package databases to cabal&#x2F;ghc to compile the project. Only those cabal dependencies will be installed into this sandbox which are not in global, neither in any of the dependent sandboxes.&lt;&#x2F;li&gt;
+&lt;li&gt;Finally, for &lt;strong&gt;Haskell project&lt;&#x2F;strong&gt; it goes the same way, but here we have three sandboxes, all chained together to make sure only the built sandbox only contains what is not in the dependent sandboxes yet.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;For more information, check out &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin&quot;&gt;the documentation&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - build tools</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/build-tools/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2016-01-21T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/build-tools/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Bari with Visual Studio Code</title>
+        <published>2016-01-21T00:00:00+00:00</published>
+        <updated>2016-01-21T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/bari-vscode/"/>
+        <id>https://blog.vigoo.dev/posts/bari-vscode/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/bari-vscode/">&lt;h2 id=&quot;intro&quot;&gt;Intro&lt;&#x2F;h2&gt;
+&lt;p&gt;A few weeks ago I discovered &lt;a href=&quot;https:&#x2F;&#x2F;code.visualstudio.com&#x2F;&quot;&gt;Visual Studio Code&lt;&#x2F;a&gt; and started using it for some of my work. &lt;em&gt;(Note: I&#x27;m using multiple editors&#x2F;IDEs all the time, based on the task; Emacs, Sublime, Atom, IntelliJ, VS, etc.)&lt;&#x2F;em&gt; So far &lt;em&gt;Code&lt;&#x2F;em&gt; is my favourite among the set of similar editors, such as Atom. I was pleasently surprised how well it works with its integrated &lt;a href=&quot;http:&#x2F;&#x2F;www.omnisharp.net&#x2F;&quot;&gt;OmniSharp&lt;&#x2F;a&gt; plugin on &lt;a href=&quot;http:&#x2F;&#x2F;vigoo.github.io&#x2F;bari&#x2F;&quot;&gt;bari&#x27;s&lt;&#x2F;a&gt; codebase, so I decided to try to write a &lt;em&gt;bari plugin&lt;&#x2F;em&gt; for it.&lt;&#x2F;p&gt;
+&lt;p&gt;Writing an extension for &lt;em&gt;Code&lt;&#x2F;em&gt; was a nice experience. The outcome is the &lt;a href=&quot;https:&#x2F;&#x2F;marketplace.visualstudio.com&#x2F;items&#x2F;vigoo.bari&quot;&gt;bari build management extension&lt;&#x2F;a&gt;, which I&#x27;ll demonstrate in the next section.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;developing-net-applications-with-visual-studio-code-and-bari&quot;&gt;Developing .NET applications with Visual Studio Code and bari&lt;&#x2F;h2&gt;
+&lt;p&gt;As &lt;em&gt;Code&lt;&#x2F;em&gt; is multiplatform, and &lt;em&gt;bari&lt;&#x2F;em&gt; also works with &lt;a href=&quot;http:&#x2F;&#x2F;www.mono-project.com&#x2F;&quot;&gt;Mono&lt;&#x2F;a&gt;, I&#x27;ll demonstrate how you can use these tools to develop a .NET application (actually &lt;em&gt;bari&lt;&#x2F;em&gt; itself) on a Mac. The steps here (except installing Mono) would be the same on Windows or Linux as well.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;installing-the-tools&quot;&gt;Installing the tools&lt;&#x2F;h3&gt;
+&lt;p&gt;First, if you are not on Windows, you&#x27;ll have to install the latest &lt;a href=&quot;http:&#x2F;&#x2F;www.mono-project.com&#x2F;&quot;&gt;Mono&lt;&#x2F;a&gt; framework. On OSX I recommed to use &lt;a href=&quot;http:&#x2F;&#x2F;brew.sh&#x2F;&quot;&gt;&lt;code&gt;brew&lt;&#x2F;code&gt;&lt;&#x2F;a&gt; to do that:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;brew install mono
+&lt;&#x2F;span&gt;&lt;span&gt;mono --version
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then get the latest &lt;a href=&quot;https:&#x2F;&#x2F;code.visualstudio.com&#x2F;&quot;&gt;Visual Studio Code&lt;&#x2F;a&gt; version, either by downloading it from its homepage or with &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;caskroom&#x2F;homebrew-cask&quot;&gt;&lt;code&gt;brew cask&lt;&#x2F;code&gt;&lt;&#x2F;a&gt;:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;brew cask install visual-studio-code
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Get the latest &lt;em&gt;bari&lt;&#x2F;em&gt;. On Windows I recommend downloading and extracting the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari&#x2F;releases&#x2F;latest&quot;&gt;latest official release&lt;&#x2F;a&gt; and adding it to the &lt;code&gt;PATH&lt;&#x2F;code&gt;.
+On OSX, with &lt;code&gt;mono&lt;&#x2F;code&gt; we already have &lt;code&gt;nuget&lt;&#x2F;code&gt;, so let&#x27;s use that:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;cd &#x2F;opt
+&lt;&#x2F;span&gt;&lt;span&gt;nuget install bari-mono
+&lt;&#x2F;span&gt;&lt;span&gt;ln -s bari-mono.1.0.2.2 bari
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and create a script to execute it somewhere in your &lt;code&gt;PATH&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;sh&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-sh &quot;&gt;&lt;code class=&quot;language-sh&quot; data-lang=&quot;sh&quot;&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;#!&#x2F;bin&#x2F;sh
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;mono&lt;&#x2F;span&gt;&lt;span&gt; &#x2F;opt&#x2F;bari&#x2F;tools&#x2F;bari.exe $&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;@
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;That&#x27;s it. Future versions of the &lt;em&gt;bari extension&lt;&#x2F;em&gt; will probably be able to install &lt;em&gt;bari&lt;&#x2F;em&gt; itself.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s start &lt;em&gt;Code&lt;&#x2F;em&gt; now!&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;installing-the-extension&quot;&gt;Installing the extension&lt;&#x2F;h3&gt;
+&lt;p&gt;Open the &lt;em&gt;command palette&lt;&#x2F;em&gt; (F1, or ⇧⌘P) and type &lt;code&gt;ext install bari&lt;&#x2F;code&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode1.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;600&quot; src=&quot;&#x2F;images&#x2F;baricode1.png&quot; alt=&quot;bari-code-1&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;loading-the-project&quot;&gt;Loading the project&lt;&#x2F;h3&gt;
+&lt;p&gt;After that restart the editor. Have your bari-built project available somewhere. As we are going to develop bari itself, let&#x27;s clone its repository:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;git clone https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari.git
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then open the result &lt;code&gt;bari&lt;&#x2F;code&gt; directory with &lt;em&gt;Code&lt;&#x2F;em&gt;. This should look like the following:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode2.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;800&quot; src=&quot;&#x2F;images&#x2F;baricode2.png&quot; alt=&quot;bari-code-2&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;em&gt;bari plugin&lt;&#x2F;em&gt; automatically detected that the opened folder has a &lt;code&gt;suite.yaml&lt;&#x2F;code&gt; in its root, and loaded it. That&#x27;s why we can see the two sections on the statusbar&#x27;s right side: &lt;code&gt;full&lt;&#x2F;code&gt; and &lt;code&gt;debug&lt;&#x2F;code&gt;. The first one is the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari&#x2F;wiki&#x2F;Product&quot;&gt;selected target product&lt;&#x2F;a&gt; and the second one is the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari&#x2F;wiki&#x2F;Goal&quot;&gt;selected goal&lt;&#x2F;a&gt;. All the &lt;em&gt;bari commands&lt;&#x2F;em&gt; provided by the extension will be executed with these settings.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;changing-the-target&quot;&gt;Changing the target&lt;&#x2F;h3&gt;
+&lt;p&gt;To change the active product or goal, you can click on the statusbar or use the &lt;em&gt;command palette&lt;&#x2F;em&gt; (F1, or ⇧⌘P) and choose &lt;code&gt;bari: Change goal&lt;&#x2F;code&gt; or &lt;code&gt;bari: Change target product&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s change the &lt;em&gt;goal&lt;&#x2F;em&gt; to &lt;code&gt;debug-mono&lt;&#x2F;code&gt;, as we are working on a non-Windows environment:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode3.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;800&quot; src=&quot;&#x2F;images&#x2F;baricode3.png&quot; alt=&quot;bari-code-3&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;generating-the-solution&quot;&gt;Generating the solution&lt;&#x2F;h3&gt;
+&lt;p&gt;The next step before starting coding is to actually &lt;strong&gt;generate&lt;&#x2F;strong&gt; the solution and projects files (and fetch the dependencies, etc.) so &lt;em&gt;OmniSharp&lt;&#x2F;em&gt; can load it and provide code completion, analysis, etc. features.&lt;&#x2F;p&gt;
+&lt;p&gt;To do so, just use the &lt;em&gt;command palette&lt;&#x2F;em&gt; and choose &lt;code&gt;bari: Regenerate solution&lt;&#x2F;code&gt;, which &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari&#x2F;wiki&#x2F;VsCommand&quot;&gt;runs the &lt;code&gt;bari vs&lt;&#x2F;code&gt; command&lt;&#x2F;a&gt; with the correct parameters. The command&#x27;s output is displayed in an &lt;em&gt;output panel&lt;&#x2F;em&gt; called &lt;code&gt;bari&lt;&#x2F;code&gt;. This looks like the following:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode4.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;800&quot; src=&quot;&#x2F;images&#x2F;baricode4.png&quot; alt=&quot;bari-code-4&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;There&#x27;s nothing else left than pointing &lt;em&gt;OmniSharp&lt;&#x2F;em&gt; to the generated solution, with the following command:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode5.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;800&quot; src=&quot;&#x2F;images&#x2F;baricode5.png&quot; alt=&quot;bari-code-5&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;It will automatically find the generated &lt;code&gt;.sln&lt;&#x2F;code&gt; file, just select the correct one:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode6.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;800&quot; src=&quot;&#x2F;images&#x2F;baricode6.png&quot; alt=&quot;bari-code-6&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;In a few seconds (and with a few warnings for this project), &lt;em&gt;OmniSharp&lt;&#x2F;em&gt; works. To see what it can do, &lt;a href=&quot;https:&#x2F;&#x2F;code.visualstudio.com&#x2F;Docs&#x2F;languages&#x2F;csharp&quot;&gt;check this page&lt;&#x2F;a&gt;. A simple example is to jump to a given class or interface with ⌘P:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode7.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;600&quot; src=&quot;&#x2F;images&#x2F;baricode7.png&quot; alt=&quot;bari-code-7&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;working-on-the-project&quot;&gt;Working on the project&lt;&#x2F;h3&gt;
+&lt;p&gt;You can work on the project and build it from &lt;em&gt;Code&lt;&#x2F;em&gt; or run its tests using the &lt;code&gt;bari: Build&lt;&#x2F;code&gt; and &lt;code&gt;bari: Test&lt;&#x2F;code&gt; commands. The build output will be shown just like in the &lt;em&gt;solution generation step&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;&#x2F;images&#x2F;baricode8.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;600&quot; src=&quot;&#x2F;images&#x2F;baricode8.png&quot; alt=&quot;bari-code-8&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;Whenever the suite definition itself must be modified, you can jump there with the &lt;code&gt;bari: Open suite.yaml&lt;&#x2F;code&gt; command and then just regenerate the solution as it was shown above.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;implementation&quot;&gt;Implementation&lt;&#x2F;h2&gt;
+&lt;p&gt;The implementation was really straightforward. The source code &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari-code&quot;&gt;can be found here&lt;&#x2F;a&gt;. It&#x27;s basically a &lt;em&gt;JSON&lt;&#x2F;em&gt; defining how the plugin is integrated and some implementation code in &lt;em&gt;TypeScript&lt;&#x2F;em&gt;. It&#x27;s easy to run and debug the plugin from &lt;em&gt;Code&lt;&#x2F;em&gt; itself.&lt;&#x2F;p&gt;
+&lt;p&gt;For example the following section from the extension definition describes what events triggers the extension:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;json&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-json &quot;&gt;&lt;code class=&quot;language-json&quot; data-lang=&quot;json&quot;&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;activationEvents&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: [
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.build&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.test&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.vs&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.openSuiteYaml&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.selfUpdate&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.goal.changeCurrentGoal&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;onCommand:bari.goal.changeCurrentProduct&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;workspaceContains:suite.yaml&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;],
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It&#x27;s either done by invoking one of the defined commands from the &lt;em&gt;command palette&lt;&#x2F;em&gt;, or if the opened workspace contains a &lt;code&gt;suite.yaml&lt;&#x2F;code&gt;. The latter enables the extension to parse the suite definition and initialize the statusbar immediately one the suite has been opened.&lt;&#x2F;p&gt;
+&lt;p&gt;The package definition also specifies the provided configuration values, such as:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;json&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-json &quot;&gt;&lt;code class=&quot;language-json&quot; data-lang=&quot;json&quot;&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;bari.commandLine&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: {
+&lt;&#x2F;span&gt;&lt;span&gt;	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;type&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;string&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;default&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;bari&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;description&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Command line to execute bari&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;},
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;bari.verboseOutput&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: {
+&lt;&#x2F;span&gt;&lt;span&gt;	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;type&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;boolean&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;default&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;false&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;description&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Turns on verbose output for all the executed bari commands&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The implementation itself is really simple, all the user interface elements involved such as the console output window, the command palette, the statusbar panels can be easily managed.&lt;&#x2F;p&gt;
+&lt;p&gt;For example the panel showing &lt;code&gt;bari&lt;&#x2F;code&gt;&#x27;s output is created by the following code snippet:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;javascript&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-javascript &quot;&gt;&lt;code class=&quot;language-javascript&quot; data-lang=&quot;javascript&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;channel &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;vscode&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;window&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;createOutputChannel&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;#39;bari&amp;#39;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;channel&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;show&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Or to display the result of an operation:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;javascript&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-javascript &quot;&gt;&lt;code class=&quot;language-javascript&quot; data-lang=&quot;javascript&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;vscode&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;window&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;showErrorMessage&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;No suite.yaml in the current workspace!&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;or to create the statusbar panel:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;javascript&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-javascript &quot;&gt;&lt;code class=&quot;language-javascript&quot; data-lang=&quot;javascript&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;this&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;goals &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;vscode&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;window&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;createStatusBarItem&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;vscode&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;StatusBarAlignment&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Right&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;this&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;goals&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;command &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;#39;bari.goal.changeCurrentGoal&amp;#39;&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;this&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;goals&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;show&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This API is simple and well documented enough so basic integrations like this can be done in an hour.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Gradle-Haskell-plugin with experimental Stack support</title>
+        <published>2015-12-22T00:00:00+00:00</published>
+        <updated>2015-12-22T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/gradle-haskell-plugin-stack/"/>
+        <id>https://blog.vigoo.dev/posts/gradle-haskell-plugin-stack/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/gradle-haskell-plugin-stack/">&lt;p&gt;I&#x27;ve released a &lt;strong&gt;new version (0.4)&lt;&#x2F;strong&gt; of &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin&quot;&gt;gradle-haskell-plugin&lt;&#x2F;a&gt; today, with &lt;strong&gt;experimental stack support&lt;&#x2F;strong&gt;.
+It is not enabled by default, but I used it exclusively for months and it seems to get quite stable. To use it you need &lt;a href=&quot;https:&#x2F;&#x2F;haskellstack.com&quot;&gt;stack&lt;&#x2F;a&gt;,
+have it enabled with &lt;code&gt;-Puse-stack&lt;&#x2F;code&gt; and have to keep some rules in your &lt;code&gt;.cabal&lt;&#x2F;code&gt; file, as explained &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin#explanation-stack-mode&quot;&gt;in the README&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;how-does-it-work&quot;&gt;How does it work?&lt;&#x2F;h2&gt;
+&lt;p&gt;The core idea did not change &lt;a href=&quot;https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;gradle-haskell-plugin&#x2F;&quot;&gt;compared to the original, cabal based solution&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;To support chaining the binary artifacts, I had to add a new option to &lt;em&gt;stack&lt;&#x2F;em&gt; called &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;commercialhaskell&#x2F;stack&#x2F;pull&#x2F;990&quot;&gt;extra package databases&lt;&#x2F;a&gt;. The databases listed in this section are passed &lt;em&gt;after the global&lt;&#x2F;em&gt; but &lt;strong&gt;before&lt;&#x2F;strong&gt; the snapshot and the local databases, which means that the snapshot database cannot be used (the packages in the binary artifacts are not &quot;seeing&quot; them). This sounds bad, but &lt;em&gt;gradle-haskell-plugin&lt;&#x2F;em&gt; does a workaround; it &lt;strong&gt;generates&lt;&#x2F;strong&gt; the &lt;code&gt;stack.yaml&lt;&#x2F;code&gt; automatically, and in a way that:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;it disables snapshots on stack level (uses a resolver like &lt;code&gt;ghc-7.10.2&lt;&#x2F;code&gt;)&lt;&#x2F;li&gt;
+&lt;li&gt;lists all the dependencies explicitly in &lt;code&gt;extra-deps&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;but it still figures out the &lt;em&gt;versions&lt;&#x2F;em&gt; of the dependencies (to be listed in &lt;code&gt;extra-deps&lt;&#x2F;code&gt;) based on a given &lt;em&gt;stackage snapshot&lt;&#x2F;em&gt;!&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With this approach we get the same behavior that was already proven in cabal mode, but with the advantage that the generated &lt;code&gt;stack.yaml&lt;&#x2F;code&gt; completely defines the project for any tool that knows stack. So after gradle extracted the dependencies and generated the &lt;code&gt;stack.yaml&lt;&#x2F;code&gt;, it is no longer needed to succesfully compile&#x2F;run&#x2F;test the project, which means that tools like IDE integration will work much better than with the more hacky cabal mode of the plugin.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Haskell plugin for Gradle</title>
+        <published>2015-04-22T00:00:00+00:00</published>
+        <updated>2015-04-22T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/gradle-haskell-plugin/"/>
+        <id>https://blog.vigoo.dev/posts/gradle-haskell-plugin/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/gradle-haskell-plugin/">&lt;p&gt;My team at &lt;a href=&quot;https:&#x2F;&#x2F;prezi.com&quot;&gt;Prezi&lt;&#x2F;a&gt; uses &lt;strong&gt;Haskell&lt;&#x2F;strong&gt; for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As &lt;a href=&quot;https:&#x2F;&#x2F;gradle.org&#x2F;&quot;&gt;Gradle&lt;&#x2F;a&gt; is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.&lt;&#x2F;p&gt;
+&lt;p&gt;The result is &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin&quot;&gt;Gradle Haskell Plugin&lt;&#x2F;a&gt;, which we were using succesfully in the last 2 months in our daily work, and we have &lt;em&gt;open-sourced&lt;&#x2F;em&gt; recently.&lt;&#x2F;p&gt;
+&lt;p&gt;What makes this solution interesting is that it not just simply wraps &lt;em&gt;cabal&lt;&#x2F;em&gt; within Gradle tasks, but implements a way to define &lt;strong&gt;dependencies&lt;&#x2F;strong&gt; between Haskell projects and to upload the binary Haskell artifacts to a &lt;em&gt;repository&lt;&#x2F;em&gt; such as &lt;a href=&quot;http:&#x2F;&#x2F;www.jfrog.com&#x2F;open-source&#x2F;&quot;&gt;artifactory&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This makes it easy to modularize our projects, publish them, and also works perfectly with &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;pride&quot;&gt;pride&lt;&#x2F;a&gt;, an other &lt;em&gt;open-source&lt;&#x2F;em&gt; Prezi project. This means that we can work on a subset of our Haskell projects while the other dependencies are built on Jenkins, and it also integrates well with our non-Haskell projects.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;how-does-it-work&quot;&gt;How does it work?&lt;&#x2F;h2&gt;
+&lt;p&gt;The main idea is that we let &lt;em&gt;cabal&lt;&#x2F;em&gt; manage the Haskell packages, and handle whole Haskell &lt;em&gt;sandboxes&lt;&#x2F;em&gt; on Gradle level. So if you have a single Haskell project, it will be built using &lt;em&gt;cabal&lt;&#x2F;em&gt; and the result sandbox (the built project together with all the dependent cabal packages which are not installed in the &lt;em&gt;global package database&lt;&#x2F;em&gt;) will be packed&#x2F;published as a Gradle &lt;em&gt;artifact&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This is not very interesting so far, but when you introduce dependencies on Gradle level, the plugin does something which (as far as I know) is not really done by anyone else, which I call &lt;em&gt;sandbox chaining&lt;&#x2F;em&gt;. This basically means that to compile the haskell project, the plugin will pass all the dependent sandboxes&#x27; package database to cabal and GHC, so for the actual sandbox only the packages which are &lt;strong&gt;not&lt;&#x2F;strong&gt; in any of the dependent sandboxes will be installed.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;example&quot;&gt;Example&lt;&#x2F;h2&gt;
+&lt;p&gt;Let&#x27;s see an example scenario with &lt;em&gt;4 gradle-haskell projects&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;prezi&#x2F;gradle-haskell-plugin&#x2F;master&#x2F;doc&#x2F;gradle-haskell-plugin-drawing1.png&quot; class=&quot;zimg&quot;&gt;&lt;img width=&quot;600&quot; src=&quot;https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;prezi&#x2F;gradle-haskell-plugin&#x2F;master&#x2F;doc&#x2F;gradle-haskell-plugin-drawing1.png&quot; alt=&quot;gradle-haskell-plugin&quot;&gt;&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;The project called &lt;em&gt;Haskell project&lt;&#x2F;em&gt; depends on two other projects, which taking into accound the transitive dependencies means it depends on &lt;em&gt;three other haskell projects&lt;&#x2F;em&gt;. Each project has its own haskell source and &lt;em&gt;cabal file&lt;&#x2F;em&gt;. Building this suite consists of the following steps:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;dependency 1&lt;&#x2F;strong&gt; is built using only the &lt;em&gt;global package database&lt;&#x2F;em&gt;, everything &lt;strong&gt;not&lt;&#x2F;strong&gt; in that database, together with the compiled project goes into its &lt;code&gt;build&#x2F;sandbox&lt;&#x2F;code&gt; directory, which is a combination of a &lt;em&gt;GHC package database&lt;&#x2F;em&gt; and the project&#x27;s build output. This is packed as &lt;strong&gt;dependency 1&lt;&#x2F;strong&gt;&#x27;s build artifact.&lt;&#x2F;li&gt;
+&lt;li&gt;For &lt;strong&gt;dependency 2&lt;&#x2F;strong&gt;, Gradle first downloads the build artifact of &lt;em&gt;dependency 1&lt;&#x2F;em&gt; and extracts it to &lt;code&gt;build&#x2F;deps&#x2F;dependency1&lt;&#x2F;code&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;Then it runs &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;exFalso&#x2F;sandfix&quot;&gt;SandFix&lt;&#x2F;a&gt; on it&lt;&#x2F;li&gt;
+&lt;li&gt;And compiles the second project, now passing &lt;strong&gt;both&lt;&#x2F;strong&gt; the &lt;em&gt;global package database&lt;&#x2F;em&gt; and &lt;strong&gt;dependency 1&lt;&#x2F;strong&gt;&#x27;s sandbox to cabal&#x2F;ghc. The result is that only the packages which are &lt;strong&gt;not&lt;&#x2F;strong&gt; in any of these two package databases will be installed in the project&#x27;s own sandbox, which becomes the build artifact of &lt;strong&gt;dependency 2&lt;&#x2F;strong&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;For &lt;strong&gt;dependency 3&lt;&#x2F;strong&gt;, Gradle extracts both the direct dependency and the transitive dependency&#x27;s sandbox, to &lt;code&gt;build&#x2F;deps&#x2F;dependency2&lt;&#x2F;code&gt; and &lt;code&gt;build&#x2F;deps&#x2F;dependency3&lt;&#x2F;code&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;Then it runs &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;exFalso&#x2F;sandfix&quot;&gt;SandFix&lt;&#x2F;a&gt; on both the dependencies&lt;&#x2F;li&gt;
+&lt;li&gt;And finally passes three package databases to cabal&#x2F;ghc to compile the project. Only those cabal dependencies will be installed into this sandbox which are not in global, neither in any of the dependent sandboxes.&lt;&#x2F;li&gt;
+&lt;li&gt;Finally, for &lt;strong&gt;Haskell project&lt;&#x2F;strong&gt; it goes the same way, but here we have three sandboxes, all chained together to make sure only the built sandbox only contains what is not in the dependent sandboxes yet.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;For more information, check out &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;prezi&#x2F;gradle-haskell-plugin&quot;&gt;the documentation&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>bari 1.0 released</title>
+        <published>2014-12-08T00:00:00+00:00</published>
+        <updated>2014-12-08T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/bari-1-0/"/>
+        <id>https://blog.vigoo.dev/posts/bari-1-0/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/bari-1-0/">&lt;p&gt;I already wrote about &lt;a href=&quot;http:&#x2F;&#x2F;vigoo.github.io&#x2F;bari&quot;&gt;bari&lt;&#x2F;a&gt; in &lt;a href=&quot;https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;introducing-bari&#x2F;&quot;&gt;May&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;As a reminder, &lt;a href=&quot;http:&#x2F;&#x2F;vigoo.github.io&#x2F;bari&quot;&gt;bari&lt;&#x2F;a&gt; is a &lt;em&gt;build management system&lt;&#x2F;em&gt; primarily for .NET, trying to fix Visual Studio&#x27;s bad parts while keeping the good ones.&lt;&#x2F;p&gt;
+&lt;p&gt;After more than two years of development, and being in production at &lt;a href=&quot;http:&#x2F;&#x2F;www.kotem.com&#x2F;&quot;&gt;KOTEM&lt;&#x2F;a&gt; for almost half a year, bari reached a state when it can be considered as a &lt;em&gt;stable&lt;&#x2F;em&gt; and &lt;em&gt;usable&lt;&#x2F;em&gt; first version.&lt;&#x2F;p&gt;
+&lt;p&gt;To indicate this today I released &lt;strong&gt;bari 1.0&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Try it out and feel free to give any kind of feedback or ask any questions!&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;http:&#x2F;&#x2F;vigoo.github.io&#x2F;bari&#x2F;img&#x2F;barilogo-small.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Introducing bari</title>
+        <published>2014-05-16T00:00:00+00:00</published>
+        <updated>2014-05-16T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/introducing-bari/"/>
+        <id>https://blog.vigoo.dev/posts/introducing-bari/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/introducing-bari/">&lt;p&gt;In the past two years I worked on a project called &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari&quot;&gt;bari&lt;&#x2F;a&gt; which now reached an usable state. &lt;strong&gt;bari&lt;&#x2F;strong&gt; is a &lt;em&gt;build management system&lt;&#x2F;em&gt;, trying to fix Visual Studio&#x27;s bad parts while keeping the good ones.&lt;&#x2F;p&gt;
+&lt;p&gt;Basically it tries to make .NET development more convenient, when&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The application may consist of a &lt;em&gt;large number of projects&lt;&#x2F;em&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;There may be several different &lt;em&gt;subsets&lt;&#x2F;em&gt; of these projects defining
+valuable target &lt;em&gt;products&lt;&#x2F;em&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;em&gt;Custom build steps&lt;&#x2F;em&gt; may be required&lt;&#x2F;li&gt;
+&lt;li&gt;It is important to be able to &lt;em&gt;reproduce&lt;&#x2F;em&gt; the build environment as
+easily as possible&lt;&#x2F;li&gt;
+&lt;li&gt;The developers want to use the full power of their &lt;em&gt;IDE&lt;&#x2F;em&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;The main idea is to generate Visual Studio solutions and projects &lt;em&gt;on the fly&lt;&#x2F;em&gt; as needed, from a concise &lt;em&gt;declarative&lt;&#x2F;em&gt;  build description. I tried to optimize this build description for human readability. Let&#x27;s see an example, a short section from &lt;strong&gt;bari&lt;&#x2F;strong&gt;&#x27;s own build definition:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;yaml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-yaml &quot;&gt;&lt;code class=&quot;language-yaml&quot; data-lang=&quot;yaml&quot;&gt;&lt;span&gt;- &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;bari
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;type&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;executable
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;references&lt;&#x2F;span&gt;&lt;span&gt;:
+&lt;&#x2F;span&gt;&lt;span&gt;    - &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;gac:&#x2F;&#x2F;System
+&lt;&#x2F;span&gt;&lt;span&gt;    - &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;nuget:&#x2F;&#x2F;log4net
+&lt;&#x2F;span&gt;&lt;span&gt;    - &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;nuget:&#x2F;&#x2F;Ninject&#x2F;3.0.1.10
+&lt;&#x2F;span&gt;&lt;span&gt;    - &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;nuget:&#x2F;&#x2F;QuickGraph
+&lt;&#x2F;span&gt;&lt;span&gt;    - &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;module:&#x2F;&#x2F;Bari.Core
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;csharp&lt;&#x2F;span&gt;&lt;span&gt;:
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;root-namespace&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;Bari.Console
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.&lt;&#x2F;p&gt;
+&lt;p&gt;To keep build definitions short and readable, &lt;strong&gt;bari&lt;&#x2F;strong&gt; prefers &lt;em&gt;convention&lt;&#x2F;em&gt; over &lt;em&gt;configuration&lt;&#x2F;em&gt;. For example the directory stucture in which the source code lays defines not only the name of the modules to build, but also the way it is built. For example, in a simple &lt;em&gt;hello world&lt;&#x2F;em&gt; example the C# source code would be put in the &lt;code&gt;src&#x2F;TestModule&#x2F;HelloWorld&#x2F;cs&lt;&#x2F;code&gt; directory, and &lt;strong&gt;bari&lt;&#x2F;strong&gt; would build &lt;code&gt;target&#x2F;TestModule&#x2F;HelloWorld.exe&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;strong&gt;bari&lt;&#x2F;strong&gt; unifies the handling of &lt;em&gt;project references&lt;&#x2F;em&gt; in a way that referencing projects within a suite, from the GAC, using &lt;a href=&quot;http:&#x2F;&#x2F;www.nuget.org&quot;&gt;Nuget&lt;&#x2F;a&gt; or from a custom repository works exactly the same. It is also possible to write &lt;em&gt;custom builders&lt;&#x2F;em&gt; in Python.&lt;&#x2F;p&gt;
+&lt;p&gt;For more information check out &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;bari&#x2F;wiki&#x2F;GettingStarted&quot;&gt;the getting started page&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
