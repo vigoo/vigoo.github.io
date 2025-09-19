@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - javafx</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/javafx/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2014-10-22T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/javafx/atom.xml</id>
+    <entry xml:lang="en">
+        <title>ScalaFXML 0.2.2 available</title>
+        <published>2014-10-22T00:00:00+00:00</published>
+        <updated>2014-10-22T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/scalafxml-0-2-2/"/>
+        <id>https://blog.vigoo.dev/posts/scalafxml-0-2-2/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/scalafxml-0-2-2/">&lt;p&gt;I&#x27;ve released a new version of &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&quot;&gt;ScalaFXML&lt;&#x2F;a&gt;, which now supports &lt;em&gt;both&lt;&#x2F;em&gt; &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;scalafx&#x2F;scalafx&quot;&gt;ScalaFX 8&lt;&#x2F;a&gt; with &lt;em&gt;JavaFX 8&lt;&#x2F;em&gt; on Java 8, and &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;scalafx&#x2F;scalafx&quot;&gt;ScalaFX 2.2&lt;&#x2F;a&gt; with &lt;em&gt;JavaFX 2.x&lt;&#x2F;em&gt; on Java 7.&lt;&#x2F;p&gt;
+&lt;p&gt;The two branches are separated by the &lt;code&gt;sfx2&lt;&#x2F;code&gt; and &lt;code&gt;sfx8&lt;&#x2F;code&gt; postfixes, and both are available for &lt;em&gt;Scala&lt;&#x2F;em&gt; &lt;code&gt;2.10.x&lt;&#x2F;code&gt; and &lt;code&gt;2.11.x&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;To use it with &lt;a href=&quot;http:&#x2F;&#x2F;www.scala-sbt.org&#x2F;&quot;&gt;sbt&lt;&#x2F;a&gt; on Java 7:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;addCompilerPlugin(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;org.scalamacros&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;paradise&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;2.0.1&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; cross CrossVersion.full)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;libraryDependencies += &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;org.scalafx&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; %% &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;scalafx&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;2.2.67-R10&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;libraryDependencies += &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;org.scalafx&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; %% &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;scalafxml-core-sfx2&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;0.2.2&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And on Java 8:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;addCompilerPlugin(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;org.scalamacros&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;paradise&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;2.0.1&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; cross CrossVersion.full)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;libraryDependencies += &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;org.scalafx&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; %% &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;scalafx&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;8.0.20-R6&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;libraryDependencies += &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;org.scalafx&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; %% &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;scalafxml-core-sfx8&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt; % &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;0.2.2&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>ScalaFX with FXML</title>
+        <published>2014-01-12T00:00:00+00:00</published>
+        <updated>2014-01-12T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/scalafx-with-fxml/"/>
+        <id>https://blog.vigoo.dev/posts/scalafx-with-fxml/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/scalafx-with-fxml/">&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;code.google.com&#x2F;p&#x2F;scalafx&#x2F;&quot;&gt;ScalaFX&lt;&#x2F;a&gt; is a nice wrapper around JavaFX for Scala, but currently it lacks support for using &lt;a href=&quot;http:&#x2F;&#x2F;docs.oracle.com&#x2F;javafx&#x2F;2&#x2F;api&#x2F;javafx&#x2F;fxml&#x2F;doc-files&#x2F;introduction_to_fxml.html&quot;&gt;FXML&lt;&#x2F;a&gt; instead of Scala code for defining the user interfaces. This can be understood as &lt;em&gt;ScalaFX&lt;&#x2F;em&gt; is in fact a DSL for defining the UI in Scala instead of an XML file. Still I believe that using FXML instead may have its advantages; first of all it has a visual designer (&lt;a href=&quot;http:&#x2F;&#x2F;www.oracle.com&#x2F;technetwork&#x2F;java&#x2F;javafx&#x2F;tools&#x2F;index.html&quot;&gt;JavaFX Scene Builder&lt;&#x2F;a&gt;). For me, designing an UI without immediate visual feedback is hard, and involves a lot of iterations of tweaking the code, running it and checking the results. I also expect that in the future there will be more tools available which work on FXML data.&lt;&#x2F;p&gt;
+&lt;p&gt;It is not impossible to use FXML user interfaces from Scala, but the ScalaFX wrappers does not help and the code for the controller classes is not clean enough. See &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;jpsacha&#x2F;ProScalaFX&#x2F;blob&#x2F;master&#x2F;src&#x2F;proscalafx&#x2F;ch10&#x2F;fxml&#x2F;AdoptionFormController.scala&quot;&gt;the following example&lt;&#x2F;a&gt; to get a feeling how it looks like.&lt;&#x2F;p&gt;
+&lt;p&gt;To make it better I wrote a small library called &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&quot;&gt;ScalaFXML&lt;&#x2F;a&gt;. In this post I&#x27;ll go through a small example to explain how it works.&lt;&#x2F;p&gt;
+&lt;p&gt;The following image shows how our sample application will look like:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;unit-conversion-shot.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;em&gt;From&lt;&#x2F;em&gt; fiels is editable, and the result in the &lt;em&gt;To&lt;&#x2F;em&gt; field is filled as you type using &lt;em&gt;data binding&lt;&#x2F;em&gt;. The &lt;em&gt;Close&lt;&#x2F;em&gt; button&#x27;s only purpose is to demonstrate event handlers.&lt;&#x2F;p&gt;
+&lt;p&gt;The conversion logic itself is implemented by &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&#x2F;blob&#x2F;master&#x2F;demo&#x2F;src&#x2F;main&#x2F;scala&#x2F;scalafxml&#x2F;demo&#x2F;unitconverter&#x2F;UnitConverter.scala&quot;&gt;small classes&lt;&#x2F;a&gt; sharing the same trait:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;trait&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; UnitConverter {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;description&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: String
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: String): String
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;override def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;toString &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; description
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;object&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; MMtoInches &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extends &lt;&#x2F;span&gt;&lt;span&gt;UnitConverter &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;description&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: String &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Millimeters to inches&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: String): String &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{ 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          (input.toDouble &#x2F; 25.4).toString 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;catch &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{ 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;case &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;ex&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: Throwable &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; ex.toString 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;object&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; InchesToMM &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extends &lt;&#x2F;span&gt;&lt;span&gt;UnitConverter &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;description&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: String &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Inches to millimeters&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: String): String &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{ 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          (input.toDouble * 25.4).toString 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;catch &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{ 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;case &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;ex&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: Throwable &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; ex.toString 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;To describe the set of available &lt;em&gt;unit converters&lt;&#x2F;em&gt;, we define one more helper class:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;class&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; UnitConverters&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;converters&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverter&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;available &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;List(converters : &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;_*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now let&#x27;s start with a &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&#x2F;blob&#x2F;master&#x2F;demo&#x2F;src&#x2F;main&#x2F;scala&#x2F;scalafxml&#x2F;demo&#x2F;unitconverter&#x2F;PureScalaFX.scala&quot;&gt;pure ScalaFX solution&lt;&#x2F;a&gt;, where the user interface is defined in Scala. I&#x27;ve implemented the view itself in a class called &lt;code&gt;PureScalaFXView&lt;&#x2F;code&gt;, which gets the set of available &lt;em&gt;unit converters&lt;&#x2F;em&gt; as a dependency through its constructor. This makes the main application object very simple:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;object&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; PureScalaFX &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extends &lt;&#x2F;span&gt;&lt;span&gt;JFXApp &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  stage &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;PureScalaFXView(
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverters(InchesToMM, MMtoInches))
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The &lt;code&gt;PureScalaFXView&lt;&#x2F;code&gt; class consists of two distinct parts. First we define the user interface using the &lt;em&gt;ScalaFX UI DSL&lt;&#x2F;em&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;class&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; PureScalaFXView&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;converters&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverters&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extends &lt;&#x2F;span&gt;&lt;span&gt;JFXApp.PrimaryStage &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; UI Definition
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  title &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Unit conversion&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;types &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ComboBox[UnitConverter]() {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    maxWidth &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= Double&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;.MaxValue
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    margin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Insets(3)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;from &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    margin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Insets(3)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    prefWidth &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;200.0
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    prefWidth &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;200.0
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    margin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Insets(3)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    editable &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;false
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  scene &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Scene {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    content &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      padding &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Insets(5)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Label(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Conversion type:&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;), 0, 0)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Label(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;From:&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;), 0, 1)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Label(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;To:&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;), 0, 2)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(types, 1, 0)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(from, 1, 1)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(to, 1, 2)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      add(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Button(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Close&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;) {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; inline event handler binding
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        onAction &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;e&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: ActionEvent) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Platform.exit()
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      }, 1, 3)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      columnConstraints &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;List(
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ColumnConstraints {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          halignment &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;HPos.LEFT
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          hgrow &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Priority.SOMETIMES
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          margin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Insets(5)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        },
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ColumnConstraints {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          halignment &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;HPos.RIGHT
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          hgrow &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Priority.ALWAYS
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;          margin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Insets(5)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      )
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is not 100% pure UI definition, because it also contains an inline event handler definition for the &lt;em&gt;Close&lt;&#x2F;em&gt; button.&lt;&#x2F;p&gt;
+&lt;p&gt;The next part fills the &lt;em&gt;combo box&lt;&#x2F;em&gt; and defines the data binding. Filling the combo box is a simple procedural loop:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;converter &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;lt;-&lt;&#x2F;span&gt;&lt;span&gt; converters.available) {
+&lt;&#x2F;span&gt;&lt;span&gt;    types += converter
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;  types.getSelectionModel.selectFirst()
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;For the data binding we define a &lt;a href=&quot;http:&#x2F;&#x2F;docs.oracle.com&#x2F;javafx&#x2F;2&#x2F;binding&#x2F;jfxpub-binding.htm&quot;&gt;low level data binding&lt;&#x2F;a&gt; which depends on the combo box&#x27;s selected value and the &lt;em&gt;From&lt;&#x2F;em&gt; field&#x27;s text, and produces the output for the &lt;em&gt;To&lt;&#x2F;em&gt; field:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;  to.text &amp;lt;== &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;StringBinding &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    bind(from.text.delegate, types.getSelectionModel.selectedItemProperty)
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;computeValue&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; types.getSelectionModel.getSelectedItem.run(from.text.value)
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;That&#x27;s all, the application is fully functional. The next thing is to split this class so the UI definition and the UI logic got separated. This &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&#x2F;blob&#x2F;master&#x2F;demo&#x2F;src&#x2F;main&#x2F;scala&#x2F;scalafxml&#x2F;demo&#x2F;unitconverter&#x2F;RefactoredPureScalaFX.scala&quot;&gt;refactored ScalaFX solution&lt;&#x2F;a&gt; is very similar to the previous one, but the initialization of the combo box, the data binding and the event handler are all encapsulated by a new, separate class:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;class&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; RawUnitConverterPresenter&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;                              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;from&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;                              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;to&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;                              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;types&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ComboBox&lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverter&lt;&#x2F;span&gt;&lt;span&gt;],
+&lt;&#x2F;span&gt;&lt;span&gt;                              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;converters&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverters&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Filling the combo box
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;converter &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;lt;-&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; converters.available) {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    types += converter
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  types.getSelectionModel.selectFirst()
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Data binding
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  to.text &amp;lt;== &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;StringBinding {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    bind(from.text.delegate, types.getSelectionModel.selectedItemProperty)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;computeValue&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; types.getSelectionModel.getSelectedItem.run(from.text.value)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Close button event handler
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;onClose&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;event&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: ActionEvent) {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    Platform.exit()
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;What I wanted is to be able to define the controller class exactly like this while building the user interface from FXML. Without &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&quot;&gt;ScalaFXML&lt;&#x2F;a&gt; the controller class have some serious limitations:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;It must implement the &lt;a href=&quot;http:&#x2F;&#x2F;docs.oracle.com&#x2F;javafx&#x2F;2&#x2F;api&#x2F;javafx&#x2F;fxml&#x2F;Initializable.html&quot;&gt;Initializable&lt;&#x2F;a&gt; interface&lt;&#x2F;li&gt;
+&lt;li&gt;It cannot have any constructor arguments&lt;&#x2F;li&gt;
+&lt;li&gt;The user interface objects must be variable fields of the class&lt;&#x2F;li&gt;
+&lt;li&gt;And they have to have the type of the JavaFX controls, so to be able to use the ScalaFX wrappers, they have to be explicitly wrapped in the &lt;code&gt;initialize&lt;&#x2F;code&gt; method.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&quot;&gt;ScalaFXML&lt;&#x2F;a&gt; the process is really simple. First we create the FXML, for example with the &lt;a href=&quot;http:&#x2F;&#x2F;www.oracle.com&#x2F;technetwork&#x2F;java&#x2F;javafx&#x2F;tools&#x2F;index.html&quot;&gt;JavaFX Scene Builder&lt;&#x2F;a&gt;:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;unit-conversion-scenebuilder.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;In the FXML we give the &lt;code&gt;from&lt;&#x2F;code&gt;, &lt;code&gt;to&lt;&#x2F;code&gt;, and &lt;code&gt;types&lt;&#x2F;code&gt; identifiers to our controls using the &lt;code&gt;fx:id&lt;&#x2F;code&gt; attribute, for example:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;xml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-xml &quot;&gt;&lt;code class=&quot;language-xml&quot; data-lang=&quot;xml&quot;&gt;&lt;span&gt;    &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;TextField &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;fx:id&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;from&amp;quot; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;prefWidth&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;200.0&amp;quot; 
+&lt;&#x2F;span&gt;&lt;span&gt;               &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane.columnIndex&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;1&amp;quot; 
+&lt;&#x2F;span&gt;&lt;span&gt;               &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane.margin&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;$x1&amp;quot; 
+&lt;&#x2F;span&gt;&lt;span&gt;               &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane.rowIndex&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;1&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;&#x2F;&amp;gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The event handlers can be specified simply by their name:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;xml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-xml &quot;&gt;&lt;code class=&quot;language-xml&quot; data-lang=&quot;xml&quot;&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Button &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;onAction&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;#onClose&amp;quot; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;text&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Close&amp;quot; 
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;mnemonicParsing&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;false&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane.columnIndex&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;1&amp;quot; 
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane.halignment&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;RIGHT&amp;quot; 
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;GridPane.rowIndex&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;3&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;&#x2F;&amp;gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and the controller class must be referenced on the root node&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;xml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-xml &quot;&gt;&lt;code class=&quot;language-xml&quot; data-lang=&quot;xml&quot;&gt;&lt;span&gt;fx:controller=&amp;quot;scalafxml.demo.unitconverter.UnitConverterPresenter&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The controller class &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&#x2F;blob&#x2F;master&#x2F;demo&#x2F;src&#x2F;main&#x2F;scala&#x2F;scalafxml&#x2F;demo&#x2F;unitconverter&#x2F;ScalaFXML.scala&quot;&gt;can be exactly the same as the &lt;code&gt;RawUnitConverterPresenter&lt;&#x2F;code&gt;&lt;&#x2F;a&gt;, adding an additional &lt;code&gt;@sfxml&lt;&#x2F;code&gt; annotation for it. Everything else is handled by the library, as we will see.&lt;&#x2F;p&gt;
+&lt;p&gt;The application object itself looks like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;object&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; ScalaFXML &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extends &lt;&#x2F;span&gt;&lt;span&gt;JFXApp &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;root &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;FXMLView(getClass.getResource(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;unitconverter.fxml&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;),
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;DependenciesByType(Map(
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;      typeOf[UnitConverters] -&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverters(InchesToMM, MMtoInches))))
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  stage &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;JFXApp.PrimaryStage() {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    title &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Unit conversion&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    scene &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Scene(root)
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;  }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Beside giving the URI for the FXML file we also has to provide the &lt;em&gt;additional dependencies&lt;&#x2F;em&gt; of the controller class. This is an easily extensible part of the library, and it already has support for &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;dickwall&#x2F;subcut&quot;&gt;SubCut&lt;&#x2F;a&gt; and &lt;a href=&quot;https:&#x2F;&#x2F;code.google.com&#x2F;p&#x2F;google-guice&#x2F;&quot;&gt;Guice&lt;&#x2F;a&gt; as well. Here we are using a simple &lt;em&gt;type-&amp;gt;value&lt;&#x2F;em&gt; mapping instead.&lt;&#x2F;p&gt;
+&lt;p&gt;How does this work? What happens behind the scenes?&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;@sfxml&lt;&#x2F;code&gt; is a &lt;a href=&quot;http:&#x2F;&#x2F;docs.scala-lang.org&#x2F;overviews&#x2F;macros&#x2F;annotations.html&quot;&gt;macro annotation&lt;&#x2F;a&gt;. In &lt;em&gt;compile-time&lt;&#x2F;em&gt;, the class definition itself is transformed by the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;vigoo&#x2F;scalafxml&#x2F;blob&#x2F;master&#x2F;core-macros&#x2F;src&#x2F;main&#x2F;scala&#x2F;scalafxml&#x2F;core&#x2F;macros&#x2F;sfxmlMacro.scala&quot;&gt;&lt;code&gt;sfxmlMacro.impl&lt;&#x2F;code&gt; function&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;The transformation&#x27;s result is a class definition with the source class&#x27; name, but with a completely different content. The original class is added as an inner class, always called &lt;code&gt;Controller&lt;&#x2F;code&gt;. In our example, the generated class definition would look like something similar:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;class&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; UnitConverterPresenter&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependencyResolver&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ControllerDependencyResolver&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extends &lt;&#x2F;span&gt;&lt;span&gt;javafx.fxml.Initializable 
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;with &lt;&#x2F;span&gt;&lt;span&gt;FxmlProxyGenerator.ProxyDependencyInjection &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;class&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; Controller(
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;from&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: TextField,
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;to&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: TextField,
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;types&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: ComboBox[UnitConverter],
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private val &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;converters&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: UnitConverters) {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; …
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    }
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;: Controller &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;null
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; …
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;}   
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The class have four distinct parts:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;Getting the additional dependencies from the &lt;em&gt;dependency resolver&lt;&#x2F;em&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;Variable fields for binding the JavaFX controls defined in the FXML&lt;&#x2F;li&gt;
+&lt;li&gt;Event handler methods&lt;&#x2F;li&gt;
+&lt;li&gt;The &lt;code&gt;initializable&lt;&#x2F;code&gt; method&#x27;s implementation&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;The first one is simple - for each constructor argument of the controller class which is &lt;em&gt;not&lt;&#x2F;em&gt; a ScalaFX control, we query the &lt;em&gt;dependency resolver&lt;&#x2F;em&gt; to get a value for it. These are performed when the outer, generated class is instantiated and stored through the &lt;code&gt;ProxyDependencyInjection&lt;&#x2F;code&gt; trait.&lt;&#x2F;p&gt;
+&lt;p&gt;The variable fields are simple fields for all the ScalaFX constructor arguments of the controller class, but converted to their JavaFX counterpart. For example the generated field for the controller&#x27;s &lt;code&gt;from&lt;&#x2F;code&gt; argument will look like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;@javafx.fxml.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;FXML
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;private var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;from&lt;&#x2F;span&gt;&lt;span&gt;: javafx.scene.control.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;null
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The &lt;em&gt;event handler&lt;&#x2F;em&gt;&#x27;s are proxies for all the public methods of the controller, but the ScalaFX event argument types are replaced with JavaFX event argument types and they are wrapped automatically when forwarding the call to the real implementation. For the &lt;code&gt;onClose&lt;&#x2F;code&gt; event handler it would look like the following:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;@javafx.fxml.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;FXML &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;onClose&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;e&lt;&#x2F;span&gt;&lt;span&gt;: javafx.event.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ActionEvent&lt;&#x2F;span&gt;&lt;span&gt;) {
+&lt;&#x2F;span&gt;&lt;span&gt;    impl.onClose(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span&gt;scalafx.event.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ActionEvent&lt;&#x2F;span&gt;&lt;span&gt;(e))
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;When JavaFX calls the generated controller&#x27;s &lt;code&gt;initialize&lt;&#x2F;code&gt; method, the control fields are already set up, and the additional dependencies were already gathered from the dependency resolver so we have all the values required to instantiate the real controller class. For ScalaFX arguments we wrap the JavaFX controls, for the additional dependencies we use the &lt;code&gt;ProxyDependencyInjection&lt;&#x2F;code&gt; trait&#x27;s &lt;code&gt;getDependency&lt;&#x2F;code&gt; method:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;initialize&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;url&lt;&#x2F;span&gt;&lt;span&gt;: java.net.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;URL&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;rb&lt;&#x2F;span&gt;&lt;span&gt;: java.util.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ResourceBundle&lt;&#x2F;span&gt;&lt;span&gt;) {
+&lt;&#x2F;span&gt;&lt;span&gt;    impl &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= new &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Controller&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span&gt;scalafx.scene.control.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField&lt;&#x2F;span&gt;&lt;span&gt;(from),
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span&gt;scalafx.scene.control.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;TextField&lt;&#x2F;span&gt;&lt;span&gt;(to),        
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span&gt;scalafx.scene.control.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ComboBox&lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverter&lt;&#x2F;span&gt;&lt;span&gt;](types),
+&lt;&#x2F;span&gt;&lt;span&gt;        getDependencies[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UnitConverters&lt;&#x2F;span&gt;&lt;span&gt;](&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;converters&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;))
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;That&#x27;s all. The final interesting bit is the &lt;code&gt;FXMLView&lt;&#x2F;code&gt; object, which overrides JavaFX&#x27;s default controller factory. This is only necessary to be able to pass the given &lt;code&gt;ControllerDependencyResolver&lt;&#x2F;code&gt; to the generated controller&#x27;s constructor:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;scala&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-scala &quot;&gt;&lt;code class=&quot;language-scala&quot; data-lang=&quot;scala&quot;&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;apply&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;fxml&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;URL&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependencies&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;ControllerDependencyResolver&lt;&#x2F;span&gt;&lt;span&gt;): jfxs.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Parent &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;    jfxf.FXMLLoader.load(
+&lt;&#x2F;span&gt;&lt;span&gt;      fxml, 
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;null&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span&gt;jfxf.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;JavaFXBuilderFactory&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;new &lt;&#x2F;span&gt;&lt;span&gt;jfxu.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Callback&lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Class&lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;_&lt;&#x2F;span&gt;&lt;span&gt;], &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Object&lt;&#x2F;span&gt;&lt;span&gt;] {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;override def &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;cls&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Class&lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;_&lt;&#x2F;span&gt;&lt;span&gt;]): &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;Object &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= 
+&lt;&#x2F;span&gt;&lt;span&gt;            FxmlProxyGenerator(cls, dependencies)
+&lt;&#x2F;span&gt;&lt;span&gt;      })
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;&lt;code&gt;FxmlProxyGenerator&lt;&#x2F;code&gt; uses reflection to create a new instance of the generated controller, and pass the dependency resolver as its only constructor argument.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

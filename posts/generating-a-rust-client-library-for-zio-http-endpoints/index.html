@@ -1,0 +1,555 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Generating a Rust client library for ZIO Http endpoints</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;generating-a-rust-client-library-for-zio-http-endpoints&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Generating a Rust client library for ZIO Http endpoints</h1>
+            
+            <p class="posted-on">Posted on September 07, 2023</p>
+        </header>
+
+        <p>We at <a href="https://golem.cloud">Golem Cloud</a> built our first developer preview on top of the ZIO ecosystem, including <a href="https://github.io/zio/zio-http">ZIO Http</a> for defining and implementing our server's REST API. By using <strong>ZIO Http</strong> we immediately had the ability to call our endpoints using endpoint <strong>client</strong>s, which allowed us to develop the first version of Golem's <strong>CLI tool</strong> very rapidly.</p>
+<p>Although very convenient for development, <em>using</em> a CLI tool built with Scala for the JVM is not a pleasant experience for the users due to the slow startup time. One possible solution is to compile to native using <a href="https://www.graalvm.org/22.0/reference-manual/native-image/">GraalVM Native Image</a> but it is very hard to set up and even when it works, it is extremely fragile - further changes to the code or updated dependencies can break it causing unexpected extra maintenance cost. After some initial experiments we dropped this idea - and instead chose to reimplement the CLI using <strong>Rust</strong> - a language being a much better fit for command line tools, and also already an important technology in our Golem stack.</p>
+<h2 id="zio-http">ZIO Http</h2>
+<p>If we rewrite <code>golem-cli</code> to Rust, we lose the convenience of using  <strong>endpoint definitions</strong> (written in Scala with ZIO Http, the ones we have for implementing the server) for calling our API, and we would also lose all the <strong>types</strong> used in these APIs as they are all defined as Scala case classes and enums. Just to have more context, let's take a look at one of the endpoints!</p>
+<p>A ZIO Http <strong>endpoint</strong> is just a definition of a single endpoint of a HTTP API, describing the routing as well the inputs and outputs of it:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">getWorkerMetadata </span><span style="color:#a626a4;">=
+</span><span>    Endpoint(GET / </span><span style="color:#50a14f;">&quot;v1&quot;</span><span> / </span><span style="color:#50a14f;">&quot;templates&quot;</span><span> / rawTemplateId / </span><span style="color:#50a14f;">&quot;workers&quot;</span><span> / workerName)
+</span><span>      .header(Auth.tokenSecret)
+</span><span>      .outErrorCodec(errorCodec)
+</span><span>      .out[</span><span style="color:#c18401;">WorkerMetadata</span><span>] ?? Doc.p(</span><span style="color:#50a14f;">&quot;Get the current worker status and metadata&quot;</span><span>)
+</span></code></pre>
+<p>Let's see what we have here:</p>
+<ul>
+<li>the endpoint is reached by sending a <strong>GET</strong> request</li>
+<li>the request <strong>path</strong> consists of some static segments as well as the <em>template id</em> and the <em>worker name</em></li>
+<li>it also requires an <strong>authorization header</strong></li>
+<li>we define the kind of errors it can return</li>
+<li>and finally it defines that the response's <strong>body</strong> will contain a JSON representation (default in ZIO Http) of a type called <code>WorkerMetadata</code></li>
+</ul>
+<p>What are <code>rawTemplateId</code> and <code>workerName</code>? These are so called <strong>path codecs</strong>, defined in a common place so they can be reused in multiple endpoints. They allow us to have dynamic parts of the request path mapped to specific types - so when we implement the endpoint (or call it in a client) we don't have to pass strings and we can directly work with the business domain types, in this case <code>RawTemplateId</code> and <code>WorkerName</code>.</p>
+<p>The simplest way to define path codecs is to <strong>transform</strong> an existing one:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">workerName</span><span>: </span><span style="color:#c18401;">PathCodec</span><span>[</span><span style="color:#c18401;">WorkerName</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  string(</span><span style="color:#50a14f;">&quot;worker-name&quot;</span><span>).transformOrFailLeft(WorkerName.make(</span><span style="color:#e45649;">_</span><span>).toErrorEither, </span><span style="color:#e45649;">_</span><span>.value)
+</span></code></pre>
+<p>Here the <code>make</code> function is a <strong>ZIO Prelude</strong> <a href="https://zio.github.io/zio-prelude/docs/functionaldatatypes/validation"><code>Validation</code></a> which we have to convert to an <code>Either</code> for the transform function. Validations can contain more than one failures, as opposed to <code>Either</code>s, which allows us to compose them in a way that we can keep multiple errors instead of immediately returning with the first failure.</p>
+<p>The <code>tokenSecret</code> is similar, but it is a <code>HeaderCodec</code> describing what type of header it is and how the value of the given header should be mapped to a specific type (a token, in this case).</p>
+<p>What is <code>WorkerMetadata</code> and how does ZIO Http know how to produce a JSON from it?</p>
+<p>It's just a simple <em>case class</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> WorkerMetadata</span><span>(
+</span><span>  </span><span style="color:#e45649;">workerId</span><span>: </span><span style="color:#c18401;">ComponentInstanceId</span><span>,
+</span><span>  </span><span style="color:#e45649;">accountId</span><span>: </span><span style="color:#c18401;">AccountId</span><span>,
+</span><span>  </span><span style="color:#e45649;">args</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">String</span><span>],
+</span><span>  </span><span style="color:#e45649;">env</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">String</span><span>],
+</span><span>  </span><span style="color:#e45649;">status</span><span>: </span><span style="color:#c18401;">InstanceStatus</span><span>,
+</span><span>  </span><span style="color:#e45649;">templateVersion</span><span>: </span><span style="color:#a626a4;">Int</span><span>,
+</span><span>  </span><span style="color:#e45649;">retryCount</span><span>: </span><span style="color:#a626a4;">Int
+</span><span>)
+</span></code></pre>
+<p>But with an implicit <strong>derived</strong> <strong>ZIO Schema</strong>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">object</span><span style="color:#c18401;"> WorkerMetadata {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">schema</span><span style="color:#c18401;">: Schema[WorkerMetadata] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DeriveSchema.gen[WorkerMetadata]
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>We will talk more about ZIO Schema below - for now all we need to know is it describes the structure of Scala types, and this information can be used to serialize data into various formats, including JSON.</p>
+<p>Once we have our endpoints defined like this, we can do several things with them - they are just data describing what an endpoint looks like!</p>
+<h3 id="implementing-an-endpoint">Implementing an endpoint</h3>
+<p>When developing a <em>server</em>, the most important thing to do with an endpoint is to <strong>implement</strong> it. Implementing an endpoint looks like the following:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">getWorkerMetadataImpl </span><span style="color:#a626a4;">=
+</span><span>    getWorkerMetadata.implement {
+</span><span>      Handler.fromFunctionZIO { (</span><span style="color:#e45649;">rawTemplateId</span><span>, </span><span style="color:#e45649;">workerName</span><span>, </span><span style="color:#e45649;">authTokenId</span><span>) </span><span style="color:#a626a4;">=&gt;
+</span><span>        </span><span style="color:#a0a1a7;">// ... ZIO program returning a WorkerMetadata
+</span><span>      }
+</span><span>    }
+</span></code></pre>
+<p>The <em>type</em> of <code>getWorkerMetadataImpl</code> is <code>Route</code> - it is no longer just a description of what an endpoint looks like, it defines a specific HTTP route and its associated <em>request handler</em>, implemented by a ZIO effect (remember that ZIO effects are also values - we <em>describe</em> what we need to do when a request comes in, but executing it will be the responsibility of the server implementation).</p>
+<p>The nice thing about ZIO Http endpoints is that they are completely type safe. I've hidden the type signature in the previous code snippets but actually <code>getWorkerMetadata</code> has the type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>Endpoint[
+</span><span>    (</span><span style="color:#c18401;">RawTemplateId</span><span>, </span><span style="color:#c18401;">WorkerName</span><span>),
+</span><span>    (</span><span style="color:#c18401;">RawTemplateId</span><span>, </span><span style="color:#c18401;">WorkerName</span><span>, </span><span style="color:#c18401;">TokenSecret</span><span>),
+</span><span>    </span><span style="color:#c18401;">WorkerEndpointError</span><span>,
+</span><span>    </span><span style="color:#c18401;">WorkerMetadata</span><span>,
+</span><span>    </span><span style="color:#c18401;">None
+</span><span>]
+</span></code></pre>
+<p>Here the <em>second</em> type parameter defines the <strong>input</strong> of the request handler and the <em>forth</em> type parameter defines the <strong>output</strong> the server constructs the response from.</p>
+<p>With these types, we really just have to implement a (ZIO) function from the input to the output:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>(</span><span style="color:#e45649;">RawTemplateId</span><span>, </span><span style="color:#e45649;">WorkerName</span><span>, </span><span style="color:#e45649;">TokenSecret</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>ZIO[</span><span style="color:#a626a4;">Any</span><span>, </span><span style="color:#c18401;">WorkerEndpointError</span><span>, </span><span style="color:#c18401;">WorkerMetadata</span><span>]
+</span></code></pre>
+<p>and this is exactly what we pass to <code>Handler.fromFunctionZIO</code> in the above example.</p>
+<h3 id="calling-an-endpoint">Calling an endpoint</h3>
+<p>The same endpoint values can also be used to make requests to our API from clients such as <code>golem-cli</code>. Taking advantage of the same type safe representation we can just call <code>apply</code> on the endpoint definition passing its input as a parameter to get an <strong>invocation</strong>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">invocation </span><span style="color:#a626a4;">=</span><span> getInstanceMetadata(rawTemplateId, workerName, token)
+</span></code></pre>
+<p>this invocation can be <strong>executed</strong> to perform the actual request using an <code>EndpointExecutor</code> which can be easily constructed from a ZIO Http <code>Client</code> and some other parameters like the URL of the remote server:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>executor(invocation).flatMap { </span><span style="color:#e45649;">workerMetadata </span><span style="color:#a626a4;">=&gt; 
+</span><span>  </span><span style="color:#a0a1a7;">// ...
+</span><span>}
+</span></code></pre>
+<h2 id="the-task">The task</h2>
+<p>So can we do anything to keep this convenient way of calling our endpoints when migrating the CLI to Rust? At the time of writing we already had more than 60 endpoints, with many complex types used in them - defining them by hand in Rust, and keeping the Scala and Rust code in sync sounds like a nightmare.</p>
+<p>The ideal case would be to have something like this in Rust:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#e45649;">async_trait</span><span>]
+</span><span style="color:#a626a4;">pub trait </span><span>Worker {
+</span><span>  </span><span style="color:#a0a1a7;">// ...
+</span><span>  async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">get_worker_metadata</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">template_id</span><span>: </span><span style="color:#a626a4;">&amp;</span><span>TemplateId, </span><span style="color:#e45649;">worker_name</span><span>: </span><span style="color:#a626a4;">&amp;</span><span>WorkerName, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;</span><span>Token) -&gt; Result&lt;WorkerMetadata, WorkerError&gt;;
+</span><span>}
+</span></code></pre>
+<p>with an implementation that just requires the same amount of configuration as the Scala endpoint executor (server URL, etc), and all the referenced types like <code>WorkerMetadata</code> would be an exact clone of the Scala types just in Rust.</p>
+<p>Fortunately we can have (almost) this by taking advantage of the declarative nature of ZIO Http and ZIO Schema!</p>
+<p>In the rest of this post we will see how we can <strong>generate Rust code</strong> using a combination of ZIO libraries to automatically have all our type definitions and client implementation ready to use from the Rust version of <code>golem-cli</code>.</p>
+<h2 id="the-building-blocks">The building blocks</h2>
+<p>We want to generate from an arbitrary set of ZIO Http <code>Endpoint</code> definitions a <strong>Rust crate</strong> ready to be compiled, published and used. We will take advantage of the following libraries:</p>
+<ul>
+<li><a href="https://zio.dev/zio-http/">ZIO Http</a> as the source of <strong>endpoint</strong> definitions</li>
+<li><a href="https://zio.dev/zio-schema/">ZIO Schema</a> for observing the <strong>type</strong> definitions</li>
+<li><a href="https://zio.dev/zio-parser/">ZIO Parser</a> because it has a composable <strong>printer</strong> concept</li>
+<li><a href="https://zio.dev/zio-nio/">ZIO NIO</a> for working with the <strong>filesystem</strong></li>
+<li><a href="https://zio.dev/zio-prelude/">ZIO Prelude</a> for implementing the stateful endpoint/type discovery in a purely functional way</li>
+</ul>
+<h2 id="generating-rust-code">Generating Rust code</h2>
+<p>Let's start with the actual source code generation. This is something that can be done in many different ways - one extreme could be to just concatenate strings (or use a <code>StringBuilder</code>) while the other is to build a full real Rust <em>AST</em> and pretty print that. I had a <a href="https://blog.vigoo.dev/posts/funscala2021-talk/">talk on Function Scala 2021 about the topic</a>.</p>
+<p>For this task I chose a technique which is somewhere in the middle and provides some extent of composability while also allowing use to do just the amount of abstraction we want to. The idea is that we define a <em>Rust code generator model</em> which does not have to strictly follow the actual generated language's concepts, and then define a pretty printer for this model. This way we only have to model the subset of the language we need for the code generator, and we can keep simplifications or even complete string fragments in it if that makes our life easier.</p>
+<p>Let's see how this works with some examples!</p>
+<p>We will have to generate <em>type definitions</em> so we can define a Scala <em>enum</em> describing what kind of type definitions we want to generate:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>enum RustDef:
+</span><span>  </span><span style="color:#a626a4;">case </span><span>TypeAlias(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">typ</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">derives</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustType</span><span>])
+</span><span>  </span><span style="color:#a626a4;">case </span><span>Newtype(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">typ</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">derives</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustType</span><span>])
+</span><span>  </span><span style="color:#a626a4;">case </span><span>Struct(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">fields</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>.</span><span style="color:#c18401;">Field</span><span>], </span><span style="color:#e45649;">derives</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustType</span><span>], </span><span style="color:#e45649;">isPublic</span><span>: </span><span style="color:#a626a4;">Boolean</span><span>)
+</span><span>  </span><span style="color:#a626a4;">case </span><span>Enum(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">cases</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>], </span><span style="color:#e45649;">derives</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustType</span><span>])
+</span><span>  </span><span style="color:#a626a4;">case </span><span>Impl(</span><span style="color:#e45649;">tpe</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">functions</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>])
+</span><span>  </span><span style="color:#a626a4;">case </span><span>ImplTrait(</span><span style="color:#e45649;">implemented</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">forType</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">functions</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>])
+</span><span>  </span><span style="color:#a626a4;">case </span><span>Function(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">parameters</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>.</span><span style="color:#c18401;">Parameter</span><span>], </span><span style="color:#e45649;">returnType</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">body</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">isPublic</span><span>: </span><span style="color:#a626a4;">Boolean</span><span>)
+</span></code></pre>
+<p>We can make this as convenient to use as we want, for example adding constructors like:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">struct</span><span>(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">fields</span><span>: </span><span style="color:#c18401;">Field</span><span style="color:#a626a4;">*</span><span>): </span><span style="color:#c18401;">RustDef
+</span></code></pre>
+<p>The <code>Name</code> is an opaque string type with extension methods to convert between various cases like pascal case, snake case, etc. <code>RustType</code> is a similar <em>enum</em> to <code>RustDef</code>, containing all the different type descriptions we will have to use. But it is definitely not how a proper Rust parser would define what a type is - for example we can have a <code>RustType.Option</code> as a shortcut for wrapping a Rust type in Rust's own option type, just because it makes our code generator simpler to write.</p>
+<p>So once we have this model (which in practice evolves together with the code generator, usually starting with a few simple case classes) we can use <strong>ZIO Parser</strong>'s printer feature to define composable elements constructing Rust source code.</p>
+<p>We start by defining a module and a type alias for our printer:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Rust</span><span>:
+</span><span>  </span><span style="color:#a626a4;">type </span><span>Rust[</span><span style="color:#a626a4;">-</span><span style="color:#c18401;">A</span><span>] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">Printer</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#a626a4;">Char</span><span>, </span><span style="color:#c18401;">A</span><span>]
+</span></code></pre>
+<p>and then just define building blocks - what these building blocks are depends completely on us, and the only thing it affects is how well you can compose them. Having very small building blocks may reduce the readability of the code generator, but using too large chunks reduces their composability and makes it harder to change or refactor.</p>
+<p>We can define some short aliases for often used characters or string fragments:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">gt</span><span>: </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#a626a4;">Any</span><span>] </span><span style="color:#a626a4;">= </span><span>Printer.print(</span><span style="color:#c18401;">&#39;&gt;&#39;</span><span>)
+</span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">lt</span><span>: </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#a626a4;">Any</span><span>] </span><span style="color:#a626a4;">= </span><span>Printer.print(</span><span style="color:#c18401;">&#39;&lt;&#39;</span><span>)
+</span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">bracketed</span><span>[</span><span style="color:#c18401;">A</span><span>](</span><span style="color:#e45649;">inner</span><span>: </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#c18401;">A</span><span>]): </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#c18401;">A</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  lt ~ inner ~ gt
+</span></code></pre>
+<p>and we have to define <code>Rust</code> printers for each of our model types. For example for the <code>RustType</code> enum it could be something like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">typename</span><span>: </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#c18401;">RustType</span><span>] </span><span style="color:#a626a4;">= </span><span>Printer.byValue:
+</span><span>  </span><span style="color:#a626a4;">case </span><span>RustType.Primitive(</span><span style="color:#e45649;">name</span><span>)             </span><span style="color:#a626a4;">=&gt;</span><span> str(name)
+</span><span>  </span><span style="color:#a626a4;">case </span><span>RustType.Option(</span><span style="color:#e45649;">inner</span><span>)               </span><span style="color:#a626a4;">=&gt;</span><span> typename(RustType.Primitive(</span><span style="color:#50a14f;">&quot;Option&quot;</span><span>)) ~ bracketed(typename(inner))
+</span><span>  </span><span style="color:#a626a4;">case </span><span>RustType.Vec(</span><span style="color:#e45649;">inner</span><span>)                  </span><span style="color:#a626a4;">=&gt;</span><span> typename(RustType.Primitive(</span><span style="color:#50a14f;">&quot;Vec&quot;</span><span>)) ~ bracketed(typename(inner))
+</span><span>  </span><span style="color:#a626a4;">case </span><span>RustType.SelectFromModule(</span><span style="color:#e45649;">path</span><span>, </span><span style="color:#e45649;">typ</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>Printer.anyString.repeatWithSep(dcolon)(path) ~ dcolon ~ typename(typ)
+</span><span>  </span><span style="color:#a626a4;">case </span><span>RustType.Parametric(</span><span style="color:#e45649;">name</span><span>, </span><span style="color:#e45649;">params</span><span>) </span><span style="color:#a626a4;">=&gt;
+</span><span>    str(name) ~ bracketed(typename.repeatWithSep(comma)(params))
+</span><span>  </span><span style="color:#a0a1a7;">// ...
+</span></code></pre>
+<p>We can see that <code>typename</code> uses itself to recursively generate inner type names, for example when generating type parameters of tuple members. It also demonstrates that we can extract patterns such as <code>bracketed</code> to simplify our printer definitions and eliminate repetition.</p>
+<p>Another nice feature we get by using a general purpose printer library like ZIO Parser is that we can use the built-in combinators to get printers for new types. One example is the sequential composition of printers. For example the following fragment:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">p </span><span style="color:#a626a4;">=</span><span> str(</span><span style="color:#50a14f;">&quot;pub &quot;</span><span>) ~ name ~ str(</span><span style="color:#50a14f;">&quot;: &quot;</span><span>) ~ typename
+</span></code></pre>
+<p>would have the type <code>Rust[(Name, RustType)]</code> and we can even make that a printer of a case class like:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> PublicField</span><span>(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">typ</span><span>: </span><span style="color:#c18401;">RustType</span><span>)
+</span><span>
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">p2 </span><span style="color:#a626a4;">=</span><span> p.from[</span><span style="color:#c18401;">PublicField</span><span>]
+</span></code></pre>
+<p>where <code>p2</code> will have the type <code>Rust[PublicField</code>].</p>
+<p>Another very useful combinator is <strong>repetition</strong>. For example if we have a printer for an enum's case:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">enumCase</span><span>: </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#c18401;">RustDef</span><span>] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span></code></pre>
+<p>we can simply use one of the repetition combinators to make a printer for a <em>list of enum cases</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">enumCases</span><span>: </span><span style="color:#c18401;">Rust</span><span>[</span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>]] </span><span style="color:#a626a4;">=</span><span> enumCase.*
+</span></code></pre>
+<p>or as in the <code>typename</code> example above:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>typename.repeatWithSep(comma)
+</span></code></pre>
+<p>to have a <code>Rust[Chunk[RustType]]</code> that inserts a comma between each element when printed.</p>
+<h2 id="inspecting-the-scala-types">Inspecting the Scala types</h2>
+<p>As we have seen the <em>endpoint DSL</em> uses <strong>ZIO Schema</strong> to capture information about the types being used in the endpoints (usually as request or response bodies, serialized into JSON). We can use the same information to generate <strong>Rust types</strong> from our Scala types!</p>
+<p>The core data type defined by the ZIO Schema library is called <code>Schema</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> Schema</span><span>[</span><span style="color:#c18401;">A</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">  </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>Schema describes the structure of a Scala type <code>A</code> in a way we can inspect it from regular Scala code. Let's imagine we have <code>Schema[WorkerMetadata]</code> coming from our endpoint definition and we have to generate an equivalent Rust <code>struct</code> with the same field names and field types.</p>
+<p>The first thing to notice is that type definitions are recursive. Unless <code>WorkerMetadata</code> only contains fields of <em>primitive types</em> such as integer or string, our job does not end with generating a single Rust struct - we need to recursively generate all the other types <code>WorkerMetadata</code> is depending on! To capture this fact let's introduce a type that represents everything we have to extract from a single (or a set of) schemas in order to generate Rust types from them:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> RustModel</span><span>(
+</span><span>  </span><span style="color:#e45649;">typeRefs</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>], </span><span style="color:#c18401;">RustType</span><span>], 
+</span><span>  </span><span style="color:#e45649;">definitions</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>], 
+</span><span>  </span><span style="color:#e45649;">requiredCrates</span><span>: </span><span style="color:#c18401;">Set</span><span>[</span><span style="color:#c18401;">Crate</span><span>]
+</span><span>)
+</span></code></pre>
+<p>We have <code>typeRefs</code> which associates a <code>RustType</code> with a schema so we can use it in future steps of our code generator to refer to a generated type in our Rust codebase. We have a list of <code>RustDef</code> values which are the generated type definitions, ready to be printed with out <code>Rust</code> pretty printer. And finally we can also gather a set of required extra rust <em>crates</em>, because some of the types considered <em>primitive types</em> by ZIO Schema are not having proper representations in the Rust standard library, only in external crates. Examples are UUIDs and various date/time types.</p>
+<p>So our job now is to write a function of</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">fromSchemas</span><span>(</span><span style="color:#e45649;">schemas</span><span>: </span><span style="color:#c18401;">Seq</span><span>[</span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>]]): </span><span style="color:#c18401;">Either</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">RustModel</span><span>]
+</span></code></pre>
+<p>The <code>Either</code> result type is used to indicate failures. Even if we write a transformation that can produce from any <code>Schema</code> a proper <code>RustModel</code>, we always have to have an error result when working with ZIO Schema because it has an explicit failure case called <code>Schema.Fail</code>. If we process a schema and end up with a <code>Fail</code> node, we can't do anything else than fail our code generator.</p>
+<p>There are many important details to consider when implementing this function, but let's just see first what the actual <code>Schema</code> type looks like. When we have a value of <code>Schema[?]</code> we can pattern match on it and implement the following cases:</p>
+<ul>
+<li><code>Schema.Primitive</code> describes a primitive type - there are a lot of primitive types defined by ZIO Schema's <code>StandardType</code> enum</li>
+<li><code>Schema.Enum</code> describes a type with multiple cases (a <em>sum type</em>) such as a <code>sealed trait</code> or <code>enum</code></li>
+<li><code>Schema.Record</code> describes a type with multiple fields (a <em>product type</em>) such as a <code>case class</code></li>
+<li><code>Schema.Map</code> represents a <em>map</em> with a key and value type</li>
+<li><code>Schema.Sequence</code> represents a <em>sequence</em> of items of a given element type</li>
+<li><code>Schema.Set</code> is a <em>set</em> of items of a given element type</li>
+<li><code>Schema.Optional</code> represents an <em>optional</em> type (like an <code>Option[T]</code>)</li>
+<li><code>Schema.Either</code> is a special case of sum types representing either one or the other type (like an <code>Either[A, B]</code>)</li>
+<li><code>Schema.Lazy</code> is used to safely encode recursive types, it contains a function that evaluates into an inner <code>Schema</code></li>
+<li><code>Schema.Dynamic</code> represents a type that is dynamic - like a <code>JSON</code> value</li>
+<li><code>Schema.Transform</code> assigns a transformation function that converts a <em>value</em> of a type represented by the schema to a value of some other type. As we have no way to inspect these functions (they are compiled Scala functions) in our code generator, this is not very interesting for us now.</li>
+<li><code>Schema.Fail</code> as already mentioned represents a failure in describing the data type</li>
+</ul>
+<p>When traversing a <code>Schema</code> recursively (for any reason), it is important to keep in mind that it <em>can</em> encode recursive types! A simple example is a binary tree:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Tree</span><span>[</span><span style="color:#c18401;">A</span><span>](</span><span style="color:#e45649;">label</span><span>: </span><span style="color:#c18401;">A</span><span>, </span><span style="color:#e45649;">left</span><span>: </span><span style="color:#c18401;">Option</span><span>[</span><span style="color:#c18401;">Tree</span><span>], </span><span style="color:#e45649;">right</span><span>: </span><span style="color:#c18401;">Option</span><span>[</span><span style="color:#c18401;">Tree</span><span>])
+</span></code></pre>
+<p>We can construct a <code>Schema[Tree[A]]</code> if we have a <code>Schema[A]</code>. This will be something like (pseudo-code):</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">lazy val </span><span style="color:#e45649;">tree</span><span>: </span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#c18401;">Tree</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  Schema.Record(
+</span><span>    Field(</span><span style="color:#50a14f;">&quot;label&quot;</span><span>, Schema[</span><span style="color:#c18401;">A</span><span>]),
+</span><span>    Field(</span><span style="color:#50a14f;">&quot;left&quot;</span><span>, Schema.Optional(Schema.Lazy(() </span><span style="color:#a626a4;">=&gt;</span><span> tree))),
+</span><span>    Field(</span><span style="color:#50a14f;">&quot;right&quot;</span><span>, Schema.Optional(Schema.Lazy(() </span><span style="color:#a626a4;">=&gt;</span><span> tree)))
+</span><span>  )
+</span></code></pre>
+<p>If we are not prepared for recursive types we can easily get into an endless loop (or stack overflow) when processing these schemas.</p>
+<p>This is just one example of things to keep track of while converting a schema into a set of Rust definitions. If fields refer to the self type we want to use <code>Box</code> so to put them on the heap. We also need to keep track of if everything within a generated type derives <code>Ord</code> and <code>Hash</code> - and if yes, we should derive an instance for the same type classes for our generated type as well.</p>
+<p>My preferred way to implement such recursive stateful transformation functions is to use <strong>ZIO Prelude</strong>'s <code>ZPure</code> type. It's type definition looks a little scary:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> ZPure</span><span>[</span><span style="color:#a626a4;">+</span><span style="color:#c18401;">W</span><span>, </span><span style="color:#a626a4;">-</span><span style="color:#c18401;">S1</span><span>, </span><span style="color:#a626a4;">+</span><span style="color:#c18401;">S2</span><span>, </span><span style="color:#a626a4;">-</span><span style="color:#c18401;">R</span><span>, </span><span style="color:#a626a4;">+</span><span style="color:#c18401;">E</span><span>, </span><span style="color:#a626a4;">+</span><span style="color:#c18401;">A</span><span>]
+</span></code></pre>
+<p><code>ZPure</code> describes a <em>purely functional computation</em> which can:</p>
+<ul>
+<li>Emit log entries of type <code>W</code></li>
+<li>Works with an inital state of type <code>S1</code></li>
+<li>Results in a final state of type <code>S2</code></li>
+<li>Has access to some context of type <code>R</code></li>
+<li>Can fail with a value of <code>E</code></li>
+<li>Or succeed with a value of <code>A</code></li>
+</ul>
+<p>In this case we need the state, failure and result types only, but we could also take advantage of <code>W</code> to log debug information within our schema transformation function.</p>
+<p>To make it easier to work with <code>ZPure</code> we can introduce a <em>type alias</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">type </span><span>Fx[</span><span style="color:#a626a4;">+</span><span style="color:#c18401;">A</span><span>] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">ZPure</span><span>[</span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">State</span><span>, </span><span style="color:#c18401;">State</span><span>, </span><span style="color:#a626a4;">Any</span><span>, </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">A</span><span>]
+</span></code></pre>
+<p>where <code>State</code> is our own <em>case class</em> containing everything we need:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> State</span><span>(
+</span><span>  </span><span style="color:#e45649;">typeRefs</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>], </span><span style="color:#c18401;">RustType</span><span>],
+</span><span>  </span><span style="color:#e45649;">definitions</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustDef</span><span>],
+</span><span>  </span><span style="color:#e45649;">requiredCrates</span><span>: </span><span style="color:#c18401;">Set</span><span>[</span><span style="color:#c18401;">Crate</span><span>],
+</span><span>  </span><span style="color:#e45649;">processed</span><span>: </span><span style="color:#c18401;">Set</span><span>[</span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>]],
+</span><span>  </span><span style="color:#e45649;">stack</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>]],
+</span><span>  </span><span style="color:#e45649;">nameTypeIdMap</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#c18401;">Set</span><span>[</span><span style="color:#c18401;">TypeId</span><span>]],
+</span><span>  </span><span style="color:#e45649;">schemaCaps</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>], </span><span style="color:#c18401;">Capabilities</span><span>]
+</span><span>)
+</span></code></pre>
+<p>We won't get into the details of the state type here, but I'm showing some fragments to get a feeling of working with <code>ZPure</code> values.</p>
+<p>Some helper functions to manipulate the state can make our code much easier to read:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private def </span><span style="color:#0184bc;">getState</span><span>: </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#c18401;">State</span><span>] </span><span style="color:#a626a4;">= </span><span>ZPure.get[</span><span style="color:#c18401;">State</span><span>]
+</span><span style="color:#a626a4;">private def </span><span style="color:#0184bc;">updateState</span><span>(</span><span style="color:#e45649;">f</span><span>: </span><span style="color:#c18401;">State </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">State</span><span>): </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">= </span><span>ZPure.update[</span><span style="color:#c18401;">State</span><span>, </span><span style="color:#c18401;">State</span><span>](f)
+</span></code></pre>
+<p>For example we can use <code>updateState</code>  to manipulate the <code>stack</code> field of the state around another computation - before running it, we add a schema to the stack, after that we remove it:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private def </span><span style="color:#0184bc;">stacked</span><span>[</span><span style="color:#c18401;">A</span><span>, </span><span style="color:#c18401;">R</span><span>](</span><span style="color:#e45649;">schema</span><span>: </span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#c18401;">A</span><span>])(</span><span style="color:#e45649;">f</span><span>: </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#c18401;">R</span><span>]): </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#c18401;">R</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  updateState(</span><span style="color:#e45649;">s </span><span style="color:#a626a4;">=&gt;</span><span> s.copy(stack </span><span style="color:#a626a4;">=</span><span> s.stack :+ schema))
+</span><span>    .zipRight(f)
+</span><span>    .zipLeft(updateState(</span><span style="color:#e45649;">s </span><span style="color:#a626a4;">=&gt;</span><span> s.copy(stack </span><span style="color:#a626a4;">=</span><span> s.stack.dropRight(</span><span style="color:#c18401;">1</span><span>))))
+</span></code></pre>
+<p>This allows us to decide whether we have to wrap a generated field's type in <code>Box</code> in the rust code:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private def </span><span style="color:#0184bc;">boxIfNeeded</span><span>[</span><span style="color:#c18401;">A</span><span>](</span><span style="color:#e45649;">schema</span><span>: </span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#c18401;">A</span><span>]): </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#c18401;">RustType</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  </span><span style="color:#a626a4;">for
+</span><span>    state &lt;- getState
+</span><span>    backRef </span><span style="color:#a626a4;">=</span><span> state.stack.contains(schema)
+</span><span>    rustType &lt;- getRustType(schema)
+</span><span>  </span><span style="color:#a626a4;">yield if</span><span> backRef then RustType.box(rustType) </span><span style="color:#a626a4;">else</span><span> rustType
+</span></code></pre>
+<p>By looking into <code>state.stack</code> we can decide if we are dealing with a recursive type or not, and make our decision regarding boxing the field.</p>
+<p>Another example is to guard against infinite recursion when traversing the schema definition, as I explained before. We can define a helper function that just keeps track of all the visited schemas and shortcuts the computation if something has already been seen:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private def </span><span style="color:#0184bc;">ifNotProcessed</span><span>[</span><span style="color:#c18401;">A</span><span>](</span><span style="color:#e45649;">value</span><span>: </span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#c18401;">A</span><span>])(</span><span style="color:#e45649;">f</span><span>: </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#a626a4;">Unit</span><span>]): </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  getState.</span><span style="color:#e45649;">flatMap</span><span>: state </span><span style="color:#a626a4;">=&gt;
+</span><span>    </span><span style="color:#a626a4;">if</span><span> state.processed.contains(value) then ZPure.unit
+</span><span>    </span><span style="color:#a626a4;">else</span><span> updateState(</span><span style="color:#e45649;">_</span><span>.copy(processed </span><span style="color:#a626a4;">=</span><span> state.processed + value)).zipRight(f)
+</span></code></pre>
+<p>Putting all these smaller combinators together we have an easy-to-read core recursive transformation function for converting the schema:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private def </span><span style="color:#0184bc;">process</span><span>[</span><span style="color:#c18401;">A</span><span>](</span><span style="color:#e45649;">schema</span><span>: </span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#c18401;">A</span><span>]): </span><span style="color:#c18401;">Fx</span><span>[</span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  ifNotProcessed(schema):
+</span><span>    getRustType(schema).</span><span style="color:#e45649;">flatMap</span><span>: typeRef </span><span style="color:#a626a4;">=&gt;
+</span><span>      stacked(schema):
+</span><span>        schema </span><span style="color:#a626a4;">match
+</span><span>          </span><span style="color:#a0a1a7;">// ...
+</span></code></pre>
+<p>In the end to run a <code>Fx[A]</code> all we need to do is to provide an initial state:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>processSchema.provideState(State.empty).runEither
+</span></code></pre>
+<h2 id="inspecting-the-endpoints">Inspecting the endpoints</h2>
+<p>We generated Rust code for all our types but we still need to generate HTTP clients. The basic idea is the same as what we have seen so far:</p>
+<ul>
+<li>Traversing the <code>Endpoint</code> data structure for each endpoint we have</li>
+<li>Generate some intermediate model</li>
+<li>Pretty print this model to Rust code</li>
+</ul>
+<p>The conversion once again is recursive, can fail, and requires keeping track of various things, so we can use <code>ZPure</code> to implement it. Not repeating the same details, in this section we will talk about what exactly the endpoint descriptions look like and what we have be aware of when trying to process them.</p>
+<p>The first problem to solve is that currently ZIO Http does not have a concept of multiple endpoints. We are not composing <code>Endpoint</code> values into an API, instead we first <strong>implement</strong> them to get <code>Route</code> values and compose those. We can no longer inspect the endpoint definitions from the composed routes, so unfortunately we have to repeat ourselves and somehow compose our set of endpoints for our code generator.</p>
+<p>First we can define a <code>RustEndpoint</code> class, similar to the <code>RustModel</code> earlier, containing all the necessary information to generate Rust code for a <strong>single endpoint</strong>.</p>
+<p>We can construct it with a function:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a0a1a7;">// ...
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> RustEndpoint</span><span>:
+</span><span>  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">fromEndpoint</span><span>[</span><span style="color:#c18401;">PathInput</span><span>, </span><span style="color:#c18401;">Input</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">Output</span><span>, </span><span style="color:#c18401;">Middleware </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">EndpointMiddleware</span><span>](
+</span><span>      </span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">String</span><span>,
+</span><span>      </span><span style="color:#e45649;">endpoint</span><span>: </span><span style="color:#c18401;">Endpoint</span><span>[</span><span style="color:#c18401;">PathInput</span><span>, </span><span style="color:#c18401;">Input</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">Output</span><span>, </span><span style="color:#c18401;">Middleware</span><span>],
+</span><span>  ): </span><span style="color:#c18401;">Either</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">RustEndpoint</span><span>] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span></code></pre>
+<p>The second thing to notice: endpoints do not have a name! If we look back to our initial example of <code>getWorkerMetadata</code>, it did not have a unique name except the Scala value it was assigned to. But we can't observe that in our code generator (without writing a macro) so here we have chosen to just get a name as a string next to the definition.</p>
+<p>Then we can define a <strong>collection</strong> of <code>RustEndpoint</code>s:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> RustEndpoints</span><span>(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">Name</span><span>, </span><span style="color:#e45649;">originalEndpoints</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustEndpoint</span><span>])
+</span></code></pre>
+<p>and define a <code>++</code> operator between <code>RustEndpoint</code> and <code>RustEndpoints</code>. In the end we can use these to define APIs like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>    </span><span style="color:#a626a4;">for
+</span><span>      getDefaultProject &lt;- fromEndpoint(</span><span style="color:#50a14f;">&quot;getDefaultProject&quot;</span><span>, ProjectEndpoints.getDefaultProject)
+</span><span>      getProjects       &lt;- fromEndpoint(</span><span style="color:#50a14f;">&quot;getProjects&quot;</span><span>, ProjectEndpoints.getProjects)
+</span><span>      postProject       &lt;- fromEndpoint(</span><span style="color:#50a14f;">&quot;postProject&quot;</span><span>, ProjectEndpoints.postProject)
+</span><span>      getProject        &lt;- fromEndpoint(</span><span style="color:#50a14f;">&quot;getProject&quot;</span><span>, ProjectEndpoints.getProject)
+</span><span>      deleteProject     &lt;- fromEndpoint(</span><span style="color:#50a14f;">&quot;deleteProject&quot;</span><span>, ProjectEndpoints.deleteProject)
+</span><span>    </span><span style="color:#a626a4;">yield </span><span>(getDefaultProject ++ getProjects ++ postProject ++ getProject ++ deleteProject).named(</span><span style="color:#50a14f;">&quot;Project&quot;</span><span>)
+</span></code></pre>
+<p>The collection of endpoints also have a name (<code>"Project"</code>). In the code generator we can use these to have a separate <strong>client</strong> (trait and implementation) for each of these groups of endpoints.</p>
+<p>When processing a single endpoint, we need to process the following parts of data:</p>
+<ul>
+<li>Inputs (<code>endpoint.input</code>)</li>
+<li>Outputs (<code>endpoint.output</code>)</li>
+<li>Errors (<code>endpoint.error</code>)</li>
+</ul>
+<p>Everything we need is encoded in one of these three fields of an endpoint, and all three are built on the same abstraction called <code>HttpCodec</code>. Still there is a significant difference in what we want to do with inputs versus what we want to do with outputs and errors, so we can write two different traversals for gathering all the necessary information from them.</p>
+<h3 id="inputs">Inputs</h3>
+<p>When gathering information from the inputs, we are going to run into the following cases:</p>
+<ul>
+<li><code>HttpCodec.Combine</code> means we have two different inputs; we need both, so we have to process both inner codecs sequentially, both extending our conversion function's state.</li>
+<li><code>HttpCodec.Content</code> describes a <strong>request body</strong>. Here we have a <code>Schema</code> of our request body type and we can use the previously generated schema-to-rust type mapping to know how to refer to the generated rust type in our client code. It is important that in case there are <strong>multiple content codecs</strong>, that means the endpoint receives a <code>multipart/form-data</code> body, while if there is only one codec, it accepts an <code>application/json</code> representation of that.</li>
+<li><code>HttpCodec.ContentStream</code> represents a body containing a stream of a given element type. We can model this as just a <code>Vec&lt;A&gt;</code> in the Rust side, but there is one special case here - if the element is a <code>Byte</code>, ZIO Http expects a simple byte stream of type <code>application/octet-stream</code> instead of a JSON-encoded array of bytes.</li>
+<li><code>HttpCodec.Fallback</code> this represents the case when we should either use the first codec, <em>or</em> the second. A special case is when the <code>right</code> value of <code>Fallback</code> is <code>HttpCodec.Empty</code>. This is how ZIO Http represents optional inputs! We have to handle this specially in our code generator to mark some of the input parameters of the generated API as optional parameters. We don't support currently the other cases (when <code>right</code> is not empty) as it is not frequently used and was not required for the <em>Golem API</em>.</li>
+<li><code>HttpCodec.Header</code> means we need to send a <em>header</em> in the request, which can be a static (value described by the endpoint) or dynamic one (where we need to add an extra parameter to the generated function to get a value of the header). There are a couple of different primitive types supported for the value, such as string, numbers, UUIDs.</li>
+<li><code>HttpCodec.Method</code> defines the method to be used for calling the endpoint</li>
+<li><code>HttpCodec.Path</code> describes the request path, which consists of a sequence of static and dynamic segments - for the dynamic segments the generated API need to have exposed function parameters of the appropriate type</li>
+<li><code>HttpCodec.Query</code> similar to the header codec defines query parameters to be sent</li>
+<li><code>HttpCodec.TransformOrFail</code> transforms a value with a Scala function - the same case as with <code>Schema.Transform</code>. We cannot use the Scala function in our code generator so we just need to ignore this and go to the inner codec.</li>
+<li><code>HttpCodec.Annotated</code> attaches additional information to the codecs that we are currently not using, but it could be used to get documentation strings and include them in the generated code as comments, for example.</li>
+</ul>
+<h3 id="outputs">Outputs</h3>
+<p>For outputs we are dealing with the same <code>HttpCodec</code> type but there are some significant differences:</p>
+<ul>
+<li>We can ignore <code>Path</code>, <code>Method</code>, <code>Query</code> as they have no meaning for outputs</li>
+<li>We could look for <em>output headers</em> but currently we ignore them</li>
+<li><code>Fallback</code> on the other hand needs to be properly handled for outputs (errors, especially) because this is how the different error responses are encoded.</li>
+<li><code>Status</code> is combined with <code>Content</code> in these <code>Fallback</code> nodes to describe cases. This complicates the code generator because we need to record "possible outputs" which are only added as real output once we are sure we will not get any other piece of information for them.</li>
+</ul>
+<p>To understand the error fallback handling better, let's take a look at how it is defined in one of Golem's endpoint groups:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">errorCodec</span><span>: </span><span style="color:#c18401;">HttpCodec</span><span>[</span><span style="color:#c18401;">HttpCodecType</span><span>.</span><span style="color:#c18401;">Status </span><span>&amp; </span><span style="color:#c18401;">HttpCodecType</span><span>.</span><span style="color:#c18401;">Content</span><span>, </span><span style="color:#c18401;">LimitsEndpointError</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  HttpCodec.enumeration[</span><span style="color:#c18401;">LimitsEndpointError</span><span>](
+</span><span>    HttpCodec.error[</span><span style="color:#c18401;">LimitsEndpointError</span><span>.</span><span style="color:#c18401;">Unauthorized</span><span>](Status.Unauthorized),
+</span><span>    HttpCodec.error[</span><span style="color:#c18401;">LimitsEndpointError</span><span>.</span><span style="color:#c18401;">ArgValidationError</span><span>](Status.BadRequest),
+</span><span>    HttpCodec.error[</span><span style="color:#c18401;">LimitsEndpointError</span><span>.</span><span style="color:#c18401;">LimitExceeded</span><span>](Status.Forbidden),
+</span><span>    HttpCodec.error[</span><span style="color:#c18401;">LimitsEndpointError</span><span>.</span><span style="color:#c18401;">InternalError</span><span>](Status.InternalServerError)
+</span><span>  )
+</span></code></pre>
+<p>This leads to a series of nested <code>HttpCodec.Fallback</code>, <code>HttpCodec.Combine</code>, <code>HttpCodec.Status</code> and <code>HttpCodec.Content</code> nodes. When processing them we first add values of possible outputs:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> PossibleOutput</span><span>(</span><span style="color:#e45649;">tpe</span><span>: </span><span style="color:#c18401;">RustType</span><span>, </span><span style="color:#e45649;">status</span><span>: </span><span style="color:#c18401;">Option</span><span>[</span><span style="color:#c18401;">Status</span><span>], </span><span style="color:#e45649;">isError</span><span>: </span><span style="color:#a626a4;">Boolean</span><span>, </span><span style="color:#e45649;">schema</span><span>: </span><span style="color:#c18401;">Schema</span><span>[</span><span style="color:#e45649;">?</span><span>])
+</span></code></pre>
+<p>and once we have fully processed one branch of a <code>Fallback</code>, we finalize these possible outputs and make them real outputs. The way these different error cases are mapped into different case classes of a a single error type (<code>LimitsEndpointError</code>) also complicates things. When we reach a <code>HttpCodec.Content</code> referencing  <code>Schema[LimitsEndpointError.LimitExceeded</code>] for example, all we see is a <code>Schema.Record</code> - and not the parent enum! For this reason in the code generator we are explicitly defining the error ADT type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">fromEndpoint </span><span style="color:#a626a4;">= </span><span>RustEndpoint.withKnownErrorAdt[</span><span style="color:#c18401;">LimitsEndpointError</span><span>].zio
+</span></code></pre>
+<p>and we detect if all cases are subtypes of this error ADT and generate the client code according to that.</p>
+<h3 id="the-rust-client">The Rust client</h3>
+<p>It is time to take a look at what the output of all this looks like. In this section we will examine some parts of the generated Rust code.</p>
+<p>Let's take a look at the <strong>Projects API</strong>. We have generated a <code>trait</code> for all the endpoints belonging to it:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#e45649;">async_trait</span><span>::</span><span style="color:#e45649;">async_trait</span><span>]
+</span><span style="color:#a626a4;">pub trait </span><span>Project {
+</span><span>    async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">get_default_project</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>) -&gt; Result&lt;crate::model::Project, ProjectError&gt;;
+</span><span>    async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">get_projects</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">project_name</span><span>: Option&lt;</span><span style="color:#a626a4;">&amp;str</span><span>&gt;, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>) -&gt; Result&lt;Vec&lt;crate::model::Project&gt;, ProjectError&gt;;
+</span><span>    async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">post_project</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">field0</span><span>: crate::model::ProjectDataRequest, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>) -&gt; Result&lt;crate::model::Project, ProjectError&gt;;
+</span><span>    async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">get_project</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">project_id</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>) -&gt; Result&lt;crate::model::Project, ProjectError&gt;;
+</span><span>    async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">delete_project</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">project_id</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>) -&gt; Result&lt;(), ProjectError&gt;;
+</span><span>}
+</span></code></pre>
+<p>This is quite close to our original goal! One significant difference is that some type information is lost: <code>project_id</code> was <code>ProjectId</code> in Scala, and <code>authorization</code> was <code>TokenSecret</code> etc. Unfortunately with the current version of ZIO Schema these newtypes (or Scala 3 opaque types) are represented as primitive types transformed by a function. As explained earlier, we can't inspect the transformation function so all we can do is to use the underlying primitive type's schema here. This can be solved by introducing the concept of newtypes into ZIO Schema.</p>
+<p>The <code>ProjectError</code> is a client specific generated <code>enum</code> which can represent a mix of internal errors (such as not being able to call the endpoint) as well as the endpoint-specific domain errors:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#a626a4;">pub enum </span><span>ProjectError {
+</span><span>    RequestFailure(reqwest::Error),
+</span><span>    InvalidHeaderValue(reqwest::header::InvalidHeaderValue),
+</span><span>    UnexpectedStatus(reqwest::StatusCode),
+</span><span>    Status404 {
+</span><span>        message: String,
+</span><span>    },
+</span><span>    Status403 {
+</span><span>        error: String,
+</span><span>    },
+</span><span>    Status400 {
+</span><span>        errors: Vec&lt;String&gt;,
+</span><span>    },
+</span><span>    Status500 {
+</span><span>        error: String,
+</span><span>    },
+</span><span>    Status401 {
+</span><span>        message: String,
+</span><span>    },
+</span><span>}
+</span></code></pre>
+<p>So why are these per-status-code error types inlined here instead of generating the error ADT as a Rust <code>enum</code> and using that? The reason is a difference between Scala and Rust: we have a single error ADT in Scala and we can still use its <em>cases</em> directly in the endpoint definition:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> ProjectEndpointError
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> ProjectEndpointError {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> ArgValidation(</span><span style="color:#e45649;">errors</span><span style="color:#c18401;">: Chunk[String]) </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">ProjectEndpointError
+</span><span style="color:#c18401;">  </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a0a1a7;">// ...
+</span><span>HttpCodec.error[</span><span style="color:#c18401;">ProjectEndpointError</span><span>.</span><span style="color:#c18401;">ArgValidation</span><span>](Status.BadRequest),
+</span></code></pre>
+<p>We <em>do</em> generate the corresponding <code>ProjectEndpointError</code> enum in Rust:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#e45649;">derive</span><span>(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd, serde::Serialize, serde::Deserialize)]
+</span><span style="color:#a626a4;">pub enum </span><span>ProjectEndpointError {
+</span><span>    ArgValidation {
+</span><span>        errors: Vec&lt;String&gt;,
+</span><span>    },
+</span><span>    </span><span style="color:#a0a1a7;">// ...
+</span><span>}
+</span></code></pre>
+<p>but we cannot use <code>ProjectEndpointError::ArgValidation</code> as a type in the above <code>ProjectError</code> enum. And we cannot safely do something like <code>Either[ClientError, ProjectEndpointError]</code> because in the endpoint DSL we just have a sequence of status code - error case pairs. There is no guarantee that one enum case is only used once in that mapping, or that every case is used at least once. For this reason the mapping from <code>ProjectError</code> to <code>ProjectEndpointError</code> is generated as a transformation function:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#a626a4;">impl </span><span>ProjectError {
+</span><span>  </span><span style="color:#a626a4;">pub fn </span><span style="color:#0184bc;">to_project_endpoint_error</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>) -&gt; Option&lt;crate::model::ProjectEndpointError&gt; {
+</span><span>    </span><span style="color:#a626a4;">match </span><span style="color:#e45649;">self </span><span>{
+</span><span>      ProjectError::Status400 { errors } </span><span style="color:#a626a4;">=&gt; </span><span>Some(</span><span style="color:#a626a4;">crate</span><span>::model::ProjectEndpointError::ArgValidation { errors: errors.</span><span style="color:#0184bc;">clone</span><span>() }), 
+</span><span>      </span><span style="color:#a0a1a7;">// ...
+</span><span>    }
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<p>For each client trait we also generate a <strong>live implementation</strong>, represented by a struct containing configuration for the client:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#e45649;">derive</span><span>(Clone, Debug)]
+</span><span style="color:#a626a4;">pub struct </span><span>ProjectLive {
+</span><span>    </span><span style="color:#a626a4;">pub </span><span style="color:#e45649;">base_url</span><span>: reqwest::Url,
+</span><span>    </span><span style="color:#a626a4;">pub </span><span style="color:#e45649;">allow_insecure</span><span>: </span><span style="color:#a626a4;">bool</span><span>,
+</span><span>}
+</span></code></pre>
+<p>And the implementation of the client trait for these live structs are just using <a href="https://docs.rs/reqwest/latest/reqwest/"><code>reqwest</code></a> (a HTTP client library for Rust) to construct the request from the input parameters exactly the way the endpoint definition described:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>async </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">get_project</span><span>(</span><span style="color:#a626a4;">&amp;</span><span style="color:#e45649;">self</span><span>, </span><span style="color:#e45649;">project_id</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>, </span><span style="color:#e45649;">authorization</span><span>: </span><span style="color:#a626a4;">&amp;str</span><span>) -&gt; Result&lt;Project, ProjectError&gt; {
+</span><span>  </span><span style="color:#a626a4;">let mut</span><span> url </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">self</span><span>.base_url.</span><span style="color:#0184bc;">clone</span><span>();
+</span><span>  url.</span><span style="color:#0184bc;">set_path</span><span>(</span><span style="color:#a626a4;">&amp;</span><span>format!(</span><span style="color:#50a14f;">&quot;v1/projects/</span><span style="color:#c18401;">{project_id}</span><span style="color:#50a14f;">&quot;</span><span>));
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">let mut</span><span> headers </span><span style="color:#a626a4;">= </span><span>reqwest::header::HeaderMap::new();
+</span><span>  </span><span style="color:#a0a1a7;">// ...
+</span><span>      
+</span><span>  </span><span style="color:#a626a4;">let mut</span><span> builder </span><span style="color:#a626a4;">= </span><span>reqwest::Client::builder();
+</span><span>  </span><span style="color:#a0a1a7;">// ...
+</span><span>  </span><span style="color:#a626a4;">let</span><span> client </span><span style="color:#a626a4;">=</span><span> builder.</span><span style="color:#0184bc;">build</span><span>()</span><span style="color:#a626a4;">?</span><span>;
+</span><span>  </span><span style="color:#a626a4;">let</span><span> result </span><span style="color:#a626a4;">=</span><span> client
+</span><span>    .</span><span style="color:#0184bc;">get</span><span>(url)
+</span><span>    .</span><span style="color:#0184bc;">headers</span><span>(headers)
+</span><span>    .</span><span style="color:#0184bc;">send</span><span>()
+</span><span>    .await</span><span style="color:#a626a4;">?</span><span>;
+</span><span>  </span><span style="color:#a626a4;">match</span><span> result.</span><span style="color:#0184bc;">status</span><span>().</span><span style="color:#0184bc;">as_u16</span><span>() {
+</span><span>    </span><span style="color:#c18401;">200 </span><span style="color:#a626a4;">=&gt; </span><span>{
+</span><span>      </span><span style="color:#a626a4;">let</span><span> body </span><span style="color:#a626a4;">=</span><span> result.json::&lt;crate::model::Project&gt;().await</span><span style="color:#a626a4;">?</span><span>;
+</span><span>      Ok(body)
+</span><span>    }
+</span><span>    </span><span style="color:#c18401;">404 </span><span style="color:#a626a4;">=&gt; </span><span>{
+</span><span>      </span><span style="color:#a626a4;">let</span><span> body </span><span style="color:#a626a4;">=</span><span> result.json::&lt;ProjectEndpointErrorNotFoundPayload&gt;().await</span><span style="color:#a626a4;">?</span><span>;
+</span><span>      Err(ProjectError::Status404 { message: body.message })
+</span><span>    }
+</span><span>    </span><span style="color:#a0a1a7;">// ...
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<h2 id="putting-it-all-together">Putting it all together</h2>
+<p>At this point we have seen how <em>ZIO Http</em> describes endpoints, how <em>ZIO Schema</em> encodes Scala types, how we can use <em>ZIO Parser</em> to have composable printers and how <em>ZIO Prelude</em> can help with working with state in a purely functional code. The only thing remaining is to wire everything together and define an easy to use function that, when executed, creates all the required <em>Rust files</em> ready to be compiled.</p>
+<p>We can create a class for this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> ClientCrateGenerator</span><span>(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">version</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">description</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">homepage</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">endpoints</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">RustEndpoints</span><span>]):
+</span></code></pre>
+<p>Here <code>endpoints</code> is a collection of a <strong>group of endpoints</strong>, as it was shown earlier. So first you can use <code>RustEndpoint.fromEither</code> and <code>++</code> to create a <code>RustEndpoints</code> value for each API you have, and then generate a client for all of those in one run with this class.</p>
+<p>The first thing to do is collect <em>all</em> the referenced <code>Schema</code> from all the endpoints:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private val </span><span style="color:#e45649;">allSchemas </span><span style="color:#a626a4;">=</span><span> endpoints.map(</span><span style="color:#e45649;">_</span><span>.endpoints.toSet.flatMap(</span><span style="color:#e45649;">_</span><span>.referredSchemas)).reduce(</span><span style="color:#e45649;">_</span><span> union </span><span style="color:#e45649;">_</span><span>)
+</span></code></pre>
+<p>Then we define a ZIO function (it is an effectful function, manipulating the filesystem!) to generate the files:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">generate</span><span>(</span><span style="color:#e45649;">targetDirectory</span><span>: </span><span style="color:#c18401;">Path</span><span>): </span><span style="color:#c18401;">ZIO</span><span>[</span><span style="color:#a626a4;">Any</span><span>, </span><span style="color:#c18401;">Throwable</span><span>, </span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  </span><span style="color:#a626a4;">for
+</span><span>    clientModel &lt;- ZIO.fromEither(RustModel.fromSchemas(allSchemas.toSeq))
+</span><span>                      .mapError(</span><span style="color:#e45649;">err </span><span style="color:#a626a4;">=&gt; new </span><span style="color:#c18401;">RuntimeException</span><span>(</span><span style="color:#0184bc;">s</span><span style="color:#50a14f;">&quot;Failed to generate client model: </span><span style="color:#e45649;">$err</span><span style="color:#50a14f;">&quot;</span><span>))
+</span><span>    cargoFile </span><span style="color:#a626a4;">=</span><span> targetDirectory / </span><span style="color:#50a14f;">&quot;Cargo.toml&quot;
+</span><span>    srcDir </span><span style="color:#a626a4;">=</span><span> targetDirectory / </span><span style="color:#50a14f;">&quot;src&quot;
+</span><span>    libFile </span><span style="color:#a626a4;">=</span><span> srcDir / </span><span style="color:#50a14f;">&quot;lib.rs&quot;
+</span><span>    modelFile </span><span style="color:#a626a4;">=</span><span> srcDir / </span><span style="color:#50a14f;">&quot;model.rs&quot;
+</span><span>
+</span><span>    requiredCrates </span><span style="color:#a626a4;">=</span><span> clientModel.requiredCrates union endpoints.map(</span><span style="color:#e45649;">_</span><span>.requiredCrates).reduce(</span><span style="color:#e45649;">_</span><span> union </span><span style="color:#e45649;">_</span><span>)
+</span><span>
+</span><span>    </span><span style="color:#e45649;">_</span><span> &lt;- Files.createDirectories(targetDirectory)
+</span><span>    </span><span style="color:#e45649;">_</span><span> &lt;- Files.createDirectories(srcDir)
+</span><span>    </span><span style="color:#e45649;">_</span><span> &lt;- writeCargo(cargoFile, requiredCrates)
+</span><span>    </span><span style="color:#e45649;">_</span><span> &lt;- writeLib(libFile)
+</span><span>    </span><span style="color:#e45649;">_</span><span> &lt;- writeModel(modelFile, clientModel.definitions)
+</span><span>    </span><span style="color:#e45649;">_</span><span> &lt;- ZIO.foreachDiscard(endpoints): endpoints </span><span style="color:#a626a4;">=&gt;
+</span><span>           </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">clientFile </span><span style="color:#a626a4;">=</span><span> srcDir / </span><span style="color:#0184bc;">s</span><span style="color:#50a14f;">&quot;${</span><span>endpoints.name.toSnakeCase</span><span style="color:#50a14f;">}.rs&quot;
+</span><span>           writeClient(clientFile, endpoints)
+</span><span>  </span><span style="color:#a626a4;">yield </span><span style="color:#c18401;">()
+</span></code></pre>
+<p>The steps are straightforward:</p>
+<ul>
+<li>Create a <code>RustModel</code> using all the collected <code>Schema[?]</code> values</li>
+<li>Create all the required directories</li>
+<li>Write a <em>cargo file</em> - having all the dependencies and other metadata required to compile the Rust project</li>
+<li>Write a <em>lib file</em> - this is just a series of <code>pub mod xyz;</code> lines, defining the generated modules which are put in different fiels</li>
+<li>Write all the generated Rust types into a <code>model.rs</code></li>
+<li>For each endpoint group create a <code>xyz.rs</code> module containing the client trait and implementation</li>
+</ul>
+<p>For working with the file system - creating directories, writing data into files, we can use the [<a href="https://zio.dev/zio-nio/">ZIO NIO</a>] library providing ZIO wrapprers for all these functionalities.</p>
+<h3 id="links">Links</h3>
+<p>Finally, some links:</p>
+<ul>
+<li>The <strong>code generator</strong> is open source and available at https://github.com/vigoo/zio-http-rust - the code and the repository itself is not documented at the moment, except by this blog post.</li>
+<li>The generated <strong>Golem client for Rust</strong> is published as a crate to https://crates.io/crates/golem-client</li>
+<li>The new <strong>Golem CLI</strong>, using the generated client, is also open sourced and can be found at https://github.com/golemcloud/golem-cli</li>
+<li>Finally you can learn more about <strong>Golem</strong> itself at https://www.golem.cloud</li>
+</ul>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

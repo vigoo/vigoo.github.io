@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - rpc</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/rpc/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-03-08T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/rpc/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Worker to Worker communication in Golem</title>
+        <published>2024-03-08T00:00:00+00:00</published>
+        <updated>2024-03-08T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/w2w-communication-golem/"/>
+        <id>https://blog.vigoo.dev/posts/w2w-communication-golem/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/w2w-communication-golem/">&lt;p&gt;This article was originally posted at &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;post&#x2F;worker-to-worker-communication&quot;&gt;the Golem Cloud Blog&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;Golem Cloud&#x27;s first developer preview &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;post&#x2F;unveiling-golem-cloud&quot;&gt;has been unveiled in August&lt;&#x2F;a&gt;, and just a month ago, we released &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;post&#x2F;golem-goes-open-source&quot;&gt;an open-source version of Golem&lt;&#x2F;a&gt;. Workers, the fundamental primitive in Golem, expose a typed interface that can be invoked through the REST API or the command line tools, but until today, calling a worker from &lt;em&gt;another worker&lt;&#x2F;em&gt; was neither easy nor type-safe.&lt;&#x2F;p&gt;
+&lt;p&gt;With the latest release of Golem and the &lt;code&gt;golem-cli&lt;&#x2F;code&gt; tool, we finally have a first-class, typed way to invoke one worker from another, using any of the supported guest languages!&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;golem-wasm-rpc&quot;&gt;Golem WASM RPC&lt;&#x2F;h2&gt;
+&lt;p&gt;Golem&#x27;s new worker to worker communication feature consists of two major layers:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;A low-level, dynamic worker invocation API exposed as a Golem &lt;strong&gt;host function&lt;&#x2F;strong&gt; to all workers. This interface is not type safe. Rather, it matches the capabilities of the external REST API, allowing a worker to invoke any method on any other worker with any parameters. However, it avoids the overhead of setting up an HTTP connection and will be optimized in the future.&lt;&#x2F;li&gt;
+&lt;li&gt;The ability to generate &lt;strong&gt;stubs&lt;&#x2F;strong&gt; for having a completely type-safe, language-independent remote worker invocation for any supported language having a WIT-based binding generator.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With the new stub generator commands integrated into Golem&#x27;s command line tool (&lt;code&gt;golem-cli&lt;&#x2F;code&gt;) worker to worker communication is now a simple and fully type-safe experience.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;a-full-example&quot;&gt;A full example&lt;&#x2F;h2&gt;
+&lt;p&gt;To demonstrate how this new feature works, we will take one of the first Golem example projects, the &lt;strong&gt;shopping cart&lt;&#x2F;strong&gt;, and extend it with worker-to-worker communication. The original shopping-cart project defines a worker for each shopping cart of an online web store, with exported functions to add items to the cart and eventually check out and finish the shopping process.&lt;&#x2F;p&gt;
+&lt;p&gt;In this example, we introduce a second &lt;strong&gt;worker template&lt;&#x2F;strong&gt;, one that will be used to create a single &lt;strong&gt;worker&lt;&#x2F;strong&gt; for each online shopper. This worker will keep a log of all the purchases of the user it belongs to. We will extend the shopping cart&#x27;s &lt;code&gt;checkout&lt;&#x2F;code&gt; function with a remote worker invocation to add a new entry to the account&#x27;s purchase log.&lt;&#x2F;p&gt;
+&lt;p&gt;First, let&#x27;s make sure we have the latest version of &lt;code&gt;golem-cli&lt;&#x2F;code&gt;, if using the open-source Golem version, or &lt;code&gt;golem-cloud-cli&lt;&#x2F;code&gt;, if using the hosted version. It must have the new &lt;code&gt;stubgen&lt;&#x2F;code&gt; subcommand, to check let&#x27;s run &lt;code&gt;golem-cli stubgen --help&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;WASM&lt;&#x2F;span&gt;&lt;span&gt; RPC stub generator
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Usage:&lt;&#x2F;span&gt;&lt;span&gt; golem-cli stubgen &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;[&lt;&#x2F;span&gt;&lt;span&gt;OPTIONS&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;] &amp;lt;&lt;&#x2F;span&gt;&lt;span&gt;COMMAND&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Commands:
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;generate&lt;&#x2F;span&gt;&lt;span&gt;              Generate a Rust RPC stub crate for a WASM component
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;build&lt;&#x2F;span&gt;&lt;span&gt;                 Build an RPC stub for a WASM component
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;add-stub-dependency&lt;&#x2F;span&gt;&lt;span&gt;   Adds a generated stub as a dependency to another WASM component
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;compose&lt;&#x2F;span&gt;&lt;span&gt;               Compose a WASM component with a generated stub WASM
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;initialize-workspace&lt;&#x2F;span&gt;&lt;span&gt;  Initializes a Golem-specific cargo-make configuration in a Cargo workspace for automatically generating stubs and composing results
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;help&lt;&#x2F;span&gt;&lt;span&gt;                  Print this message or the help of the given subcommand(s)
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Options:
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;-v, --verbose&lt;&#x2F;span&gt;&lt;span&gt;...  Increase logging verbosity
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;-q, --quiet&lt;&#x2F;span&gt;&lt;span&gt;...    Decrease logging verbosity
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;-h, --help&lt;&#x2F;span&gt;&lt;span&gt;        Print help
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;preparing-the-example&quot;&gt;Preparing the example&lt;&#x2F;h3&gt;
+&lt;p&gt;We are going to create two different &lt;strong&gt;Golem templates&lt;&#x2F;strong&gt;, and have the source codes of both of them in a single &lt;strong&gt;Cargo workspace&lt;&#x2F;strong&gt;. This is not required—they could live in completely separate places—but it allows using our built-in cargo-make support, which currently gives us the best possible developer experience for worker-to-worker communication.&lt;&#x2F;p&gt;
+&lt;p&gt;First, let&#x27;s use the &lt;code&gt;golem-cli new&lt;&#x2F;code&gt; command to take the &lt;strong&gt;shopping-cart example&lt;&#x2F;strong&gt; and generate a new template source from it:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; golem-cli new&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --example&lt;&#x2F;span&gt;&lt;span&gt; rust-shopping-cart&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --template-name&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart-rpc
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;See&lt;&#x2F;span&gt;&lt;span&gt; the documentation about installing common tooling: https:&#x2F;&#x2F;golem.cloud&#x2F;learn&#x2F;rust
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Compile&lt;&#x2F;span&gt;&lt;span&gt; the Rust component with cargo-component:
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span&gt; component build&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --release
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;The&lt;&#x2F;span&gt;&lt;span&gt; result in target&#x2F;wasm32-wasi&#x2F;release&#x2F;shopping_cart_rpc.wasm is ready to be used with Golem!
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The &lt;code&gt;shopping-cart-rpc&lt;&#x2F;code&gt; directory now contains a single Rust crate, which can be compiled to WASM using &lt;code&gt;cargo component build&lt;&#x2F;code&gt;. We need two different WASMs (two Golem templates) so as a first step, we convert the generated Cargo project to a &lt;a href=&quot;https:&#x2F;&#x2F;doc.rust-lang.org&#x2F;book&#x2F;ch14-03-cargo-workspaces.html&quot;&gt;&lt;strong&gt;cargo workspace&lt;&#x2F;strong&gt;&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;First, create two sub-directories for the two templates we will use:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mkdir&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -pv&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mkdir&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -pv&lt;&#x2F;span&gt;&lt;span&gt; purchase-history
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;purchase-history
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then, move the generated shopping cart source code into the &lt;code&gt;shopping-cart&lt;&#x2F;code&gt; subdirectory:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -v&lt;&#x2F;span&gt;&lt;span&gt; src shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;src&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;src
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -v&lt;&#x2F;span&gt;&lt;span&gt; wit shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wit&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;wit
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -v&lt;&#x2F;span&gt;&lt;span&gt; Cargo.toml shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Cargo.toml&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;Cargo.toml
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We can copy the whole contents of the &lt;code&gt;shopping-cart&lt;&#x2F;code&gt; directory to the &lt;code&gt;purchase-history&lt;&#x2F;code&gt; directory too:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cp&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; -rv&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt; purchase-history
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;Cargo.toml&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;Cargo.toml
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;src&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;src
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;src&#x2F;lib.rs&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;src&#x2F;lib.rs
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;wit&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;shopping-cart&#x2F;wit&#x2F;shopping-cart-rpc.wit&lt;&#x2F;span&gt;&lt;span&gt; -&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;wit&#x2F;shopping-cart-rpc.wit
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we create a new &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt; file in the root, pointing to the two sub-projects:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span&gt;[workspace]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;resolver &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;2&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;members &lt;&#x2F;span&gt;&lt;span&gt;= [
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;shopping-cart&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;purchase-history&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Next, modify the &lt;code&gt;name&lt;&#x2F;code&gt; property in both sub-project&#x27;s &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt;. In &lt;code&gt;shopping-cart&#x2F;Cargo.toml&lt;&#x2F;code&gt;, it should be:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;shopping-cart&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;while in the other&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;purchase-history&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It&#x27;s also recommended that you rename the WIT file in both the &lt;code&gt;wit&lt;&#x2F;code&gt; directories to a file name that corresponds to the given sub-project&#x27;s name, but it does not have any effect on the compilation—it just makes working on the source code easier.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv shopping-cart&#x2F;wit&#x2F;shopping-cart-rpc.wit shopping-cart&#x2F;wit&#x2F;shopping-cart.wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; mv purchase-history&#x2F;wit&#x2F;shopping-cart-rpc.wit purchase-history&#x2F;wit&#x2F;purchase-history.wit
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;At this point running &lt;code&gt;cargo component build&lt;&#x2F;code&gt; in the root will compile both identical sub-projects, creating two different WASM files (but both containing the shopping cart implementation for now):&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo component build
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history.wasm
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;implementing-the-purchase-history-template&quot;&gt;Implementing the purchase history template&lt;&#x2F;h3&gt;
+&lt;p&gt;Before talking about &lt;em&gt;worker-to-worker communication&lt;&#x2F;em&gt;, let&#x27;s just implement a simple version of the &lt;strong&gt;purchase history template&lt;&#x2F;strong&gt;. Each worker of this template will correspond to a &lt;strong&gt;user&lt;&#x2F;strong&gt; of the system, the worker name being equal to the user&#x27;s identifier. We only need two exported functions, one for recording a purchase, and one for getting all the previous purchases.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s completely replace &lt;code&gt;purchase-history&#x2F;wit&#x2F;purchase-history.wit&lt;&#x2F;code&gt; with the following interface definition:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;package &lt;&#x2F;span&gt;&lt;span&gt;shopping:purchase-history;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;interface &lt;&#x2F;span&gt;&lt;span&gt;api {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;record &lt;&#x2F;span&gt;&lt;span&gt;product-item {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;product-id&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;price&lt;&#x2F;span&gt;&lt;span&gt;: float32,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;quantity&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u32&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;record &lt;&#x2F;span&gt;&lt;span&gt;order {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;order-id&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;items&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;list&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;product-item&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;total&lt;&#x2F;span&gt;&lt;span&gt;: float32,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;timestamp&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add-order&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;order&lt;&#x2F;span&gt;&lt;span&gt;: order) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get-orders&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; list&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;order&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;world &lt;&#x2F;span&gt;&lt;span&gt;purchase-history {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export &lt;&#x2F;span&gt;&lt;span&gt;api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Our &lt;code&gt;product-item&lt;&#x2F;code&gt; and &lt;code&gt;order&lt;&#x2F;code&gt; types are the same that we have in the shopping-cart WIT. In a next step, we will remove them from the shopping-cart WIT, and import them from this component&#x27;s interface definition!&lt;&#x2F;p&gt;
+&lt;p&gt;Running &lt;code&gt;cargo component build&lt;&#x2F;code&gt; now will print a couple of errors, as we did not update the &lt;code&gt;purchase-history&lt;&#x2F;code&gt; module&#x27;s Rust source code yet:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo component build
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;error[E0433]:&lt;&#x2F;span&gt;&lt;span&gt; failed to resolve: could not find `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;golem&lt;&#x2F;span&gt;&lt;span&gt;` in `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;exports&lt;&#x2F;span&gt;&lt;span&gt;`
+&lt;&#x2F;span&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;--&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&#x2F;src&#x2F;lib.rs:3:31
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;|
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;3 &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;use&lt;&#x2F;span&gt;&lt;span&gt; crate::bindings::exports::golem::template::api::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;|                               &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;^^^^^&lt;&#x2F;span&gt;&lt;span&gt; could not find `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;golem&lt;&#x2F;span&gt;&lt;span&gt;` in `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;exports&lt;&#x2F;span&gt;&lt;span&gt;`
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;A simple implementation of this can be the following code replacing the existing &lt;code&gt;lib.rs&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;mod &lt;&#x2F;span&gt;&lt;span&gt;bindings;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::exports::shopping::purchase_history::api::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;Component;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;State {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;orders&lt;&#x2F;span&gt;&lt;span&gt;: Vec&amp;lt;Order&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;static mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;STATE&lt;&#x2F;span&gt;&lt;span&gt;: State &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; State {
+&lt;&#x2F;span&gt;&lt;span&gt;    orders: Vec::new()
+&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;with_state&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T&amp;gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl FnOnce(&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;mut State&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; T) -&amp;gt; T {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; result &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= unsafe &lt;&#x2F;span&gt;&lt;span&gt;{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;STATE&lt;&#x2F;span&gt;&lt;span&gt;) };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; result;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Guest &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;Component {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add_order&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;order&lt;&#x2F;span&gt;&lt;span&gt;: Order) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;with_state&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;state&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;            state.orders.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;push&lt;&#x2F;span&gt;&lt;span&gt;(order);
+&lt;&#x2F;span&gt;&lt;span&gt;        });
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get_orders&lt;&#x2F;span&gt;&lt;span&gt;() -&amp;gt; Vec&amp;lt;Order&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;with_state&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;state&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;            state.orders.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;()
+&lt;&#x2F;span&gt;&lt;span&gt;        })
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With this, &lt;code&gt;cargo component build&lt;&#x2F;code&gt; now compiles the new &lt;code&gt;purchase_history.wasm&lt;&#x2F;code&gt; for us.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;worker-to-worker-communication&quot;&gt;Worker to worker communication&lt;&#x2F;h3&gt;
+&lt;p&gt;At this point, the only outstanding task in our example is to &lt;strong&gt;invoke the appropriate purchase history worker&lt;&#x2F;strong&gt; in the &lt;code&gt;checkout&lt;&#x2F;code&gt; implementation of the shopping cart.&lt;&#x2F;p&gt;
+&lt;p&gt;To find all the available options for doing this, check the &lt;a href=&quot;https:&#x2F;&#x2F;learn.golem.cloud&#x2F;docs&#x2F;rpc&quot;&gt;Worker-to-Worker communication&#x27;s documentation&lt;&#x2F;a&gt;. In this example, we have both the target (the purchase history) and the caller (the shopping cart) in &lt;strong&gt;the same cargo workspace&lt;&#x2F;strong&gt;, so we can use Golem&#x27;s &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;sagiegurari&#x2F;cargo-make&quot;&gt;cargo-make&lt;&#x2F;a&gt; based solution for enabling communication between the different sub-projects of the workspace.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s initialize this using &lt;code&gt;golem-cli&lt;&#x2F;code&gt; (or &lt;code&gt;golem-cloud-cli&lt;&#x2F;code&gt;):&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; golem-cli stubgen initialize-workspace&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --targets&lt;&#x2F;span&gt;&lt;span&gt; purchase-history&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt; --callers&lt;&#x2F;span&gt;&lt;span&gt; shopping-cart
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; cargo-make Makefile to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;Makefile.toml&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; initial stub for purchase-history
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; stub WIT to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;wit&#x2F;_stub.wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Copying&lt;&#x2F;span&gt;&lt;span&gt; root package shopping:purchasehistory
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;..&lt;&#x2F;span&gt;&lt;span&gt; &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history&#x2F;wit&#x2F;purchase-history.wit to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;wit&#x2F;deps&#x2F;shopping_purchasehistory&#x2F;purchase-history.wit
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; wasm-rpc.wit to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;wit&#x2F;deps&#x2F;wasm-rpc
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; Cargo.toml to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;Cargo.toml
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Generating&lt;&#x2F;span&gt;&lt;span&gt; stub source to &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;purchase-history-stub&#x2F;src&#x2F;lib.rs
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; updated Cargo.toml to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;Cargo.toml&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;As a next step, we check if the generated artifacts work, by running &lt;strong&gt;cargo make&lt;&#x2F;strong&gt; to execute the full build flow. It contains custom steps invoking &lt;code&gt;golem-cli&lt;&#x2F;code&gt; to implement the typed worker-to-worker communication.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo make build-flow
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history.wasm
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Creating&lt;&#x2F;span&gt;&lt;span&gt; component &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;shopping-cart-rpc&#x2F;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history_stub.wasm
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;[cargo-make]&lt;&#x2F;span&gt;&lt;span&gt; INFO - Execute Command: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;wasm-rpc-stubgen&amp;quot; &amp;quot;compose&amp;quot; &amp;quot;--source-wasm&amp;quot; &amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm&amp;quot; &amp;quot;--stub-wasm&amp;quot; &amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;purchase_history_stub.wasm&amp;quot; &amp;quot;--dest-wasm&amp;quot; &amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart_composed.wasm&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Error:&lt;&#x2F;span&gt;&lt;span&gt; no dependencies of component `&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart.wasm&lt;&#x2F;span&gt;&lt;span&gt;` were found
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Don&#x27;t worry about the failure at the end - it will be fixed in the next step.&lt;&#x2F;p&gt;
+&lt;p&gt;There are several changes in our workspace after running this command:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;We have a &lt;code&gt;Makefile.toml&lt;&#x2F;code&gt; file describing custom build tasks related to worker to worker communication&lt;&#x2F;li&gt;
+&lt;li&gt;We have a completely new sub-project called &lt;code&gt;purchase-history-stub&lt;&#x2F;code&gt; which is added to the Cargo workspace&lt;&#x2F;li&gt;
+&lt;li&gt;The &lt;code&gt;shopping-cart&#x2F;wit&#x2F;deps&lt;&#x2F;code&gt; directory now contains three dependencies: the original purchase history module, the generated stub interface, and the general purpose &lt;code&gt;wasm-rpc&lt;&#x2F;code&gt; package.&lt;&#x2F;li&gt;
+&lt;li&gt;These dependencies are also registered in &lt;code&gt;shopping-cart&#x2F;Cargo.toml&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Before further explaining what these generated stubs are, let&#x27;s finish our example. We need to modify the &lt;strong&gt;shopping cart&lt;&#x2F;strong&gt; template&#x27;s interface definition (&lt;code&gt;shopping-cart&#x2F;wit&#x2F;shopping-cart.wit&lt;&#x2F;code&gt;) to import the generated stub, and to reuse the data types defined for the purchase history template instead of redefining them.&lt;&#x2F;p&gt;
+&lt;p&gt;The updated WIT file would look like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;package &lt;&#x2F;span&gt;&lt;span&gt;shopping:cart;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;interface &lt;&#x2F;span&gt;&lt;span&gt;api {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use &lt;&#x2F;span&gt;&lt;span&gt;shopping:purchase-history&#x2F;api.{&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;product-item&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use &lt;&#x2F;span&gt;&lt;span&gt;shopping:purchase-history&#x2F;api.{&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;order&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;record &lt;&#x2F;span&gt;&lt;span&gt;order-confirmation {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;order-id&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;variant &lt;&#x2F;span&gt;&lt;span&gt;checkout-result {
+&lt;&#x2F;span&gt;&lt;span&gt;    error(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;),
+&lt;&#x2F;span&gt;&lt;span&gt;    success(order-confirmation),
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;initialize-cart&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;user-id&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add-item&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;item&lt;&#x2F;span&gt;&lt;span&gt;: product-item) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;remove-item&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;product-id&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;update-item-quantity&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;product-id&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;quantity&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u32&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;checkout&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;checkout-result;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get-cart-contents&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; list&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;product-item&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;world &lt;&#x2F;span&gt;&lt;span&gt;shopping-cart {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;import &lt;&#x2F;span&gt;&lt;span&gt;shopping:purchase-history-stub&#x2F;stub-purchase-history;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export &lt;&#x2F;span&gt;&lt;span&gt;api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;There are three changes:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;We renamed the package from the default &lt;code&gt;golem:template&lt;&#x2F;code&gt; to &lt;code&gt;shopping:cart&lt;&#x2F;code&gt; to make it more consistent with the other packages&lt;&#x2F;li&gt;
+&lt;li&gt;We deleted the definition of &lt;code&gt;product-item&lt;&#x2F;code&gt; and &lt;code&gt;order&lt;&#x2F;code&gt;, and instead importing them from the &lt;code&gt;shopping:purchase-history&lt;&#x2F;code&gt; package.&lt;&#x2F;li&gt;
+&lt;li&gt;We added the &lt;code&gt;import&lt;&#x2F;code&gt; statement in the &lt;code&gt;world&lt;&#x2F;code&gt;, which loads the generated &lt;strong&gt;stub&lt;&#x2F;strong&gt; into the template&#x27;s world, so we can call it from the Rust code to initiate remote calls to the &lt;code&gt;purchase-history&lt;&#x2F;code&gt; workers.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Because of the change of the package name, we have to update the import in &lt;code&gt;lib.rs&lt;&#x2F;code&gt; :&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::exports::shopping::cart::api::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The only remaining step is to extend the &lt;code&gt;checkout&lt;&#x2F;code&gt; function with the remote worker invocation!&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::shopping::purchase_history::api::{Order};
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::shopping::purchase_history_stub::stub_purchase_history;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;use crate&lt;&#x2F;span&gt;&lt;span&gt;::bindings::golem::rpc::types::Uri;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;checkout&lt;&#x2F;span&gt;&lt;span&gt;() -&amp;gt; CheckoutResult {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;dispatch_order&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Defining the order to be saved in history
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; order &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; Order {
+&lt;&#x2F;span&gt;&lt;span&gt;        items: state.items.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        order_id: order_id.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        timestamp: std::time::SystemTime::now().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;duration_since&lt;&#x2F;span&gt;&lt;span&gt;(std::time::SystemTime::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;UNIX_EPOCH&lt;&#x2F;span&gt;&lt;span&gt;).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;as_secs&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        total: state.items.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;iter&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;map&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;item&lt;&#x2F;span&gt;&lt;span&gt;| item.price &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt; item.quantity &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;as f32&lt;&#x2F;span&gt;&lt;span&gt;).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;sum&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;    };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Constructing the remote worker&amp;#39;s URI
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; template_id &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;  		std::env::var(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;PURCHASE_HISTORY_TEMPLATE_ID&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;  			.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;expect&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;PURCHASE_HISTORY_TEMPLATE_ID not set&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; uri &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; Uri {
+&lt;&#x2F;span&gt;&lt;span&gt;        value: format!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;worker:&#x2F;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{template_id}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;{}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, state.user_id),
+&lt;&#x2F;span&gt;&lt;span&gt;    };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; Connecdting to the remote worker and invoking it
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; history &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;stub_purchase_history::Api::new(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;uri);
+&lt;&#x2F;span&gt;&lt;span&gt;    history.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add_order&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;order);
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With all these changes, running &lt;code&gt;cargo make&lt;&#x2F;code&gt; again will succeed:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; cargo make build-flow
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;...
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Writing&lt;&#x2F;span&gt;&lt;span&gt; composed component to &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;target&#x2F;wasm32-wasi&#x2F;debug&#x2F;shopping_cart_composed.wasm&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;[cargo-make]&lt;&#x2F;span&gt;&lt;span&gt; INFO - Build Done in 7.38 seconds.
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We first created the &lt;code&gt;Order&lt;&#x2F;code&gt; value to be saved in the remote purchase history. Then we get an &lt;strong&gt;environment variable&lt;&#x2F;strong&gt; to figure out the Golem &lt;em&gt;template-id&lt;&#x2F;em&gt; of the purchase history template. This is something we need to record when uploading the template to Golem, and set it to all shopping cart worker&#x27;s when creating them. The remote URI consists of the template identifier and the &lt;em&gt;worker name&lt;&#x2F;em&gt;, and in our example the worker name is the same as the &lt;strong&gt;user id&lt;&#x2F;strong&gt; that the shopping cart belongs to. This guarantees that we will have a distinct purchase history worker for each user.&lt;&#x2F;p&gt;
+&lt;p&gt;When we have the URI, we just instantiate the &lt;strong&gt;generated stub&lt;&#x2F;strong&gt; for by passing the remote worker&#x27;s URI—and we get an interface that corresponds to the remote worker&#x27;s exported interface! This way we can just call &lt;code&gt;add_order&lt;&#x2F;code&gt; on it, passing the constructed order value.&lt;&#x2F;p&gt;
+&lt;p&gt;Everything else is handled by Golem. If this was the first order of the user, a new purchase history worker is created. Otherwise, the existing worker will be targeted, which is likely already in a suspended state, not actively in any worker executor&#x27;s memory. Golem restores the worker&#x27;s state and invokes the &lt;code&gt;add_order&lt;&#x2F;code&gt; function on them, which adds the new order to the list of orders for that user, in a fully durable way, without the need for a database.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;how-does-it-work&quot;&gt;How does it work?&lt;&#x2F;h3&gt;
+&lt;p&gt;The generated cargo-make makefile just wraps a couple of &lt;code&gt;golem-cli stubgen&lt;&#x2F;code&gt; commands.&lt;&#x2F;p&gt;
+&lt;p&gt;First, &lt;code&gt;stubgen generate&lt;&#x2F;code&gt; creates a new Rust crate for each &lt;strong&gt;target&lt;&#x2F;strong&gt; that has a similar interface as the original worker, but all the exported functions and interfaces are wrapped in a resource, which has to be instantiated with a &lt;strong&gt;worker URI&lt;&#x2F;strong&gt;. This generated crate can be compiled to a WASM file (or &lt;code&gt;stubgen build&lt;&#x2F;code&gt; can do that automatically) and it also contains a &lt;strong&gt;WIT&lt;&#x2F;strong&gt; file describing this interface.&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;stubgen add-stub-dependency&lt;&#x2F;code&gt; command takes this generated interface specification and &lt;strong&gt;adds it&lt;&#x2F;strong&gt; to an other worker&#x27;s &lt;code&gt;wit&lt;&#x2F;code&gt; folder—making it a &lt;em&gt;dependency&lt;&#x2F;em&gt; of that worker. So the caller worker is not depending directly on the target worker, it depends on the &lt;strong&gt;generated stub&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;If we compile this caller worker to WASM, it will not only require host functions provided by Golem (such as the WASI interfaces or Golem specific APIs) but it will also require an &lt;strong&gt;implementation&lt;&#x2F;strong&gt; of the stub interface. That&#x27;s where the generated Rust crate comes into the picture—its compiled WASM &lt;strong&gt;implements&lt;&#x2F;strong&gt; (exports) the stub interface while the caller WASM &lt;strong&gt;requires&lt;&#x2F;strong&gt; (imports) it. WASM components can be composed so by combining the two we can get a result WASM that no longer tries to import the stub interface—it is going to be wired within the component—only the other dependencies the original modules had.&lt;&#x2F;p&gt;
+&lt;p&gt;One way to do this composition is to use &lt;code&gt;wasm-tools compose&lt;&#x2F;code&gt;, but it is more convenient to use &lt;code&gt;golem-cli&lt;&#x2F;code&gt; (or &lt;code&gt;golem-cloud-cli&lt;&#x2F;code&gt;)&#x27;s built-in command for it, called &lt;code&gt;stubgen compose&lt;&#x2F;code&gt;. This is the last step the generated cargo-make file performs when running the &lt;code&gt;build-flow&lt;&#x2F;code&gt; task.&lt;&#x2F;p&gt;
+&lt;p&gt;The following diagram demonstrates how the component&#x27;s in the example are interacting with each other:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;w2w-comm.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;We have seen how the new Golem tools enable simple, fully-typed communication between &lt;strong&gt;workers&lt;&#x2F;strong&gt;. Although the above demonstrated &lt;code&gt;cargo-make&lt;&#x2F;code&gt;-based build is Rust specific, the other &lt;code&gt;stubgen&lt;&#x2F;code&gt; commands are not: they can be used with any language that has WIT binding generator support (see &lt;a href=&quot;https:&#x2F;&#x2F;learn.golem.cloud&#x2F;docs&#x2F;building-templates&#x2F;tier-2&quot;&gt;Golem&#x27;s Tier 2 languages&lt;&#x2F;a&gt;)—Rust, C, Go, JavaScript, Python and Scala.js.&lt;&#x2F;p&gt;
+&lt;p&gt;The remote calls are not only simple to use, they are also efficient, and they get translated to direct function calls when the source and the target workers are running on the same &lt;strong&gt;worker executor&lt;&#x2F;strong&gt;. They are also fully durable, as all other external interaction running on Golem. This means we don&#x27;t have to worry about failures when calling remote workers. Additionally, Golem applies retry policies in case of transient failures, and it makes sure that a remote invocation only happens once.&lt;&#x2F;p&gt;
+&lt;p&gt;This feature is ready to use both in the &lt;a href=&quot;http:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem&quot;&gt;open source&lt;&#x2F;a&gt; and the &lt;a href=&quot;https:&#x2F;&#x2F;www.golem.cloud&#x2F;&quot;&gt;cloud version&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

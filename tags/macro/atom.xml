@@ -1,0 +1,611 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - macro</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/macro/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-04-13T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/macro/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Golem&#x27;s Rust transaction API</title>
+        <published>2024-04-13T00:00:00+00:00</published>
+        <updated>2024-04-13T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/golem-rust-transaction-api/"/>
+        <id>https://blog.vigoo.dev/posts/golem-rust-transaction-api/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/golem-rust-transaction-api/">&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;&#x2F;h2&gt;
+&lt;p&gt;A few weeks ago we have added a new set of &lt;em&gt;host functions&lt;&#x2F;em&gt; to &lt;a href=&quot;https:&#x2F;&#x2F;golem.cloud&quot;&gt;Golem&lt;&#x2F;a&gt;, which allow programs running on this platform to control some of the persistency and transactional behavior of the executor. You can learn about these low-level functions on &lt;a href=&quot;https:&#x2F;&#x2F;learn.golem.cloud&#x2F;docs&#x2F;transaction-api&quot;&gt;the corresponding learn page&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;These exported functions allow a lot of control but they are very low level, and definitely not pleasant to use directly. To make them nicer we can write language-specific wrapper libraries on top of them, providing a first class experience for the supported programming languages.&lt;&#x2F;p&gt;
+&lt;p&gt;The first such wrapper library is &lt;a href=&quot;http:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-rust&quot;&gt;golem-rust&lt;&#x2F;a&gt;, and this post explains some of the Rust specific technical details of how this library works.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;regional-changes&quot;&gt;Regional changes&lt;&#x2F;h2&gt;
+&lt;p&gt;The easy part is providing higher level support for temporarily changing the executor&#x27;s behavior. The common property of these host functions is that they come in pairs:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The &lt;code&gt;mark-begin-operation&lt;&#x2F;code&gt;&#x2F;&lt;code&gt;mark-end-operation&lt;&#x2F;code&gt; pair defines a region that is treated as an atomic operation&lt;&#x2F;li&gt;
+&lt;li&gt;We can get the current retry policy and change it to something else with the &lt;code&gt;get-retry-policy&lt;&#x2F;code&gt; and &lt;code&gt;set-retry-policy&lt;&#x2F;code&gt; functions&lt;&#x2F;li&gt;
+&lt;li&gt;We can control persistency with &lt;code&gt;get-oplog-persistence-level&lt;&#x2F;code&gt; and &lt;code&gt;set-oplog-persistence-level&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;And we can change whether the executor assumes that external calls are idempotent using the &lt;code&gt;get-idempotence-mode&lt;&#x2F;code&gt; and &lt;code&gt;set-idempotence-mode&lt;&#x2F;code&gt; pair.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;For all these, a simple way to make them more safe and more idiomatic is to connect the lifetime of the temporarily changed behavior to the lifetime of a rust variable. For example in the following snippet, the whole function will be treated as an atomic region, but as soon the function returns, the region ends:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;some_atomic_operation&lt;&#x2F;span&gt;&lt;span&gt;() {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; _atomic &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;golem_rust::mark_atomic_operation();
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Implement these wrappers is quite simple. First we need to define &lt;em&gt;data type&lt;&#x2F;em&gt; which the wrapper will return. Let&#x27;s call it &lt;code&gt;AtomicOperationGuard&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;AtomicOperationGuard {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;begin&lt;&#x2F;span&gt;&lt;span&gt;: OplogIndex,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We store the return value of Golem&#x27;s &lt;code&gt;mark-begin-operation&lt;&#x2F;code&gt; in it, as we have to pass this value to the &lt;code&gt;mark-end-operation&lt;&#x2F;code&gt; when we want to close the atomic region.&lt;&#x2F;p&gt;
+&lt;p&gt;We want to close the atomic region when this value is dropped - so we can call Golem&#x27;s &lt;code&gt;mark-end-operation&lt;&#x2F;code&gt; in an explicitly implemented &lt;code&gt;drop&lt;&#x2F;code&gt; function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Drop &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;AtomicOperationGuard {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;drop&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;mark_end_operation&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.begin);
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Finally we define the wrapper function which returns this guard value:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;must_use&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;mark_atomic_operation&lt;&#x2F;span&gt;&lt;span&gt;() -&amp;gt; AtomicOperationGuard {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; begin &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;mark_begin_operation&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    AtomicOperationGuard { begin }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;By using the &lt;code&gt;#[must_use]&lt;&#x2F;code&gt; attribute we can make the compiler give a warning if the result value is not used - this is important, because that would mean that the atomic region gets closed as soon as it has been opened.&lt;&#x2F;p&gt;
+&lt;p&gt;With this basic building block we can also support an alternative style where we pass a function to be executed with the temporary change in Golem&#x27;s behavior. These are higher order functions, taking a function as a parameter, and just using the already defined wrapper to apply the change:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;atomically&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T&amp;gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl FnOnce() -&amp;gt; T) -&amp;gt; T {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; _guard &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;mark_atomic_operation&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;()
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The same pattern can be used for all the mentioned host function pairs to get a pair of wrappers (one returning a guard, the other taking a function as a parameter):&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;use_retry_policy&lt;&#x2F;code&gt; and &lt;code&gt;with_retry_policy&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;code&gt;use_idempotence_mode&lt;&#x2F;code&gt; and &lt;code&gt;with_idempotence_mode&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;code&gt;use_persistence_level&lt;&#x2F;code&gt; and &lt;code&gt;with_persistence_level&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;transactions&quot;&gt;Transactions&lt;&#x2F;h2&gt;
+&lt;p&gt;Golem provides &lt;strong&gt;durable execution&lt;&#x2F;strong&gt; and that comes with guarantees that your program will always run until it terminates, and (by default) all external operations are performed &lt;em&gt;at least once&lt;&#x2F;em&gt;. (Here &lt;em&gt;at least once&lt;&#x2F;em&gt; is the guarantee we can provide - naturally it does not mean that we just rerun all operations in case of a failure event. Golem tries to perform every operation exactly once but this cannot be guaranteed without special collaboration with the remote host. This behavior can be switched to &lt;em&gt;at most once&lt;&#x2F;em&gt; by changing the &lt;strong&gt;idempotence mode&lt;&#x2F;strong&gt; with the helper functions we defined above.)&lt;&#x2F;p&gt;
+&lt;p&gt;Many times external operations (such as HTTP calls to remote hosts) need to be executed &lt;em&gt;transactionally&lt;&#x2F;em&gt;. If some of the operations failed the transaction need to be rolled back - &lt;strong&gt;compensation actions&lt;&#x2F;strong&gt; need to undo whatever the already successfully performed operations did.&lt;&#x2F;p&gt;
+&lt;p&gt;We identified and implemented two different transaction types - both provide different guarantees and both can be useful.&lt;&#x2F;p&gt;
+&lt;p&gt;A &lt;strong&gt;fallible transaction&lt;&#x2F;strong&gt; only deals with domain errors. Within the transaction every &lt;strong&gt;operation&lt;&#x2F;strong&gt; that succeeds gets recorded. If an operation fails, all the recorded operations get &lt;em&gt;compensated&lt;&#x2F;em&gt; in reverse order before the transaction block returns with a failure.&lt;&#x2F;p&gt;
+&lt;p&gt;What if anything non-domain specific failure happens to the worker? It can be an unexpected fatal error, hardware failure, an executor restarted because of a deployment, etc. A fallible transaction is completely implemented as regular user code, so Golem&#x27;s durable execution guarantees apply to it. If for example the executor dies while 3 operation were completed out of the 5 in the transaction, the execution will continue from where it was - continuing with the 4th operation. If the 4th operation fails with a domain error, and the &lt;code&gt;golem-rust&lt;&#x2F;code&gt; library starts executing the compensation actions, and then a random failure causes a panic in the middle of this, the execution will continue from the middle of the compensation actions making sure that all the operations are properly rolled back.&lt;&#x2F;p&gt;
+&lt;p&gt;Another possibility is what we call &lt;strong&gt;infallible transaction&lt;&#x2F;strong&gt;s. Here we say that the transaction must not fail - but still if a step fails in it, we want to run compensation actions before we retry.&lt;&#x2F;p&gt;
+&lt;p&gt;To implement this we need some of the low-level transaction controls Golem provides. First of all, we need to mark the whole transaction as an &lt;em&gt;atomic region&lt;&#x2F;em&gt;. This way if a (non domain level) failure happens during the transaction, the previously performed external operations will be automatically retried as the atomic region was never committed.&lt;&#x2F;p&gt;
+&lt;p&gt;We can capture the domain errors in user code and perform the compensation actions just like in the &lt;em&gt;fallible transaction&lt;&#x2F;em&gt; case. But what should we do when all operations have been rolled back? We can use the &lt;code&gt;set-oplog-index&lt;&#x2F;code&gt; host function to tell Golem to &quot;go back in time&quot; to the beginning of the transaction, forget everything that was performed after it, and start executing the transaction again.&lt;&#x2F;p&gt;
+&lt;p&gt;There is a third, more complete version of &lt;strong&gt;infallible transactions&lt;&#x2F;strong&gt; which is not implemented yet - in this version we can guarantee that the compensation actions are performed even in case of a non-domain failure event. This can be implemented with the existing features of Golem but it is out of the scope of this post.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;operation-and-transaction&quot;&gt;Operation and Transaction&lt;&#x2F;h3&gt;
+&lt;p&gt;Let&#x27;s see how we can implement this transaction feature.&lt;&#x2F;p&gt;
+&lt;p&gt;The first thing we need to define is an &lt;em&gt;operation&lt;&#x2F;em&gt; - something that pairs an arbitrary action with a compensation action that undoes it. We can define it as a trait with two methods:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub trait &lt;&#x2F;span&gt;&lt;span&gt;Operation: Clone {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;In: Clone;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;Out: Clone;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;Err: Clone;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F;&#x2F; Executes the operation which may fail with a domain error
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;In) -&amp;gt; Result&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;Out, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F;&#x2F; Executes a compensation action for the operation.
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;compensate&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;In, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;result&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;Out) -&amp;gt; Result&amp;lt;(), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;If the operation succeeds, its result of type &lt;code&gt;Out&lt;&#x2F;code&gt; will be stored - if it fails, &lt;code&gt;compensate&lt;&#x2F;code&gt; will be called for all the previous operations with these stored output values.&lt;&#x2F;p&gt;
+&lt;p&gt;We also need something that defines the boundaries of a transaction, and allows executing these operations. Here we can create two slightly different interfaces for fallible and infallible transactions - to make it more user friendly.&lt;&#x2F;p&gt;
+&lt;p&gt;For fallible transactions we can define a higher order function where the user&#x27;s logic itself can fail, and in the end we get back a transaction result:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;fallible_transaction&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;Out, Err: Clone &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl FnOnce(&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;mut FallibleTransaction&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Err&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;) -&amp;gt; Result&amp;lt;Out, Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; TransactionResult&amp;lt;Out, Err&amp;gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The result type here is just an alias to the standard Rust &lt;code&gt;Result&lt;&#x2F;code&gt; type, in which the error type will be &lt;code&gt;TransactionFailure&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub type &lt;&#x2F;span&gt;&lt;span&gt;TransactionResult&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span&gt;Out, Err&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt; = &lt;&#x2F;span&gt;&lt;span&gt;Result&amp;lt;Out, TransactionFailure&amp;lt;Err&amp;gt;&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub enum &lt;&#x2F;span&gt;&lt;span&gt;TransactionFailure&amp;lt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F;&#x2F; One of the operations failed with an error, and the transaction was fully rolled back.
+&lt;&#x2F;span&gt;&lt;span&gt;    FailedAndRolledBackCompletely(Err),
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F;&#x2F; One of the operations failed with an error, and the transaction was partially rolled back
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F;&#x2F; because the compensation action of one of the operations also failed.
+&lt;&#x2F;span&gt;&lt;span&gt;    FailedAndRolledBackPartially {
+&lt;&#x2F;span&gt;&lt;span&gt;        failure: Err,
+&lt;&#x2F;span&gt;&lt;span&gt;        compensation_failure: Err,
+&lt;&#x2F;span&gt;&lt;span&gt;    },
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The function we pass to &lt;code&gt;fallible_transaction&lt;&#x2F;code&gt; gets a mutable reference to a transaction object - this is what we can use to execute operations:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;FallibleTransaction {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;Err: Clone &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt; FallibleTransaction&amp;lt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;OpIn: Clone &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;, OpOut: Clone &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;operation&lt;&#x2F;span&gt;&lt;span&gt;: impl Operation&amp;lt;In = OpIn, Out = OpOut, Err = Err&amp;gt; + &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: OpIn,
+&lt;&#x2F;span&gt;&lt;span&gt;    ) -&amp;gt; Result&amp;lt;OpOut, Err&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This looks a bit verbose but all it says is you can pass an arbitrary &lt;code&gt;Operation&lt;&#x2F;code&gt; to this function, but all of them needs to have the same failure type, and you provide an _input_value for your operation. This separation of operation and input makes it possible to define reusable operations by implementing the &lt;code&gt;Operation&lt;&#x2F;code&gt; trait manually - we will see more ways to define operations later.&lt;&#x2F;p&gt;
+&lt;p&gt;We also define a similar function and corresponding data type for &lt;em&gt;infallible transactions&lt;&#x2F;em&gt;. There are two main differences:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The &lt;code&gt;infallible_transaction&lt;&#x2F;code&gt; function&#x27;s result type is simply &lt;code&gt;Out&lt;&#x2F;code&gt; - it can never fail&lt;&#x2F;li&gt;
+&lt;li&gt;Similarly, &lt;code&gt;execute&lt;&#x2F;code&gt; it self cannot fail and this means that the transactional function itself cannot fail - and no need to use &lt;code&gt;?&lt;&#x2F;code&gt; or other ways to deal with result types.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Storing the compensation actions in these structs is easy - we can just create closures capturing the input and output values and calling the trait&#x27;s &lt;code&gt;compensate&lt;&#x2F;code&gt; function, and store these closures in a vec:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;CompensationAction&amp;lt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;action&lt;&#x2F;span&gt;&lt;span&gt;: Box&amp;lt;dyn Fn() -&amp;gt; Result&amp;lt;(), Err&amp;gt;&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;Err&amp;gt; CompensationAction&amp;lt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;(), Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.action)()
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;FallibleTransaction&amp;lt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;compensations&lt;&#x2F;span&gt;&lt;span&gt;: Vec&amp;lt;CompensationAction&amp;lt;Err&amp;gt;&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;A last thing we can do in this level of the API is to think about cases where one would write generic code that works both with fallible and infallible transactions. Using a unified interface would not be as nice as using the dedicated one - as it deal with error types even if the transaction can never fail - but may provide better code reusability. We can hide the difference by defining a trait:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub trait &lt;&#x2F;span&gt;&lt;span&gt;Transaction&amp;lt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;OpIn: Clone &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;, OpOut: Clone &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;operation&lt;&#x2F;span&gt;&lt;span&gt;: impl Operation&amp;lt;In = OpIn, Out = OpOut, Err = Err&amp;gt; + &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: OpIn,
+&lt;&#x2F;span&gt;&lt;span&gt;    ) -&amp;gt; Result&amp;lt;OpOut, Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;fail&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;error&lt;&#x2F;span&gt;&lt;span&gt;: Err) -&amp;gt; Result&amp;lt;(), Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;run&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;Out&amp;gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl FnOnce(&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;mut Self&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;Out, Err&amp;gt;) -&amp;gt; TransactionResult&amp;lt;Out, Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The trait provides a way to execute operations and explicitly fail the transaction, and it also generalizes the &lt;code&gt;fallible_transaction&lt;&#x2F;code&gt; and &lt;code&gt;infallible_transaction&lt;&#x2F;code&gt; function with a static function called &lt;code&gt;run&lt;&#x2F;code&gt;. Implementing this interface for our two transaction types is straightforward.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;defining-operations&quot;&gt;Defining operations&lt;&#x2F;h3&gt;
+&lt;p&gt;We defined an &lt;code&gt;Operation&lt;&#x2F;code&gt; trait but haven&#x27;t talked yet about how we will declare new operations. One obvious way is to define a type and implement the trait for it:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;struct &lt;&#x2F;span&gt;&lt;span&gt;CreateAccount {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; configuration
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Operation &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;CreateAccount {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;In  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; AccountDetails;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;Out &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; AccountId;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;Err &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; DomainError;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: AccountDetails) -&amp;gt; Result&amp;lt;AccountId, DomainError&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;      todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Create the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;compensate&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: AccountDetails, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;result&lt;&#x2F;span&gt;&lt;span&gt;: AccountId) -&amp;gt; Result&amp;lt;(), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;Self::&lt;&#x2F;span&gt;&lt;span&gt;Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;      todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Delete the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The library provides a more concise way to define ad-hoc operations by just passing two functions:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;operation&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;In: Clone, Out: Clone, Err: Clone&amp;gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;execute_fn&lt;&#x2F;span&gt;&lt;span&gt;: impl Fn(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;In&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;Out, Err&amp;gt; + &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;compensate_fn&lt;&#x2F;span&gt;&lt;span&gt;: impl Fn(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;In&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;Out&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;(), Err&amp;gt; + &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;#39;static&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; impl Operation&amp;lt;In = In, Out = Out, Err = Err&amp;gt; { &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;... &lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; op &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;operation&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;move |&lt;&#x2F;span&gt;&lt;span&gt;account_details: AccountDetails&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Create the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;	},
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;move |&lt;&#x2F;span&gt;&lt;span&gt;account_details: AccountDetails, account_id: AccountId&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Delete the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;  });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Under the hood this creates a struct called &lt;code&gt;FnOperation&lt;&#x2F;code&gt; storing these two closures in it.&lt;&#x2F;p&gt;
+&lt;p&gt;There is a third way though. Let&#x27;s see how it looks like, and then explore how it can be implemented with &lt;em&gt;Rust macros&lt;&#x2F;em&gt;!&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;golem_operation&lt;&#x2F;span&gt;&lt;span&gt;(compensation&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt;delete_account)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;AccountId, DomainError&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;  todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Create the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;delete_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;account_id&lt;&#x2F;span&gt;&lt;span&gt;: AccountId) -&amp;gt; Result&amp;lt;(), DomainError&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;  todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Delete the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;infallible_transaction&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;tx&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; account_id &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; tx.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;vigoo&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;x@y&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;});
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;operation-macro&quot;&gt;Operation macro&lt;&#x2F;h3&gt;
+&lt;p&gt;In the above example &lt;code&gt;golem_operation&lt;&#x2F;code&gt; is a macro. It is a function executed compile time that takes the annotated item - in this case the &lt;code&gt;create_account&lt;&#x2F;code&gt; function and &lt;strong&gt;transforms&lt;&#x2F;strong&gt; it to something else.&lt;&#x2F;p&gt;
+&lt;p&gt;The first thing to figure out when writing a macro like that is what exactly we want to transform the function into. Let&#x27;s see what this macro generates, and then I explain how to get there.&lt;&#x2F;p&gt;
+&lt;p&gt;If we expand the macro for the above example we get the following:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;AccountId, DomainError&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    todo!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Create the account&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;trait &lt;&#x2F;span&gt;&lt;span&gt;CreateAccount {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;AccountId, DomainError&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T: Transaction&amp;lt;DomainError&amp;gt;&amp;gt; CreateAccount &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;mut T {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;AccountId, DomainError&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;          &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;operation&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;            |(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;): (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;)| {
+&lt;&#x2F;span&gt;&lt;span&gt;              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(username, email)
+&lt;&#x2F;span&gt;&lt;span&gt;            },
+&lt;&#x2F;span&gt;&lt;span&gt;            |(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;): (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;op_result&lt;&#x2F;span&gt;&lt;span&gt;: AccountId| {
+&lt;&#x2F;span&gt;&lt;span&gt;    	        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call_compensation_function&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;                delete_account,
+&lt;&#x2F;span&gt;&lt;span&gt;                op_result,
+&lt;&#x2F;span&gt;&lt;span&gt;                (username, email)
+&lt;&#x2F;span&gt;&lt;span&gt;              ).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;map_err&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;err&lt;&#x2F;span&gt;&lt;span&gt;| err.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;        }), (username, email))
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;So seems like the macro leaves the function in its original form, but generates some additional items: a &lt;em&gt;trait&lt;&#x2F;em&gt; which contains the same function signature as the annotated one, and then an &lt;em&gt;implementation&lt;&#x2F;em&gt; for this trait for any &lt;code&gt;&amp;amp;mut T&lt;&#x2F;code&gt; where &lt;code&gt;T&lt;&#x2F;code&gt; is a &lt;code&gt;Transaction&amp;lt;DomainError&amp;gt;&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;As I explained above, &lt;code&gt;Transaction&lt;&#x2F;code&gt; is a trait that provides a unified interface for both the fallible and infallible transactions. With this instance we define an &lt;strong&gt;extension method&lt;&#x2F;strong&gt; for the &lt;code&gt;tx&lt;&#x2F;code&gt; value we get in our transaction functions - this is what allows us to write &lt;code&gt;tx.create_account&lt;&#x2F;code&gt; in the above example.&lt;&#x2F;p&gt;
+&lt;p&gt;Two more details to notice:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Our &lt;code&gt;Operation&lt;&#x2F;code&gt; type deals with a single input value but our annotated function can have arbitrary number of parameters. We can solve this by defining the operation&#x27;s input as a &lt;strong&gt;tuple&lt;&#x2F;strong&gt; containing all the function parameters.&lt;&#x2F;li&gt;
+&lt;li&gt;The compensation function (&lt;code&gt;delete_action&lt;&#x2F;code&gt;) is not called directly, but through a helper called &lt;code&gt;call_compensation_function&lt;&#x2F;code&gt;. This allows us to support compensation functions of different shapes, and I will explain how it works in details.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h4 id=&quot;defining-the-macro-and-parsing-the-function&quot;&gt;Defining the macro and parsing the function&lt;&#x2F;h4&gt;
+&lt;p&gt;This type of Rust macro which is invoked by annotating items in the code is called a &lt;a href=&quot;https:&#x2F;&#x2F;doc.rust-lang.org&#x2F;reference&#x2F;procedural-macros.html&quot;&gt;proc-macro&lt;&#x2F;a&gt;. We need to create a separate Rust &lt;em&gt;crate&lt;&#x2F;em&gt; for defining the macro, and set &lt;code&gt;proc-macro = true&lt;&#x2F;code&gt; in its &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt; file and then create a top-level function annotated with &lt;code&gt;#[proc_macro_attribute]&lt;&#x2F;code&gt; to define our macro:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;proc_macro_attribute&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;golem_operation&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;attr&lt;&#x2F;span&gt;&lt;span&gt;: TokenStream, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;item&lt;&#x2F;span&gt;&lt;span&gt;: TokenStream) -&amp;gt; TokenStream {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Rust macros are transformations on &lt;strong&gt;token streams&lt;&#x2F;strong&gt;. The first parameter of our macro gets the &lt;em&gt;parameters&lt;&#x2F;em&gt; passed to the macro - so in our example it will contain a stream of tokens representing &lt;code&gt;compensation=delete_account&lt;&#x2F;code&gt;. The second parameter is the annotated item itself - in our case it&#x27;s a stream of tokens of the whole function definition including its body.&lt;&#x2F;p&gt;
+&lt;p&gt;The result of the function is also a token stream and the easiest thing we can do is to just return &lt;code&gt;item&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;proc_macro_attribute&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;golem_operation&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;attr&lt;&#x2F;span&gt;&lt;span&gt;: TokenStream, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;item&lt;&#x2F;span&gt;&lt;span&gt;: TokenStream) -&amp;gt; TokenStream {
+&lt;&#x2F;span&gt;&lt;span&gt;  item
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is a valid macro that does not do anything.&lt;&#x2F;p&gt;
+&lt;p&gt;We somehow have to generate a trait and a trait implementation with only having these two token streams. Before we can generate anything we need to understand the annotated function - we need its name, its parameters, its result type etc.&lt;&#x2F;p&gt;
+&lt;p&gt;We can use the &lt;a href=&quot;https:&#x2F;&#x2F;docs.rs&#x2F;syn&#x2F;latest&#x2F;syn&#x2F;&quot;&gt;syn&lt;&#x2F;a&gt; create for this to parse the stream of tokens into a Rust AST.&lt;&#x2F;p&gt;
+&lt;p&gt;To parse &lt;code&gt;item&lt;&#x2F;code&gt; as a function, we can write:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; ast: ItemFn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;syn::parse(item).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;expect&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Expected a function&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is something we can extract information from, for example &lt;code&gt;ItemFn&lt;&#x2F;code&gt; has the following contents:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;ItemFn {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;attrs&lt;&#x2F;span&gt;&lt;span&gt;: Vec&amp;lt;Attribute&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;vis&lt;&#x2F;span&gt;&lt;span&gt;: Visibility,
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;sig&lt;&#x2F;span&gt;&lt;span&gt;: Signature,
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;block&lt;&#x2F;span&gt;&lt;span&gt;: Box&amp;lt;Block&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And &lt;code&gt;sig&lt;&#x2F;code&gt; contains things like the function&#x27;s name, parameters and return type. It is important to keep in mind though that this is just a parsed AST from the tokens - the whole transformation runs before any type checking and we don&#x27;t have any way to identify actual Rust types. We only see what&#x27;s in the source code.&lt;&#x2F;p&gt;
+&lt;p&gt;For example in our macro we expect that the annotated function returns with a &lt;code&gt;Result&lt;&#x2F;code&gt; type and we need to look into this type because we will use the success and error types in separate places in the generated code.&lt;&#x2F;p&gt;
+&lt;p&gt;We cannot do this in a 100% reliable way. We can look for things like the result type &lt;em&gt;looks like&lt;&#x2F;em&gt; a &lt;code&gt;Result&amp;lt;Out, Err&amp;gt;&lt;&#x2F;code&gt;, and we may support some additional forms such as &lt;code&gt;std::result::Result&amp;lt;Out, Err&amp;gt;&lt;&#x2F;code&gt;, but if the user defined a type alias and uses that, a macro that looks at the AST cannot know that it is equal to a result type. In many cases these limitations can be solved by applying type level programming - we could have a trait that extracts the success and error types of a &lt;code&gt;Result&lt;&#x2F;code&gt; and is not implemented for any other type, and then generate code from the macro that uses these helper types.&lt;&#x2F;p&gt;
+&lt;p&gt;The current implementation of the &lt;code&gt;golem_operation&lt;&#x2F;code&gt; macro does not do this for determining the result types, so it has this limitation that it only works if you use the &quot;standard&quot; way of writing &lt;code&gt;Result&amp;lt;Out, Err&amp;gt;&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This looks like the following:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;result_type&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;ty&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;Type) -&amp;gt; Option&amp;lt;(Type, Type)&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;match&lt;&#x2F;span&gt;&lt;span&gt; ty {
+&lt;&#x2F;span&gt;&lt;span&gt;        Type::Group(group) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;result_type&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;group.elem),
+&lt;&#x2F;span&gt;&lt;span&gt;        Type::Paren(paren) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;result_type&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;paren.elem),
+&lt;&#x2F;span&gt;&lt;span&gt;        Type::Path(type_path) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;					&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; idents &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; type_path.path.segments.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;iter&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;map&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;segment&lt;&#x2F;span&gt;&lt;span&gt;| segment.ident.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;to_string&lt;&#x2F;span&gt;&lt;span&gt;()).collect::&amp;lt;Vec&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;_&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;background-color:#e06c75;color:#fafafa;&quot;&gt;;&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;          &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; idents &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;== &lt;&#x2F;span&gt;&lt;span&gt;vec![&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Result&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;] { &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ... some more cases
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; last_segment &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; type_path.path.segments.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;last&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;syn::PathArguments::AngleBracketed(generics) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;last_segment.arguments &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else &lt;&#x2F;span&gt;&lt;span&gt;{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return &lt;&#x2F;span&gt;&lt;span&gt;None };
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; generics.args.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;len&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;2 &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return &lt;&#x2F;span&gt;&lt;span&gt;None;
+&lt;&#x2F;span&gt;&lt;span&gt;            }
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;syn::GenericArgument::Type(success_type) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;generics.args[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;] &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return &lt;&#x2F;span&gt;&lt;span&gt;None;
+&lt;&#x2F;span&gt;&lt;span&gt;            };
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;syn::GenericArgument::Type(err_type) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;generics.args[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;1&lt;&#x2F;span&gt;&lt;span&gt;] &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return &lt;&#x2F;span&gt;&lt;span&gt;None;
+&lt;&#x2F;span&gt;&lt;span&gt;						};
+&lt;&#x2F;span&gt;&lt;span&gt;            Some((success_type.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;(), err_type.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;()))
+&lt;&#x2F;span&gt;&lt;span&gt;          }
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ... other cases returning None
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Once we have all the information we need - the function&#x27;s name, its parameters, the successful and failed result types, all in &lt;code&gt;syn&lt;&#x2F;code&gt; AST nodes, we can generate the additional code that we can return in the end as the new token stream.&lt;&#x2F;p&gt;
+&lt;p&gt;To generate token stream we use the &lt;a href=&quot;https:&#x2F;&#x2F;docs.rs&#x2F;quote&#x2F;latest&#x2F;quote&#x2F;&quot;&gt;quote library&lt;&#x2F;a&gt;. This library provides the &lt;code&gt;quote!&lt;&#x2F;code&gt; macro, which itself generates a &lt;code&gt;TokenStream&lt;&#x2F;code&gt; . (Although it is not the same &lt;code&gt;TokenStream&lt;&#x2F;code&gt; as the one we need to return from the macro. The macro requires &lt;code&gt;proc_macro::TokenStream&lt;&#x2F;code&gt; and &lt;code&gt;quote!&lt;&#x2F;code&gt; returns &lt;code&gt;proc_macro2::TokenStream&lt;&#x2F;code&gt;. Fortunately it can be simply converted with &lt;code&gt;.into()&lt;&#x2F;code&gt;).&lt;&#x2F;p&gt;
+&lt;p&gt;We write a single &lt;code&gt;quote!&lt;&#x2F;code&gt; for producing the result of the macro:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; result &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;quote! {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;ast
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;trait #&lt;&#x2F;span&gt;&lt;span&gt;traitname {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;fnsig;
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T: golem_rust::Transaction&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;background-color:#e06c75;color:#fafafa;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;err&amp;gt;&amp;gt; #traitname for &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;mut T {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;fnsig {
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;execute&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;        golem_rust::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;operation&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;          |#&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input_pattern&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;fnname&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;input_args), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;          },
+&lt;&#x2F;span&gt;&lt;span&gt;          |#&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;compensation_pattern&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;compensate&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;              &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;compensation,
+&lt;&#x2F;span&gt;&lt;span&gt;              (op_result,),
+&lt;&#x2F;span&gt;&lt;span&gt;              (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;compensation_args), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;            ).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;map_err&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;err&lt;&#x2F;span&gt;&lt;span&gt;| err.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;          }
+&lt;&#x2F;span&gt;&lt;span&gt;        ),
+&lt;&#x2F;span&gt;&lt;span&gt;        (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;#&lt;&#x2F;span&gt;&lt;span&gt;input_args), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;span&gt;      )
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;result.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; proc_macro2::TokenStream to proc_macro::TokenStream
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;All the parts prefixed with &lt;code&gt;#&lt;&#x2F;code&gt; are references to rust variables outside of the quote, and they can be (and usually are) various &lt;code&gt;syn&lt;&#x2F;code&gt; AST nodes or raw token streams.&lt;&#x2F;p&gt;
+&lt;p&gt;There is a special syntax for interpolating sequences of values. The case used in the above example is when you write &lt;code&gt;#(#var), *&lt;&#x2F;code&gt;. This means that &lt;code&gt;var&lt;&#x2F;code&gt; is expected to be an iterable variable (in our case it will be &lt;code&gt;Vec&amp;lt;_&amp;gt;&lt;&#x2F;code&gt; usually) and it interpolates each elements by inserting extra tokens, defined between &lt;code&gt;)&lt;&#x2F;code&gt; and &lt;code&gt;*&lt;&#x2F;code&gt;, between these elements. So this example would insert a comma and a space between the elements.&lt;&#x2F;p&gt;
+&lt;p&gt;The above defined &lt;code&gt;quote&lt;&#x2F;code&gt; is a template that matches what we wanted to generate. All that&#x27;s needed is to define all these variables holding dynamic parts of the generated code. The &lt;code&gt;#ast&lt;&#x2F;code&gt; variable itself is the parsed function - so the first line of the quote just makes sure the original definition is part of the result.&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;#succ&lt;&#x2F;code&gt; and &lt;code&gt;#err&lt;&#x2F;code&gt; types are extracted with the &lt;code&gt;result_type&lt;&#x2F;code&gt; helper function as described above. The others are just defined by either transforming and cloning AST nodes, or using &lt;code&gt;quote!&lt;&#x2F;code&gt; to generate sub token streams.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s see a few examples!&lt;&#x2F;p&gt;
+&lt;p&gt;The new trait&#x27;s name has to be an &lt;code&gt;Ident&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; fnname &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; fnsig.ident.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; traitname &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Ident::new(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;fnname.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;to_string&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;to_pascal_case&lt;&#x2F;span&gt;&lt;span&gt;(), fnsig.ident.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;span&lt;&#x2F;span&gt;&lt;span&gt;());
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Here we use the &lt;code&gt;to_pascal_case&lt;&#x2F;code&gt; extension method provided by the &lt;a href=&quot;https:&#x2F;&#x2F;docs.rs&#x2F;heck&#x2F;latest&#x2F;heck&#x2F;&quot;&gt;heck crate&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Another example is the signature of the function that&#x27;s inside the trait. It is &lt;em&gt;almost&lt;&#x2F;em&gt; the same as the annotated feature, but it has to have a &lt;code&gt;self&lt;&#x2F;code&gt; parameter as the first parameter of it, that&#x27;s how it becomes an extension method on the transaction.&lt;&#x2F;p&gt;
+&lt;p&gt;We can do this by cloning the annotated function&#x27;s signature and just adding a new parameter:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; fnsig &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; ast.sig.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;clone&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;fnsig.inputs.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;insert&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;, parse_quote! { &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self &lt;&#x2F;span&gt;&lt;span&gt;});
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Note that &lt;code&gt;parse_quote!&lt;&#x2F;code&gt; immediately parses the token stream generated by quote back to a &lt;code&gt;syn&lt;&#x2F;code&gt; AST node.&lt;&#x2F;p&gt;
+&lt;h4 id=&quot;compensation-function-shapes&quot;&gt;Compensation function shapes&lt;&#x2F;h4&gt;
+&lt;p&gt;The last interesting bit is how the macro supports compensation functions of different shapes. What we support right now, is the following.&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The compensation function has no parameters at all&lt;&#x2F;li&gt;
+&lt;li&gt;The compensation function takes the output of the action but not the inputs&lt;&#x2F;li&gt;
+&lt;li&gt;The compensation function takes the output and all the inputs&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With the account creation example this means all of these are valid:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;golem_operation&lt;&#x2F;span&gt;&lt;span&gt;(compensation&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt;delete_account)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;create_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;AccountId, DomainError&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;delete_account&lt;&#x2F;span&gt;&lt;span&gt;() -&amp;gt; Result&amp;lt;(), DomainError&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;delete_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;account_id&lt;&#x2F;span&gt;&lt;span&gt;: AccountId) -&amp;gt; Result&amp;lt;(), DomainError&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;delete_account&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;account_id&lt;&#x2F;span&gt;&lt;span&gt;: AccountId, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;username&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;email&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;(), DomainError&amp;gt;;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;If we could have the AST of &lt;code&gt;delete_account&lt;&#x2F;code&gt; from the macro, it would be easy to decide which shape we have - we would not even need to worry about not having actual types because we could just compare the parameter list and result type tokens of the two functions to be able to decide which way to go.&lt;&#x2F;p&gt;
+&lt;p&gt;Unfortunately our macro is on the &lt;code&gt;create_account&lt;&#x2F;code&gt; function and there is no way to access anything else about &lt;code&gt;delete_account&lt;&#x2F;code&gt; from it than the &lt;code&gt;compensation=delete_account&lt;&#x2F;code&gt; part which we passed as an attribute parameter.&lt;&#x2F;p&gt;
+&lt;p&gt;Before solving this problem let&#x27;s see how we can get the &lt;em&gt;name&lt;&#x2F;em&gt; of the compensation function, at least:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; args &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;parse_macro_input!(args with Punctuated::&amp;lt;Meta, syn::Token&lt;&#x2F;span&gt;&lt;span style=&quot;background-color:#e06c75;color:#fafafa;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;[,]&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt;::parse_terminated);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; compensation &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;None;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for&lt;&#x2F;span&gt;&lt;span&gt; arg &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;in&lt;&#x2F;span&gt;&lt;span&gt; args {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if let &lt;&#x2F;span&gt;&lt;span&gt;Meta::NameValue(name_value) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; arg {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; name &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; name_value.path.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get_ident&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;to_string&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; name_value.value;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; name &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;== &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;compensation&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;      compensation &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Some(value);
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We parse the macro&#x27;s input into a list of &lt;code&gt;Meta&lt;&#x2F;code&gt; nodes, and look for the &lt;code&gt;NameValue&lt;&#x2F;code&gt; cases representing the attribute arguments having the &lt;code&gt;x=y&lt;&#x2F;code&gt; form. If the key is &lt;code&gt;compensation&lt;&#x2F;code&gt; we store the value, which has the type &lt;code&gt;Expr&lt;&#x2F;code&gt; (expression AST node) and we can interpolate this expression node directly in the quoted code to get our function name.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s go back to the primary problem - how can we generate code that invokes this function which can have three different shapes, if we cannot know which one it is?&lt;&#x2F;p&gt;
+&lt;p&gt;First we define a &lt;strong&gt;trait&lt;&#x2F;strong&gt; that abstracts this problem for us:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub trait &lt;&#x2F;span&gt;&lt;span&gt;CompensationFunction&amp;lt;In, Out, Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;result&lt;&#x2F;span&gt;&lt;span&gt;: Out, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: In) -&amp;gt; Result&amp;lt;(), Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This always has the same shape - we just pass both the results and the inputs to it, and the trait&#x27;s implementation can decide to use any of these parameters to actually call the compensation function or not.&lt;&#x2F;p&gt;
+&lt;p&gt;We can define a function that takes an arbitrary value &lt;code&gt;T&lt;&#x2F;code&gt; for which we have an implementation of this trait, and just call it:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call_compensation_function&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;In, Out, Err&amp;gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl CompensationFunction&amp;lt;In, Out, Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;result&lt;&#x2F;span&gt;&lt;span&gt;: Out,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: In,
+&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;(), Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    f.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(result, input)
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With this, we can simply generate code from the macro that passes &lt;strong&gt;the actual compensation function&lt;&#x2F;strong&gt; to the &lt;code&gt;f&lt;&#x2F;code&gt; parameter of &lt;code&gt;call_compensation_function&lt;&#x2F;code&gt;, and always pass both the result and the input!&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call_compensation_function&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  delete_account,
+&lt;&#x2F;span&gt;&lt;span&gt;  op_result,
+&lt;&#x2F;span&gt;&lt;span&gt;  (username, email)
+&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;To make this work we need instances of &lt;code&gt;CompensationFunction&lt;&#x2F;code&gt; for arbitrary function types.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s try to define it for the function with no parameters (the first supported shape):&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;F, Err&amp;gt; CompensationFunction&amp;lt;(), (), Err&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;F
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;where
+&lt;&#x2F;span&gt;&lt;span&gt;    F: FnOnce() -&amp;gt; Result&amp;lt;(), Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;_result&lt;&#x2F;span&gt;&lt;span&gt;: (),
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;_input&lt;&#x2F;span&gt;&lt;span&gt;: (),
+&lt;&#x2F;span&gt;&lt;span&gt;    ) -&amp;gt; Result&amp;lt;(), (Err,)&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;        Ok(())
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is not the final implementation as we will see soon. If we try to write an implementation for the second shape - where we only use the result and not the input, we immediately run into a problem:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;F, Out, Err&amp;gt; CompensationFunction&amp;lt;(), Out, Err&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;F
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;where
+&lt;&#x2F;span&gt;&lt;span&gt;    F: FnOnce(Out) -&amp;gt; Result&amp;lt;(), Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;      &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The error is about &lt;strong&gt;conflicting implementations&lt;&#x2F;strong&gt; of our trait:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;error[E0119]: conflicting implementations of trait `CompensationFunction&amp;lt;(), (), _&amp;gt;`
+&lt;&#x2F;span&gt;&lt;span&gt;  --&amp;gt; golem-rust&#x2F;src&#x2F;transaction&#x2F;compfn.rs:45:1
+&lt;&#x2F;span&gt;&lt;span&gt;   |
+&lt;&#x2F;span&gt;&lt;span&gt;31 | &#x2F; impl&amp;lt;F, Err&amp;gt; CompensationFunction&amp;lt;(), (), Err&amp;gt; for F
+&lt;&#x2F;span&gt;&lt;span&gt;32 | | where
+&lt;&#x2F;span&gt;&lt;span&gt;33 | |     F: FnOnce() -&amp;gt; Result&amp;lt;(), Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;   | |___________________________________- first implementation here
+&lt;&#x2F;span&gt;&lt;span&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;45 | &#x2F; impl&amp;lt;F, Out, Err&amp;gt; CompensationFunction&amp;lt;(), Out, Err&amp;gt; for F
+&lt;&#x2F;span&gt;&lt;span&gt;46 | | where
+&lt;&#x2F;span&gt;&lt;span&gt;47 | |     F: FnOnce(Out) -&amp;gt; Result&amp;lt;(), Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;   | |______________________________________^ conflicting implementation
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;These. two trait implementations &lt;strong&gt;overlap&lt;&#x2F;strong&gt;. Although it is not obvious at first glance why the two are overlapping, what happens is all the types involved in the overlap check can be unified:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;The trait&#x27;s parameters -
+&lt;ul&gt;
+&lt;li&gt;the first is &lt;code&gt;()&lt;&#x2F;code&gt; in both cases&lt;&#x2F;li&gt;
+&lt;li&gt;The second is &lt;code&gt;()&lt;&#x2F;code&gt; vs &lt;code&gt;Out&lt;&#x2F;code&gt;. Nothing prevents &lt;code&gt;Out&lt;&#x2F;code&gt; to be &lt;code&gt;()&lt;&#x2F;code&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;The third can be anything in both cases&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;The type we implement the trait for
+&lt;ul&gt;
+&lt;li&gt;This is the confusing part - as we have two different function type signatures in the two cases! But these are only type bounds. We say we implement &lt;code&gt;CompensationFunction&lt;&#x2F;code&gt; for a type &lt;code&gt;F&lt;&#x2F;code&gt; which implements the trait &lt;code&gt;FnOnce() ...&lt;&#x2F;code&gt;. The problem is that in theory there can be a type that implements both these function traits, so this is not preventing the overlap either.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;This is something &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;rust-lang&#x2F;rfcs&#x2F;blob&#x2F;master&#x2F;text&#x2F;1210-impl-specialization.md&quot;&gt;specialization&lt;&#x2F;a&gt; would solve but that is currently an unstable compiler feature.&lt;&#x2F;p&gt;
+&lt;p&gt;If at least one of the above types could not be unified, we would not have an overlap, so that&#x27;s what we have to do. The simplest way to do so is to stop having unconstrained types in the trait&#x27;s type parameters such as &lt;code&gt;In&lt;&#x2F;code&gt; and &lt;code&gt;Out&lt;&#x2F;code&gt; and &lt;code&gt;Err&lt;&#x2F;code&gt; (Actually &lt;code&gt;Err&lt;&#x2F;code&gt; should not be affected by this, but I applied the same technique to all parameters at once in the library. This is something that could be potentially simplified in the future.).&lt;&#x2F;p&gt;
+&lt;p&gt;So we just have to have a type parameter that can contain an arbitrary input or output type, but does not unify with &lt;code&gt;()&lt;&#x2F;code&gt;. We can do that by wrapping the output type in a tuple:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;F, Out, Err&amp;gt; CompensationFunction&amp;lt;(), (Out,), (Err,)&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;F
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;where
+&lt;&#x2F;span&gt;&lt;span&gt;    F: FnOnce(Out) -&amp;gt; Result&amp;lt;(), Err&amp;gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Here instead of &lt;code&gt;Out&lt;&#x2F;code&gt; we use &lt;code&gt;(Out,)&lt;&#x2F;code&gt; which is a 1-tuple wrapping our output type. This no longer unifies with &lt;code&gt;()&lt;&#x2F;code&gt; so the compiler error is solved!&lt;&#x2F;p&gt;
+&lt;p&gt;We can imagine additional trait implementations for one or more input parameters:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;F, T1, Out, Err&amp;gt; CompensationFunction&amp;lt;(T1,), (Out,), (Err,)&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;F
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;where
+&lt;&#x2F;span&gt;&lt;span&gt;    F: FnOnce(Out, T1) -&amp;gt; Result&amp;lt;(), Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;impl&amp;lt;F, T1, T2, Out, Err&amp;gt; CompensationFunction&amp;lt;(T1,T2), (Out,), (Err,)&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for&lt;&#x2F;span&gt;&lt;span&gt; F
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;where
+&lt;&#x2F;span&gt;&lt;span&gt;    F: FnOnce(Out, T1, T2) -&amp;gt; Result&amp;lt;(), Err&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Two more problems to solve before we are done!&lt;&#x2F;p&gt;
+&lt;p&gt;The first problem occurs when we try to use this mechanism for the first to compensation function shapes - when the result, or the result and the input are not used by the function.&lt;&#x2F;p&gt;
+&lt;p&gt;The problem is that these trait implementations bind the &lt;code&gt;In&lt;&#x2F;code&gt; and&#x2F;or &lt;code&gt;Out&lt;&#x2F;code&gt; types to &lt;code&gt;()&lt;&#x2F;code&gt; in these cases, which means that our &lt;code&gt;call&lt;&#x2F;code&gt; function will use the unit type for these parameters. For example for &lt;code&gt;delete_account&lt;&#x2F;code&gt; which does not takes the input parameters, it would have the following types if we replace the generic parameters with the inferred ones:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call_compensation_function&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;f&lt;&#x2F;span&gt;&lt;span&gt;: impl FnOnce(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;AccountId&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;(), DomainError&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;result&lt;&#x2F;span&gt;&lt;span&gt;: AccountId,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: (),
+&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; Result&amp;lt;(), DomainError&amp;gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And our macro will call it like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call_compensation_function&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  delete_account,
+&lt;&#x2F;span&gt;&lt;span&gt;  op_result,
+&lt;&#x2F;span&gt;&lt;span&gt;  (username, email)
+&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This of course will not compile, because we pass &lt;code&gt;(&amp;amp;str, &amp;amp;str)&lt;&#x2F;code&gt; in place of a &lt;code&gt;()&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s take a step back, and change our &lt;code&gt;CompensationFunction&lt;&#x2F;code&gt; trait:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub trait &lt;&#x2F;span&gt;&lt;span&gt;CompensationFunction&amp;lt;In, Out, Err&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;result&lt;&#x2F;span&gt;&lt;span&gt;: impl TupleOrUnit&amp;lt;Out&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: impl TupleOrUnit&amp;lt;In&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  ) -&amp;gt; Result&amp;lt;(), Err&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Instead of directly taking &lt;code&gt;Out&lt;&#x2F;code&gt; and &lt;code&gt;In&lt;&#x2F;code&gt; in the parameters we now accept &lt;strong&gt;anything that implements TupleOrUnit&lt;&#x2F;strong&gt; for the given type.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;TupleOrUnit&lt;&#x2F;code&gt; is just a special conversion trait:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub trait &lt;&#x2F;span&gt;&lt;span&gt;TupleOrUnit&amp;lt;T&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; T;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;What makes it special and what makes it solve our problem is what instances we have for it.&lt;&#x2F;p&gt;
+&lt;p&gt;First of all we say that &lt;strong&gt;anything can be converted to unit&lt;&#x2F;strong&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T&amp;gt; TupleOrUnit&amp;lt;()&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;T {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) {}
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we use the same trick to avoid overlapping instances, and we say that 1-tuple, 2-tuple, etc. can be converted to itself only:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T1&amp;gt; TupleOrUnit&amp;lt;(T1, )&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for&lt;&#x2F;span&gt;&lt;span&gt; (T1, ) {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; (T1, ) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;T1, T2&amp;gt; TupleOrUnit&amp;lt;(T1, T2, )&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for&lt;&#x2F;span&gt;&lt;span&gt; (T1, T2, ) {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; (T1, T2, ) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With this we achieved that the &lt;code&gt;call_compensation_function&lt;&#x2F;code&gt; function is still type safe - it requires us to pass the proper &lt;code&gt;Out&lt;&#x2F;code&gt; and &lt;code&gt;In&lt;&#x2F;code&gt; types - but in the special case when either of these types are unit, it allows us to pass an arbitrary value instead of an actual &lt;code&gt;()&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This makes our macro complete.&lt;&#x2F;p&gt;
+&lt;p&gt;The last thing to solve is to have enough instances of these two type classes - &lt;code&gt;CompensationFunction&lt;&#x2F;code&gt; and &lt;code&gt;TupleOrUnit&lt;&#x2F;code&gt; so our library works with more than 1 or 2 parameters. Writing them by hand is an option but we can easily generate them with another macro!&lt;&#x2F;p&gt;
+&lt;p&gt;This time we don&#x27;t have to write a procedural macro - we can use a &lt;strong&gt;declarative macro&lt;&#x2F;strong&gt;s which are simpler, and they can be defined inline in the same module where we define these types.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s start with &lt;code&gt;TupleOrUnit&lt;&#x2F;code&gt; as it is a bit simpler. We use the &lt;a href=&quot;https:&#x2F;&#x2F;doc.rust-lang.org&#x2F;reference&#x2F;macros-by-example.html&quot;&gt;macro_rules&lt;&#x2F;a&gt; macro which is basically a pattern match with a special syntax - you can match on what is passed to the macro, and generate code with interpolation similar to the &lt;code&gt;quote!&lt;&#x2F;code&gt; macro - but using &lt;code&gt;$&lt;&#x2F;code&gt; instead of &lt;code&gt;#&lt;&#x2F;code&gt; as the interpolation symbol. The following definition defines an instance of &lt;code&gt;TupleOrUnit&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;macro_rules! &lt;&#x2F;span&gt;&lt;span&gt;tuple_or_unit {
+&lt;&#x2F;span&gt;&lt;span&gt;    (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;:&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;ident&lt;&#x2F;span&gt;&lt;span&gt;),&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;$(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),*&amp;gt; TupleOrUnit&amp;lt;($(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;,)*)&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for&lt;&#x2F;span&gt;&lt;span&gt; ($(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;,)*) {
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; ($(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;,)*) {
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self
+&lt;&#x2F;span&gt;&lt;span&gt;            }
+&lt;&#x2F;span&gt;&lt;span&gt;        }
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We have a single case of our pattern match, which matches a &lt;strong&gt;comma-separated list of identifiers&lt;&#x2F;strong&gt;. We can refer to this list of identifiers as &lt;code&gt;ty&lt;&#x2F;code&gt;. Then we use the same syntax for interpolating sequences into the code as we have seen already in our procedural macro and just generate the instance.&lt;&#x2F;p&gt;
+&lt;p&gt;We can call this macro with a list of type parameters (which are all &lt;em&gt;identifiers&lt;&#x2F;em&gt;):&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;tuple_or_unit!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T1&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T2&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T3&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Let&#x27;s do the same for generating &lt;code&gt;CompensationFunction&lt;&#x2F;code&gt; instances:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;macro_rules! &lt;&#x2F;span&gt;&lt;span&gt;compensation_function {
+&lt;&#x2F;span&gt;&lt;span&gt;    (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;:&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;ident&lt;&#x2F;span&gt;&lt;span&gt;),&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;impl&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;F, $(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),*, Out, Err&amp;gt; CompensationFunction&amp;lt;($(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),*,), (Out,), (Err,)&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;for &lt;&#x2F;span&gt;&lt;span&gt;F
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;where
+&lt;&#x2F;span&gt;&lt;span&gt;            F: FnOnce(Out, $(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),*) -&amp;gt; Result&amp;lt;(), Err&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        {
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;out&lt;&#x2F;span&gt;&lt;span&gt;: impl TupleOrUnit&amp;lt;(Out,)&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: impl TupleOrUnit&amp;lt;($(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),*,)&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;            ) -&amp;gt; Result&amp;lt;(), (Err,)&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;                #[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allow&lt;&#x2F;span&gt;&lt;span&gt;(non_snake_case)]
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;( &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;,)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; input.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;(out,) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; out.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;(out, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;map_err&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;err&lt;&#x2F;span&gt;&lt;span&gt;| (err,))
+&lt;&#x2F;span&gt;&lt;span&gt;            }
+&lt;&#x2F;span&gt;&lt;span&gt;        }
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The only interesting part here is how we access the components of our tuple.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s imagine we pass &lt;code&gt;T1, T2, T3&lt;&#x2F;code&gt; as arguments to this macro, so &lt;code&gt;ty&lt;&#x2F;code&gt; is a sequence of three identifiers. We can interpolate this comma separated list into the type parameter part (&lt;code&gt;impl&amp;lt;F, $($ty),*, Out, Err&amp;gt;&lt;&#x2F;code&gt;) without any problems but this is still just a list of identifiers - and when we call our compensation function (&lt;code&gt;self&lt;&#x2F;code&gt;), we have to access the individual elements of this tuple and pass them to the function as separate parameters.&lt;&#x2F;p&gt;
+&lt;p&gt;We could write it by hand like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;call&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;out&lt;&#x2F;span&gt;&lt;span&gt;: impl TupleOrUnit&amp;lt;(Out,)), input: impl TupleOrUnit&amp;lt;(T1, T2, T3)&amp;gt;) -&amp;gt; Result&amp;lt;(), Err&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;background-color:#e06c75;color:#fafafa;&quot;&gt;{&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;out&lt;&#x2F;span&gt;&lt;span&gt;: Out = out.into();
+&lt;&#x2F;span&gt;&lt;span&gt;  let &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;: (&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;T1&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;T2&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;T3&lt;&#x2F;span&gt;&lt;span&gt;) = input.into();
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;out&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;.0, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;.1, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;input&lt;&#x2F;span&gt;&lt;span&gt;.2)
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It is possible to generate a list of accessors like this from a procedural macro, but not in a declarative one - we only have &lt;code&gt;ty&lt;&#x2F;code&gt; to work with. We can instead &lt;strong&gt;destructure&lt;&#x2F;strong&gt; the tuple and we can actually reuse the list of identifiers to do so!&lt;&#x2F;p&gt;
+&lt;p&gt;In the above macro code, this can be seen as:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allow&lt;&#x2F;span&gt;&lt;span&gt;(non_snake_case)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;( &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;,)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+ &lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; input.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;(out, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;$ty&lt;&#x2F;span&gt;&lt;span&gt;),&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This translates to&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allow&lt;&#x2F;span&gt;&lt;span&gt;(non_snake_case)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;let &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T1&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T2&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T3&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; input.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;into&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;(out, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T1&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T2&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;T3&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The error mapping is only necessary because currently the error typed is also wrapped into a tuple - this could enable additional function shapes where the compensation function never fails, for example, but it is not implemented yet.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;The library described here is open source and is available &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-rust&quot;&gt;on GitHub&lt;&#x2F;a&gt; and published &lt;a href=&quot;https:&#x2F;&#x2F;crates.io&#x2F;crates&#x2F;golem-rust&quot;&gt;to crates.io&lt;&#x2F;a&gt;. Documentation and examples will soon be added to &lt;a href=&quot;https:&#x2F;&#x2F;learn.golem.cloud&#x2F;docs&#x2F;intro&quot;&gt;Golem&#x27;s learn pages&lt;&#x2F;a&gt;. And of course this is just a first version I hope to see grow based on user feedback.&lt;&#x2F;p&gt;
+&lt;p&gt;We also plan to have similar higher-level wrapper libraries for Golem&#x27;s features for the other supported languages - everything Golem provides is exposed through the WASM Component Model so any language supporting that have immediate access to the building blocks. All remains is writing idiomatic wrappers on top of them for each language.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

@@ -1,0 +1,233 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Cloning WPF flow document fragments</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;cloning-wpf-flow-document-fragments&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Cloning WPF flow document fragments</h1>
+            
+            <p class="posted-on">Posted on October 25, 2013</p>
+        </header>
+
+        <p>Today I had to write such an ugly hack to fix a bug that I decided to start writing a blog where I can show it to the world :)</p>
+<p>The software I'm working on has some sort of context sensitive help panel, which is implemented using dynamically generated <a href="http://msdn.microsoft.com/en-us/library/aa970909.aspx">flow documents</a>. The software loads a large set of flow document sections from a XAML file runtime, and later builds documents from a subset of them.</p>
+<p>For some reason (which belong to a separate post), it is not possible to reuse these flow document elements in multiple flow documents, not even if there is only one at a time. To work around this, I was cloning these sections before adding them to the document.</p>
+<p>As WPF elements are not <em>cloneable</em>, I was using the method recommended many places, for example <a href="http://stackoverflow.com/questions/32541/how-can-you-clone-a-wpf-object">in this StackOverflow post</a>: saving the object tree to an in-memory XAML stream, and loading it back.</p>
+<p>This worked quite well.. until we discovered a bug, which I still cannot explain. In some cases which were easily reproducible for any developer, but the code running in those cases being exactly the same as in other, working cases, the clone method simply stopped working.</p>
+<p>Stopped working here means that the following code:</p>
+<pre data-lang="cs" style="background-color:#fafafa;color:#383a42;" class="language-cs "><code class="language-cs" data-lang="cs"><span style="color:#a626a4;">var </span><span style="color:#e45649;">xaml </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">XamlWriter</span><span>.</span><span style="color:#e45649;">Save</span><span>(</span><span style="color:#e45649;">block</span><span>);
+</span></code></pre>
+<p>would write out the correct object hierarchy, but without any properties (no attributes, no content properties, nothing but the element names)! In the same time the objects in the memory were untouched and still had all the relevant properties set.</p>
+<p>I also tried to write my own XAML serializer based on the code found <a href="http://go4answers.webhost4life.com/Example/xaml-serialization-replacement-75133.aspx">at this site</a>, but this was only good to find out that the problem lies deep within the <code>MarkupWriter</code> class, which is the same what the <code>XamlWriter</code> uses internally. When the <code>XamlWriter</code> failed, my own code could not find any properties using the returned <a href="http://msdn.microsoft.com/en-us/library/system.windows.markup.primitives.markupobject.aspx">MarkupObject</a>:</p>
+<pre data-lang="cs" style="background-color:#fafafa;color:#383a42;" class="language-cs "><code class="language-cs" data-lang="cs"><span>MarkupObject </span><span style="color:#e45649;">markupObj </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">MarkupWriter</span><span>.</span><span style="color:#e45649;">GetMarkupObjectFor</span><span>(</span><span style="color:#e45649;">obj</span><span>);
+</span></code></pre>
+<p>For the same object, in the working scenarios it returned a markup object with a working <code>Properties</code> collection.</p>
+<p>So here is the final <em>"solution"</em> which I'm not really proud of, but solved the problem. Maybe with some modifications it is useful for someone struggling with the framework:</p>
+<pre data-lang="cs" style="background-color:#fafafa;color:#383a42;" class="language-cs "><code class="language-cs" data-lang="cs"><span style="color:#a0a1a7;">/// &lt;</span><span style="color:#e45649;">summary</span><span style="color:#a0a1a7;">&gt;
+</span><span style="color:#a0a1a7;">/// Horrible ugly clone hack to issues where XamlWriter/XamlReader based
+</span><span style="color:#a0a1a7;">/// clone method did not work.
+</span><span style="color:#a0a1a7;">/// &lt;/</span><span style="color:#e45649;">summary</span><span style="color:#a0a1a7;">&gt;
+</span><span style="color:#a626a4;">public static class </span><span style="color:#c18401;">CloneHelper
+</span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">public static </span><span style="color:#c18401;">Block </span><span style="color:#0184bc;">Clone</span><span style="color:#c18401;">&lt;t&gt;(</span><span style="color:#a626a4;">this </span><span style="color:#c18401;">T </span><span style="color:#e45649;">block</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">where </span><span style="color:#c18401;">T : Block
+</span><span style="color:#c18401;">    {
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">result </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">(T)</span><span style="color:#e45649;">DeepClone</span><span style="color:#c18401;">(</span><span style="color:#e45649;">block</span><span style="color:#c18401;">);
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">return </span><span style="color:#e45649;">result</span><span style="color:#c18401;">;
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">private static object </span><span style="color:#0184bc;">DeepClone</span><span style="color:#c18401;">(</span><span style="color:#a626a4;">object </span><span style="color:#e45649;">obj</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">    {
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">obj </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null)
+</span><span style="color:#c18401;">        {
+</span><span style="color:#c18401;">            </span><span style="color:#a0a1a7;">// Replacing ResourceDictionary and Style values with null. 
+</span><span style="color:#c18401;">            </span><span style="color:#a0a1a7;">// In this particular use case it is correct to do
+</span><span style="color:#c18401;">            </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">obj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">() </span><span style="color:#a626a4;">== typeof</span><span style="color:#c18401;">(ResourceDictionary) </span><span style="color:#a626a4;">||
+</span><span style="color:#c18401;">                </span><span style="color:#e45649;">obj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">() </span><span style="color:#a626a4;">== typeof</span><span style="color:#c18401;">(Style))
+</span><span style="color:#c18401;">            {
+</span><span style="color:#c18401;">                </span><span style="color:#a626a4;">return </span><span style="color:#c18401;">null;
+</span><span style="color:#c18401;">            }
+</span><span style="color:#c18401;">            </span><span style="color:#a626a4;">else
+</span><span style="color:#c18401;">            {
+</span><span style="color:#c18401;">                </span><span style="color:#a0a1a7;">// Value types and some special cases where we don&#39;t want to clone
+</span><span style="color:#c18401;">                </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">obj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">().</span><span style="color:#e45649;">IsValueType </span><span style="color:#a626a4;">||
+</span><span style="color:#c18401;">                    </span><span style="color:#e45649;">obj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">() </span><span style="color:#a626a4;">== typeof </span><span style="color:#c18401;">(Cursor) </span><span style="color:#a626a4;">||
+</span><span style="color:#c18401;">                    </span><span style="color:#e45649;">obj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">() </span><span style="color:#a626a4;">== typeof </span><span style="color:#c18401;">(XmlLanguage))
+</span><span style="color:#c18401;">                {
+</span><span style="color:#c18401;">                    </span><span style="color:#a626a4;">return </span><span style="color:#e45649;">obj</span><span style="color:#c18401;">;
+</span><span style="color:#c18401;">                }
+</span><span style="color:#c18401;">                </span><span style="color:#a626a4;">else
+</span><span style="color:#c18401;">                {
+</span><span style="color:#c18401;">                    </span><span style="color:#a0a1a7;">// If it is cloneable, use it
+</span><span style="color:#c18401;">                    </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">cloneable </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">obj </span><span style="color:#a626a4;">as </span><span style="color:#c18401;">ICloneable;
+</span><span style="color:#c18401;">                    </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">cloneable </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null)
+</span><span style="color:#c18401;">                    {
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">return </span><span style="color:#e45649;">cloneable</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Clone</span><span style="color:#c18401;">();
+</span><span style="color:#c18401;">                    }
+</span><span style="color:#c18401;">                    </span><span style="color:#a626a4;">else
+</span><span style="color:#c18401;">                    {
+</span><span style="color:#c18401;">                        </span><span style="color:#a0a1a7;">// Creating the clone with reflection
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">typ </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">obj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">();
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">clone </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">Activator</span><span style="color:#c18401;">.</span><span style="color:#e45649;">CreateInstance</span><span style="color:#c18401;">(</span><span style="color:#e45649;">typ</span><span style="color:#c18401;">);                     
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">                        </span><span style="color:#a0a1a7;">// Property names which are known locally set 
+</span><span style="color:#c18401;">                        </span><span style="color:#a0a1a7;">// dependency properties
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">usedNames </span><span style="color:#a626a4;">= new </span><span style="color:#c18401;">HashSet&lt;</span><span style="color:#a626a4;">string</span><span style="color:#c18401;">&gt;();                        
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">                        </span><span style="color:#a0a1a7;">// Copying locally set dependency properties from the 
+</span><span style="color:#c18401;">                        </span><span style="color:#a0a1a7;">// source to the target
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">dobjSource </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">obj </span><span style="color:#a626a4;">as </span><span style="color:#c18401;">DependencyObject;
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">dobjTarget </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">clone </span><span style="color:#a626a4;">as </span><span style="color:#c18401;">DependencyObject;
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">dobjSource </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null </span><span style="color:#a626a4;">&amp;&amp; </span><span style="color:#e45649;">dobjTarget </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null)
+</span><span style="color:#c18401;">                        {
+</span><span style="color:#c18401;">                            </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">locallySetProperties </span><span style="color:#a626a4;">= 
+</span><span style="color:#c18401;">                                </span><span style="color:#e45649;">dobjSource</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetLocalValueEnumerator</span><span style="color:#c18401;">();
+</span><span style="color:#c18401;">                            </span><span style="color:#a626a4;">while </span><span style="color:#c18401;">(</span><span style="color:#e45649;">locallySetProperties</span><span style="color:#c18401;">.</span><span style="color:#e45649;">MoveNext</span><span style="color:#c18401;">())
+</span><span style="color:#c18401;">                            {
+</span><span style="color:#c18401;">                                DependencyProperty </span><span style="color:#e45649;">dp </span><span style="color:#a626a4;">= 
+</span><span style="color:#c18401;">                                    </span><span style="color:#e45649;">locallySetProperties</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Current</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Property</span><span style="color:#c18401;">;
+</span><span style="color:#c18401;">                                </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#a626a4;">!</span><span style="color:#e45649;">dp</span><span style="color:#c18401;">.</span><span style="color:#e45649;">ReadOnly</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">                                {
+</span><span style="color:#c18401;">                                    </span><span style="color:#e45649;">dobjTarget</span><span style="color:#c18401;">.</span><span style="color:#e45649;">SetValue</span><span style="color:#c18401;">(</span><span style="color:#e45649;">dp</span><span style="color:#c18401;">, </span><span style="color:#e45649;">dobjSource</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetValue</span><span style="color:#c18401;">(</span><span style="color:#e45649;">dp</span><span style="color:#c18401;">));
+</span><span style="color:#c18401;">                                    </span><span style="color:#e45649;">usedNames</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Add</span><span style="color:#c18401;">(</span><span style="color:#e45649;">dp</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Name</span><span style="color:#c18401;">);
+</span><span style="color:#c18401;">                                }
+</span><span style="color:#c18401;">                            }
+</span><span style="color:#c18401;">                        }                        
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">                        </span><span style="color:#a0a1a7;">// Getting all the public, non-static properties of the source
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">foreach </span><span style="color:#c18401;">(</span><span style="color:#a626a4;">var </span><span style="color:#e45649;">pi </span><span style="color:#a626a4;">in </span><span style="color:#e45649;">typ</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetProperties</span><span style="color:#c18401;">(
+</span><span style="color:#c18401;">                                            </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Instance </span><span style="color:#a626a4;">| 
+</span><span style="color:#c18401;">                                            </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Public </span><span style="color:#a626a4;">| 
+</span><span style="color:#c18401;">                                            </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">FlattenHierarchy</span><span style="color:#c18401;">))
+</span><span style="color:#c18401;">                        {
+</span><span style="color:#c18401;">                            </span><span style="color:#a0a1a7;">// If it is not a dependency property 
+</span><span style="color:#c18401;">                            </span><span style="color:#a0a1a7;">// and not the default property...
+</span><span style="color:#c18401;">                            </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">CanRead </span><span style="color:#a626a4;">&amp;&amp;
+</span><span style="color:#c18401;">                                </span><span style="color:#a626a4;">!</span><span style="color:#e45649;">usedNames</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Contains</span><span style="color:#c18401;">(</span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Name</span><span style="color:#c18401;">) </span><span style="color:#a626a4;">&amp;&amp;
+</span><span style="color:#c18401;">                                </span><span style="color:#a626a4;">!</span><span style="color:#e45649;">IsDependencyProperty</span><span style="color:#c18401;">(</span><span style="color:#e45649;">dobjSource</span><span style="color:#c18401;">, </span><span style="color:#e45649;">pi</span><span style="color:#c18401;">) </span><span style="color:#a626a4;">&amp;&amp;
+</span><span style="color:#c18401;">                                </span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Name </span><span style="color:#a626a4;">!= </span><span style="color:#50a14f;">&quot;Item&quot;</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">                            {                                    
+</span><span style="color:#c18401;">                                </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">val </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetValue</span><span style="color:#c18401;">(</span><span style="color:#e45649;">obj</span><span style="color:#c18401;">, null);
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">                                </span><span style="color:#a0a1a7;">// ..and it is writeable, then we recursively clone 
+</span><span style="color:#c18401;">                                </span><span style="color:#a0a1a7;">// the value and set the property:
+</span><span style="color:#c18401;">                                </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">CanWrite</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">                                {                                        
+</span><span style="color:#c18401;">                                    </span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">SetValue</span><span style="color:#c18401;">(</span><span style="color:#e45649;">clone</span><span style="color:#c18401;">, </span><span style="color:#e45649;">DeepClone</span><span style="color:#c18401;">(</span><span style="color:#e45649;">val</span><span style="color:#c18401;">), null);
+</span><span style="color:#c18401;">                                }
+</span><span style="color:#c18401;">                                </span><span style="color:#a626a4;">else
+</span><span style="color:#c18401;">                                {
+</span><span style="color:#c18401;">                                    </span><span style="color:#a0a1a7;">// ..otherwise if it is a readonly list property, 
+</span><span style="color:#c18401;">                                    </span><span style="color:#a0a1a7;">// go through each item,  clone it and add to 
+</span><span style="color:#c18401;">                                    </span><span style="color:#a0a1a7;">// the clone&#39;s list property
+</span><span style="color:#c18401;">                                    </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">PropertyType
+</span><span style="color:#c18401;">                                          .</span><span style="color:#e45649;">GetInterfaces</span><span style="color:#c18401;">()
+</span><span style="color:#c18401;">                                          .</span><span style="color:#e45649;">Contains</span><span style="color:#c18401;">(</span><span style="color:#a626a4;">typeof </span><span style="color:#c18401;">(IList)))
+</span><span style="color:#c18401;">                                    {
+</span><span style="color:#c18401;">                                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">source </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">val </span><span style="color:#a626a4;">as </span><span style="color:#c18401;">IList;
+</span><span style="color:#c18401;">                                        </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">target </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetValue</span><span style="color:#c18401;">(</span><span style="color:#e45649;">clone</span><span style="color:#c18401;">, null) </span><span style="color:#a626a4;">as </span><span style="color:#c18401;">IList;
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">                                        </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">source </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null </span><span style="color:#a626a4;">&amp;&amp; </span><span style="color:#e45649;">target </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null)
+</span><span style="color:#c18401;">                                        {
+</span><span style="color:#c18401;">                                            </span><span style="color:#a626a4;">foreach </span><span style="color:#c18401;">(</span><span style="color:#a626a4;">var </span><span style="color:#e45649;">item </span><span style="color:#a626a4;">in </span><span style="color:#e45649;">source</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">                                                </span><span style="color:#e45649;">target</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Add</span><span style="color:#c18401;">(</span><span style="color:#e45649;">DeepClone</span><span style="color:#c18401;">(</span><span style="color:#e45649;">item</span><span style="color:#c18401;">));
+</span><span style="color:#c18401;">                                        }
+</span><span style="color:#c18401;">                                    }
+</span><span style="color:#c18401;">                                }
+</span><span style="color:#c18401;">                            }
+</span><span style="color:#c18401;">                        }                        
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">                        </span><span style="color:#a626a4;">return </span><span style="color:#e45649;">clone</span><span style="color:#c18401;">;
+</span><span style="color:#c18401;">                    }
+</span><span style="color:#c18401;">                }
+</span><span style="color:#c18401;">            }
+</span><span style="color:#c18401;">        }
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">else
+</span><span style="color:#c18401;">        {
+</span><span style="color:#c18401;">            </span><span style="color:#a626a4;">return </span><span style="color:#c18401;">null;
+</span><span style="color:#c18401;">        }
+</span><span style="color:#c18401;">    }    
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a0a1a7;">/// &lt;</span><span style="color:#e45649;">summary</span><span style="color:#a0a1a7;">&gt;
+</span><span style="color:#a0a1a7;">    /// Tries to determine if a property is a dependency property, by reflection and 
+</span><span style="color:#a0a1a7;">    /// naming convention
+</span><span style="color:#a0a1a7;">    /// &lt;/</span><span style="color:#e45649;">summary</span><span style="color:#a0a1a7;">&gt;
+</span><span style="color:#a0a1a7;">    /// &lt;</span><span style="color:#e45649;">param </span><span style="color:#c18401;">name</span><span style="color:#a0a1a7;">=</span><span style="color:#50a14f;">&quot;dobj&quot;</span><span style="color:#a0a1a7;">&gt;Dependency object
+</span><span style="color:#a0a1a7;">    /// &lt;</span><span style="color:#e45649;">param </span><span style="color:#c18401;">name</span><span style="color:#a0a1a7;">=</span><span style="color:#50a14f;">&quot;pi&quot;</span><span style="color:#a0a1a7;">&gt;Property info
+</span><span style="color:#a0a1a7;">    /// &lt;</span><span style="color:#e45649;">returns</span><span style="color:#a0a1a7;">&gt;Returns &lt;</span><span style="color:#e45649;">c</span><span style="color:#a0a1a7;">&gt;true&lt;/</span><span style="color:#e45649;">c</span><span style="color:#a0a1a7;">&gt; if the given property seems to be a 
+</span><span style="color:#a0a1a7;">    ///          CLR access property for a dependency property.&lt;/</span><span style="color:#e45649;">returns</span><span style="color:#a0a1a7;">&gt;
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">private static bool </span><span style="color:#0184bc;">IsDependencyProperty</span><span style="color:#c18401;">(DependencyObject </span><span style="color:#e45649;">dobj</span><span style="color:#c18401;">, PropertyInfo </span><span style="color:#e45649;">pi</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">    {
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">dobj </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null)
+</span><span style="color:#c18401;">        {
+</span><span style="color:#c18401;">            </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">dpProp </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">dobj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">().</span><span style="color:#e45649;">GetProperty</span><span style="color:#c18401;">(</span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Name </span><span style="color:#a626a4;">+ </span><span style="color:#50a14f;">&quot;Property&quot;</span><span style="color:#c18401;">, 
+</span><span style="color:#c18401;">                                                    </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Static </span><span style="color:#a626a4;">|
+</span><span style="color:#c18401;">                                                    </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Public </span><span style="color:#a626a4;">|
+</span><span style="color:#c18401;">                                                    </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">FlattenHierarchy</span><span style="color:#c18401;">);
+</span><span style="color:#c18401;">            </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">dpProp </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null </span><span style="color:#a626a4;">&amp;&amp; </span><span style="color:#e45649;">dpProp</span><span style="color:#c18401;">.</span><span style="color:#e45649;">PropertyType </span><span style="color:#a626a4;">== typeof </span><span style="color:#c18401;">(DependencyProperty))
+</span><span style="color:#c18401;">                </span><span style="color:#a626a4;">return </span><span style="color:#c18401;">true;
+</span><span style="color:#c18401;">            </span><span style="color:#a626a4;">else
+</span><span style="color:#c18401;">            {
+</span><span style="color:#c18401;">                </span><span style="color:#a626a4;">var </span><span style="color:#e45649;">dpField </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">dobj</span><span style="color:#c18401;">.</span><span style="color:#e45649;">GetType</span><span style="color:#c18401;">().</span><span style="color:#e45649;">GetField</span><span style="color:#c18401;">(</span><span style="color:#e45649;">pi</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Name </span><span style="color:#a626a4;">+ </span><span style="color:#50a14f;">&quot;Property&quot;</span><span style="color:#c18401;">, 
+</span><span style="color:#c18401;">                                                      </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Static </span><span style="color:#a626a4;">| 
+</span><span style="color:#c18401;">                                                      </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">Public </span><span style="color:#a626a4;">| 
+</span><span style="color:#c18401;">                                                      </span><span style="color:#e45649;">BindingFlags</span><span style="color:#c18401;">.</span><span style="color:#e45649;">FlattenHierarchy</span><span style="color:#c18401;">);
+</span><span style="color:#c18401;">                </span><span style="color:#a626a4;">if </span><span style="color:#c18401;">(</span><span style="color:#e45649;">dpField </span><span style="color:#a626a4;">!= </span><span style="color:#c18401;">null </span><span style="color:#a626a4;">&amp;&amp; 
+</span><span style="color:#c18401;">                    </span><span style="color:#e45649;">dpField</span><span style="color:#c18401;">.</span><span style="color:#e45649;">FieldType </span><span style="color:#a626a4;">== typeof </span><span style="color:#c18401;">(DependencyProperty) </span><span style="color:#a626a4;">&amp;&amp; 
+</span><span style="color:#c18401;">                    </span><span style="color:#e45649;">dpField</span><span style="color:#c18401;">.</span><span style="color:#e45649;">IsInitOnly </span><span style="color:#a626a4;">&amp;&amp; </span><span style="color:#e45649;">dpField</span><span style="color:#c18401;">.</span><span style="color:#e45649;">IsStatic</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">                    </span><span style="color:#a626a4;">return </span><span style="color:#c18401;">true;
+</span><span style="color:#c18401;">            }
+</span><span style="color:#c18401;">        }        
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">return </span><span style="color:#c18401;">false;
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">}
+</span></code></pre>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - talk</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/talk/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2025-06-23T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/talk/atom.xml</id>
+    <entry xml:lang="en">
+        <title>[Video] Missing Testing Features in Rust @ LambdaConf 2025</title>
+        <published>2025-06-23T00:00:00+00:00</published>
+        <updated>2025-06-23T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/missing-testing-features-in-rust/"/>
+        <id>https://blog.vigoo.dev/posts/missing-testing-features-in-rust/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/missing-testing-features-in-rust/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.lambdaconf.us&quot;&gt;LambdaConf 2025&lt;&#x2F;a&gt; about my Rust test framework &lt;a href=&quot;https:&#x2F;&#x2F;test-r.vigoo.dev&quot;&gt;test-r&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;Yf5oIj816mw?list=PL7DZ7q3nEWhwo2OmeaMzNggy7sof9qg5p&quot; title=&quot;Daniel Vigovszky - Missing Testing Features in Rust&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; referrerpolicy=&quot;strict-origin-when-cross-origin&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] Golem powered by WebAssembly @ Wasm I&#x2F;O 2025</title>
+        <published>2025-04-04T00:00:00+00:00</published>
+        <updated>2025-04-04T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/golem-powered-by-wasm/"/>
+        <id>https://blog.vigoo.dev/posts/golem-powered-by-wasm/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/golem-powered-by-wasm/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.wasm.io&quot;&gt;Wasm I&#x2F;O 2025&lt;&#x2F;a&gt; explaining how &lt;a href=&quot;https:&#x2F;&#x2F;golem.cloud&quot;&gt;Golem&lt;&#x2F;a&gt; is built on WebAssembly and the Component Model.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;_oEhuFjTyeQ?si=zYPcpJLasEBV-vGE&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; referrerpolicy=&quot;strict-origin-when-cross-origin&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] Golem and the WASM Component Model @ LambdaConf 2024</title>
+        <published>2024-06-16T00:00:00+00:00</published>
+        <updated>2024-06-16T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/golem-and-the-wasm-component-model/"/>
+        <id>https://blog.vigoo.dev/posts/golem-and-the-wasm-component-model/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/golem-and-the-wasm-component-model/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.lambdaconf.us&quot;&gt;LambdaConf 2024&lt;&#x2F;a&gt; explaining how &lt;a href=&quot;https:&#x2F;&#x2F;golem.cloud&quot;&gt;Golem&lt;&#x2F;a&gt; takes advantage of the WebAssembly Component Model.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;g5uUQSByvI4?si=lxlQgFztHp94WjrU&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; referrerpolicy=&quot;strict-origin-when-cross-origin&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] Beyond OpenAPI @ Functional Scala 2023</title>
+        <published>2024-01-21T00:00:00+00:00</published>
+        <updated>2024-01-21T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/funscala2023-talk/"/>
+        <id>https://blog.vigoo.dev/posts/funscala2023-talk/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/funscala2023-talk/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.functionalscala.com&#x2F;&quot;&gt;Functional Scala 2023&lt;&#x2F;a&gt; about my experience with generating client libraries from OpenAPI specifications, and an alternative code-first approach using &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;zio&#x2F;zio-http&#x2F;&quot;&gt;ZIO Http&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;wwKs37GVubg?si=dMEqTmjUgGBhYB38&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] Introducing ZIO Flow @ ZIO World 2023</title>
+        <published>2023-09-06T00:00:00+00:00</published>
+        <updated>2023-09-06T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/introducing-zio-flow/"/>
+        <id>https://blog.vigoo.dev/posts/introducing-zio-flow/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/introducing-zio-flow/">&lt;p&gt;My short talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.zioworld.com&#x2F;&quot;&gt;ZIO World 2023&lt;&#x2F;a&gt; about the  &lt;a href=&quot;https:&#x2F;&#x2F;zio.dev&#x2F;zio-flow&#x2F;&quot;&gt;zio-flow library&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;ujJuFd6Vvfc?si=bsh3b7f-LXFVP_v_&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] Binary Serialization Of Evolving Data Types @ Functional Scala 2022</title>
+        <published>2022-12-01T00:00:00+00:00</published>
+        <updated>2022-12-01T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/funscala2022-talk/"/>
+        <id>https://blog.vigoo.dev/posts/funscala2022-talk/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/funscala2022-talk/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.functionalscala.com&#x2F;&quot;&gt;Functional Scala 2022&lt;&#x2F;a&gt; about the binary serialization library &lt;a href=&quot;https:&#x2F;&#x2F;vigoo.github.io&#x2F;desert&#x2F;&quot;&gt;desert&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;Y2KopYpjZ3Y&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] ZIO Parser @ ZIO World 2022</title>
+        <published>2022-03-11T00:00:00+00:00</published>
+        <updated>2022-03-11T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/zioworld-talk/"/>
+        <id>https://blog.vigoo.dev/posts/zioworld-talk/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/zioworld-talk/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;zioworld.com&#x2F;&quot;&gt;ZIO World 2022&lt;&#x2F;a&gt; introducing &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;zio&#x2F;zio-parser&quot;&gt;ZIO Parser&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;IG6SmKPPamY&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>[Video] Generating Libraries @ Functional Scala 2021</title>
+        <published>2021-12-03T00:00:00+00:00</published>
+        <updated>2021-12-03T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/funscala2021-talk/"/>
+        <id>https://blog.vigoo.dev/posts/funscala2021-talk/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/funscala2021-talk/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.functionalscala.com&#x2F;&quot;&gt;Functional Scala 2021&lt;&#x2F;a&gt; about generating libraries in Scala:&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;HCPTmytex3U&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;
+</content>
+        
+    </entry>
+</feed>
