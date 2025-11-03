@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - case-study</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/case-study/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2015-09-21T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/case-study/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Case Study - Haskell at Prezi</title>
+        <published>2015-09-21T00:00:00+00:00</published>
+        <updated>2015-09-21T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/haskell-case-study/"/>
+        <id>https://blog.vigoo.dev/posts/haskell-case-study/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/haskell-case-study/">&lt;p&gt;I wrote a &lt;em&gt;case study&lt;&#x2F;em&gt; for &lt;a href=&quot;http:&#x2F;&#x2F;www.fpcomplete.com&quot;&gt;FPComplete&lt;&#x2F;a&gt; on how we use Haskell at &lt;a href=&quot;https:&#x2F;&#x2F;prezi.com&quot;&gt;Prezi&lt;&#x2F;a&gt;. It is published &lt;a href=&quot;https:&#x2F;&#x2F;www.fpcomplete.com&#x2F;page&#x2F;case-study-prezi&quot;&gt;here&lt;&#x2F;a&gt;, but I&#x27;m just posting it here as well:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;prezi.com&quot;&gt;Prezi&lt;&#x2F;a&gt; is a cloud-based presentation and storytelling tool, based on a zoomable canvas. The company was founded in 2009, and today we have more than 50 million users, with more than 160 million prezis created.&lt;&#x2F;p&gt;
+&lt;p&gt;The company is using several different platforms and technologies; one of these is &lt;em&gt;Haskell&lt;&#x2F;em&gt;, which we are using server side, for code generation and for testing.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;pdom&quot;&gt;PDOM&lt;&#x2F;h2&gt;
+&lt;p&gt;Prezi&#x27;s document format is continuously evolving as we add features to the application. It is very important for us that this format is handled correctly on all our supported platforms, and both on client and server side. To achieve this, we created an eDSL in Haskell that defines the schema of a Prezi. From this schema we are able to generate several artifacts.&lt;&#x2F;p&gt;
+&lt;p&gt;Most importantly we are generating a &lt;em&gt;Prezi Document Object Model (PDOM)&lt;&#x2F;em&gt; library for multiple platforms - Haxe (compiled to JS) code for the web, C++ code for the native platforms, and Haskell code for our tests, tools and the server side. These libraries are responsible for loading, updating, maintaining consistency and saving Prezis.&lt;&#x2F;p&gt;
+&lt;p&gt;This API also implements &lt;em&gt;collaborative editing&lt;&#x2F;em&gt; functionality by transparently synchronising document changes between multiple clients. This technique is called &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Operational_transformation&quot;&gt;operational transformation (OT)&lt;&#x2F;a&gt;. We implemented the server side of this in Haskell; it supports clients from any of the supported platforms and it is connected to several other backend services.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;benefits&quot;&gt;Benefits&lt;&#x2F;h2&gt;
+&lt;p&gt;Using &lt;em&gt;Haskell&lt;&#x2F;em&gt; for this project turned out to have huge benefits.&lt;&#x2F;p&gt;
+&lt;p&gt;We are taking advantage of Haskell&#x27;s capabilities to create embedded domain specific languages, using it to define the document&#x27;s schema in our own eDSL which is used not only by Haskell developers but many others too.&lt;&#x2F;p&gt;
+&lt;p&gt;Haskell&#x27;s clean and terse code allows us to describe document invariants and rules in a very readable way and the type system guarantees that we handle all the necessary cases, providing a stable base Haskell implementation which we can compare the other language backends to.&lt;&#x2F;p&gt;
+&lt;p&gt;It was also possible to define a set of merge laws for OT, which are verified whenever we introduce a new element to the document schema, guaranteeing that the collaboration functionality works correctly.&lt;&#x2F;p&gt;
+&lt;p&gt;We use the &lt;em&gt;QuickCheck&lt;&#x2F;em&gt; testing library on all levels. We can generate arbitrary Prezi documents and test serialization on all the backends. We are even generating arbitrary JavaScript code which uses our generated API to test random collaborative network sessions. These tests turned out to be critical for our success as they caught many interesting problems before we deployed anything to production&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

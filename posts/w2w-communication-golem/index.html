@@ -1,0 +1,347 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Worker to Worker communication in Golem</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;w2w-communication-golem&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Worker to Worker communication in Golem</h1>
+            
+            <p class="posted-on">Posted on March 08, 2024</p>
+        </header>
+
+        <p>This article was originally posted at <a href="https://www.golem.cloud/post/worker-to-worker-communication">the Golem Cloud Blog</a></p>
+<p>Golem Cloud's first developer preview <a href="https://www.golem.cloud/post/unveiling-golem-cloud">has been unveiled in August</a>, and just a month ago, we released <a href="https://www.golem.cloud/post/golem-goes-open-source">an open-source version of Golem</a>. Workers, the fundamental primitive in Golem, expose a typed interface that can be invoked through the REST API or the command line tools, but until today, calling a worker from <em>another worker</em> was neither easy nor type-safe.</p>
+<p>With the latest release of Golem and the <code>golem-cli</code> tool, we finally have a first-class, typed way to invoke one worker from another, using any of the supported guest languages!</p>
+<h2 id="golem-wasm-rpc">Golem WASM RPC</h2>
+<p>Golem's new worker to worker communication feature consists of two major layers:</p>
+<ul>
+<li>A low-level, dynamic worker invocation API exposed as a Golem <strong>host function</strong> to all workers. This interface is not type safe. Rather, it matches the capabilities of the external REST API, allowing a worker to invoke any method on any other worker with any parameters. However, it avoids the overhead of setting up an HTTP connection and will be optimized in the future.</li>
+<li>The ability to generate <strong>stubs</strong> for having a completely type-safe, language-independent remote worker invocation for any supported language having a WIT-based binding generator.</li>
+</ul>
+<p>With the new stub generator commands integrated into Golem's command line tool (<code>golem-cli</code>) worker to worker communication is now a simple and fully type-safe experience.</p>
+<h2 id="a-full-example">A full example</h2>
+<p>To demonstrate how this new feature works, we will take one of the first Golem example projects, the <strong>shopping cart</strong>, and extend it with worker-to-worker communication. The original shopping-cart project defines a worker for each shopping cart of an online web store, with exported functions to add items to the cart and eventually check out and finish the shopping process.</p>
+<p>In this example, we introduce a second <strong>worker template</strong>, one that will be used to create a single <strong>worker</strong> for each online shopper. This worker will keep a log of all the purchases of the user it belongs to. We will extend the shopping cart's <code>checkout</code> function with a remote worker invocation to add a new entry to the account's purchase log.</p>
+<p>First, let's make sure we have the latest version of <code>golem-cli</code>, if using the open-source Golem version, or <code>golem-cloud-cli</code>, if using the hosted version. It must have the new <code>stubgen</code> subcommand, to check let's run <code>golem-cli stubgen --help</code>:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">WASM</span><span> RPC stub generator
+</span><span>
+</span><span style="color:#e45649;">Usage:</span><span> golem-cli stubgen </span><span style="color:#a626a4;">[</span><span>OPTIONS</span><span style="color:#a626a4;">] &lt;</span><span>COMMAND</span><span style="color:#a626a4;">&gt;
+</span><span>
+</span><span style="color:#e45649;">Commands:
+</span><span>  </span><span style="color:#e45649;">generate</span><span>              Generate a Rust RPC stub crate for a WASM component
+</span><span>  </span><span style="color:#e45649;">build</span><span>                 Build an RPC stub for a WASM component
+</span><span>  </span><span style="color:#e45649;">add-stub-dependency</span><span>   Adds a generated stub as a dependency to another WASM component
+</span><span>  </span><span style="color:#e45649;">compose</span><span>               Compose a WASM component with a generated stub WASM
+</span><span>  </span><span style="color:#e45649;">initialize-workspace</span><span>  Initializes a Golem-specific cargo-make configuration in a Cargo workspace for automatically generating stubs and composing results
+</span><span>  </span><span style="color:#0184bc;">help</span><span>                  Print this message or the help of the given subcommand(s)
+</span><span>
+</span><span style="color:#e45649;">Options:
+</span><span>  </span><span style="color:#e45649;">-v, --verbose</span><span>...  Increase logging verbosity
+</span><span>  </span><span style="color:#e45649;">-q, --quiet</span><span>...    Decrease logging verbosity
+</span><span>  </span><span style="color:#e45649;">-h, --help</span><span>        Print help
+</span></code></pre>
+<h3 id="preparing-the-example">Preparing the example</h3>
+<p>We are going to create two different <strong>Golem templates</strong>, and have the source codes of both of them in a single <strong>Cargo workspace</strong>. This is not required—they could live in completely separate places—but it allows using our built-in cargo-make support, which currently gives us the best possible developer experience for worker-to-worker communication.</p>
+<p>First, let's use the <code>golem-cli new</code> command to take the <strong>shopping-cart example</strong> and generate a new template source from it:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem-cli new</span><span style="color:#e45649;"> --example</span><span> rust-shopping-cart</span><span style="color:#e45649;"> --template-name</span><span> shopping-cart-rpc
+</span><span style="color:#e45649;">See</span><span> the documentation about installing common tooling: https://golem.cloud/learn/rust
+</span><span>
+</span><span style="color:#e45649;">Compile</span><span> the Rust component with cargo-component:
+</span><span>  </span><span style="color:#e45649;">cargo</span><span> component build</span><span style="color:#e45649;"> --release
+</span><span style="color:#e45649;">The</span><span> result in target/wasm32-wasi/release/shopping_cart_rpc.wasm is ready to be used with Golem!
+</span></code></pre>
+<p>The <code>shopping-cart-rpc</code> directory now contains a single Rust crate, which can be compiled to WASM using <code>cargo component build</code>. We need two different WASMs (two Golem templates) so as a first step, we convert the generated Cargo project to a <a href="https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html"><strong>cargo workspace</strong></a>.</p>
+<p>First, create two sub-directories for the two templates we will use:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> mkdir</span><span style="color:#e45649;"> -pv</span><span> shopping-cart
+</span><span style="color:#e45649;">shopping-cart
+</span><span style="color:#e45649;">$</span><span> mkdir</span><span style="color:#e45649;"> -pv</span><span> purchase-history
+</span><span style="color:#e45649;">purchase-history
+</span></code></pre>
+<p>Then, move the generated shopping cart source code into the <code>shopping-cart</code> subdirectory:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> mv</span><span style="color:#e45649;"> -v</span><span> src shopping-cart
+</span><span style="color:#e45649;">src</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> shopping-cart/src
+</span><span>
+</span><span style="color:#e45649;">$</span><span> mv</span><span style="color:#e45649;"> -v</span><span> wit shopping-cart
+</span><span style="color:#e45649;">wit</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> shopping-cart/wit
+</span><span>
+</span><span style="color:#e45649;">$</span><span> mv</span><span style="color:#e45649;"> -v</span><span> Cargo.toml shopping-cart
+</span><span style="color:#e45649;">Cargo.toml</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> shopping-cart/Cargo.toml
+</span></code></pre>
+<p>We can copy the whole contents of the <code>shopping-cart</code> directory to the <code>purchase-history</code> directory too:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> cp</span><span style="color:#e45649;"> -rv</span><span> shopping-cart/</span><span style="color:#a626a4;">*</span><span> purchase-history
+</span><span style="color:#e45649;">shopping-cart/Cargo.toml</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> purchase-history/Cargo.toml
+</span><span style="color:#e45649;">shopping-cart/src</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> purchase-history/src
+</span><span style="color:#e45649;">shopping-cart/src/lib.rs</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> purchase-history/src/lib.rs
+</span><span style="color:#e45649;">shopping-cart/wit</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> purchase-history/wit
+</span><span style="color:#e45649;">shopping-cart/wit/shopping-cart-rpc.wit</span><span> -</span><span style="color:#a626a4;">&gt;</span><span> purchase-history/wit/shopping-cart-rpc.wit
+</span></code></pre>
+<p>Then we create a new <code>Cargo.toml</code> file in the root, pointing to the two sub-projects:</p>
+<pre data-lang="toml" style="background-color:#fafafa;color:#383a42;" class="language-toml "><code class="language-toml" data-lang="toml"><span>[workspace]
+</span><span style="color:#e45649;">resolver </span><span>= </span><span style="color:#50a14f;">&quot;2&quot;
+</span><span>
+</span><span style="color:#e45649;">members </span><span>= [
+</span><span>    </span><span style="color:#50a14f;">&quot;shopping-cart&quot;</span><span>,
+</span><span>    </span><span style="color:#50a14f;">&quot;purchase-history&quot;</span><span>,
+</span><span>]
+</span></code></pre>
+<p>Next, modify the <code>name</code> property in both sub-project's <code>Cargo.toml</code>. In <code>shopping-cart/Cargo.toml</code>, it should be:</p>
+<pre data-lang="toml" style="background-color:#fafafa;color:#383a42;" class="language-toml "><code class="language-toml" data-lang="toml"><span style="color:#e45649;">name </span><span>= </span><span style="color:#50a14f;">&quot;shopping-cart&quot;
+</span></code></pre>
+<p>while in the other</p>
+<pre data-lang="toml" style="background-color:#fafafa;color:#383a42;" class="language-toml "><code class="language-toml" data-lang="toml"><span style="color:#e45649;">name </span><span>= </span><span style="color:#50a14f;">&quot;purchase-history&quot;
+</span></code></pre>
+<p>It's also recommended that you rename the WIT file in both the <code>wit</code> directories to a file name that corresponds to the given sub-project's name, but it does not have any effect on the compilation—it just makes working on the source code easier.</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> mv shopping-cart/wit/shopping-cart-rpc.wit shopping-cart/wit/shopping-cart.wit
+</span><span style="color:#e45649;">$</span><span> mv purchase-history/wit/shopping-cart-rpc.wit purchase-history/wit/purchase-history.wit
+</span></code></pre>
+<p>At this point running <code>cargo component build</code> in the root will compile both identical sub-projects, creating two different WASM files (but both containing the shopping cart implementation for now):</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> cargo component build
+</span><span style="color:#e45649;">...
+</span><span>    </span><span style="color:#e45649;">Creating</span><span> component /Users/vigoo/projects/demo/shopping-cart-rpc/target/wasm32-wasi/debug/purchase_history.wasm
+</span><span>    </span><span style="color:#e45649;">Creating</span><span> component /Users/vigoo/projects/demo/shopping-cart-rpc/target/wasm32-wasi/debug/shopping_cart.wasm
+</span></code></pre>
+<h3 id="implementing-the-purchase-history-template">Implementing the purchase history template</h3>
+<p>Before talking about <em>worker-to-worker communication</em>, let's just implement a simple version of the <strong>purchase history template</strong>. Each worker of this template will correspond to a <strong>user</strong> of the system, the worker name being equal to the user's identifier. We only need two exported functions, one for recording a purchase, and one for getting all the previous purchases.</p>
+<p>Let's completely replace <code>purchase-history/wit/purchase-history.wit</code> with the following interface definition:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">package </span><span>shopping:purchase-history;
+</span><span>
+</span><span style="color:#a626a4;">interface </span><span>api {
+</span><span>  </span><span style="color:#a626a4;">record </span><span>product-item {
+</span><span>    </span><span style="color:#e45649;">product-id</span><span>: </span><span style="color:#a626a4;">string</span><span>,
+</span><span>    </span><span style="color:#e45649;">name</span><span>: </span><span style="color:#a626a4;">string</span><span>,
+</span><span>    </span><span style="color:#e45649;">price</span><span>: float32,
+</span><span>    </span><span style="color:#e45649;">quantity</span><span>: </span><span style="color:#a626a4;">u32</span><span>,
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">record </span><span>order {
+</span><span>    </span><span style="color:#e45649;">order-id</span><span>: </span><span style="color:#a626a4;">string</span><span>,
+</span><span>    </span><span style="color:#e45649;">items</span><span>: </span><span style="color:#a626a4;">list</span><span>&lt;product-item&gt;,
+</span><span>    </span><span style="color:#e45649;">total</span><span>: float32,
+</span><span>    </span><span style="color:#e45649;">timestamp</span><span>: </span><span style="color:#a626a4;">u64</span><span>,
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">add-order</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">order</span><span>: order) </span><span style="color:#a626a4;">-&gt; </span><span>();
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">get-orders</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; list</span><span>&lt;order&gt;;
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">world </span><span>purchase-history {
+</span><span>  </span><span style="color:#a626a4;">export </span><span>api;
+</span><span>}
+</span></code></pre>
+<p>Our <code>product-item</code> and <code>order</code> types are the same that we have in the shopping-cart WIT. In a next step, we will remove them from the shopping-cart WIT, and import them from this component's interface definition!</p>
+<p>Running <code>cargo component build</code> now will print a couple of errors, as we did not update the <code>purchase-history</code> module's Rust source code yet:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> cargo component build
+</span><span style="color:#e45649;">...
+</span><span style="color:#e45649;">error[E0433]:</span><span> failed to resolve: could not find `</span><span style="color:#e45649;">golem</span><span>` in `</span><span style="color:#e45649;">exports</span><span>`
+</span><span> </span><span style="color:#e45649;">--</span><span style="color:#a626a4;">&gt;</span><span> purchase-history/src/lib.rs:3:31
+</span><span>  </span><span style="color:#a626a4;">|
+</span><span style="color:#e45649;">3 </span><span style="color:#a626a4;">| </span><span style="color:#e45649;">use</span><span> crate::bindings::exports::golem::template::api::</span><span style="color:#a626a4;">*;
+</span><span>  </span><span style="color:#a626a4;">|                               </span><span style="color:#e45649;">^^^^^</span><span> could not find `</span><span style="color:#e45649;">golem</span><span>` in `</span><span style="color:#e45649;">exports</span><span>`
+</span><span style="color:#e45649;">...
+</span></code></pre>
+<p>A simple implementation of this can be the following code replacing the existing <code>lib.rs</code>:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#a626a4;">mod </span><span>bindings;
+</span><span>
+</span><span style="color:#a626a4;">use crate</span><span>::bindings::exports::shopping::purchase_history::api::</span><span style="color:#a626a4;">*</span><span>;
+</span><span>
+</span><span style="color:#a626a4;">struct </span><span>Component;
+</span><span>
+</span><span style="color:#a626a4;">struct </span><span>State {
+</span><span>    </span><span style="color:#e45649;">orders</span><span>: Vec&lt;Order&gt;,
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">static mut </span><span style="color:#c18401;">STATE</span><span>: State </span><span style="color:#a626a4;">=</span><span> State {
+</span><span>    orders: Vec::new()
+</span><span>};
+</span><span>
+</span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">with_state</span><span>&lt;T&gt;(</span><span style="color:#e45649;">f</span><span>: impl FnOnce(&amp;</span><span style="color:#e45649;">mut State</span><span>) -&gt; T) -&gt; T {
+</span><span>    </span><span style="color:#a626a4;">let</span><span> result </span><span style="color:#a626a4;">= unsafe </span><span>{ </span><span style="color:#0184bc;">f</span><span>(</span><span style="color:#a626a4;">&amp;mut </span><span style="color:#c18401;">STATE</span><span>) };
+</span><span>
+</span><span>    </span><span style="color:#a626a4;">return</span><span> result;
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">impl </span><span>Guest </span><span style="color:#a626a4;">for </span><span>Component {
+</span><span>    </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">add_order</span><span>(</span><span style="color:#e45649;">order</span><span>: Order) {
+</span><span>        </span><span style="color:#0184bc;">with_state</span><span>(|</span><span style="color:#e45649;">state</span><span>| {
+</span><span>            state.orders.</span><span style="color:#0184bc;">push</span><span>(order);
+</span><span>        });
+</span><span>    }
+</span><span>
+</span><span>    </span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">get_orders</span><span>() -&gt; Vec&lt;Order&gt; {
+</span><span>        </span><span style="color:#0184bc;">with_state</span><span>(|</span><span style="color:#e45649;">state</span><span>| {
+</span><span>            state.orders.</span><span style="color:#0184bc;">clone</span><span>()
+</span><span>        })
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>With this, <code>cargo component build</code> now compiles the new <code>purchase_history.wasm</code> for us.</p>
+<h3 id="worker-to-worker-communication">Worker to worker communication</h3>
+<p>At this point, the only outstanding task in our example is to <strong>invoke the appropriate purchase history worker</strong> in the <code>checkout</code> implementation of the shopping cart.</p>
+<p>To find all the available options for doing this, check the <a href="https://learn.golem.cloud/docs/rpc">Worker-to-Worker communication's documentation</a>. In this example, we have both the target (the purchase history) and the caller (the shopping cart) in <strong>the same cargo workspace</strong>, so we can use Golem's <a href="https://github.com/sagiegurari/cargo-make">cargo-make</a> based solution for enabling communication between the different sub-projects of the workspace.</p>
+<p>Let's initialize this using <code>golem-cli</code> (or <code>golem-cloud-cli</code>):</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> golem-cli stubgen initialize-workspace</span><span style="color:#e45649;"> --targets</span><span> purchase-history</span><span style="color:#e45649;"> --callers</span><span> shopping-cart
+</span><span style="color:#e45649;">Writing</span><span> cargo-make Makefile to </span><span style="color:#50a14f;">&quot;/Users/vigoo/projects/demo/shopping-cart-rpc/Makefile.toml&quot;
+</span><span style="color:#e45649;">Generating</span><span> initial stub for purchase-history
+</span><span style="color:#e45649;">Generating</span><span> stub WIT to /Users/vigoo/projects/demo/shopping-cart-rpc/purchase-history-stub/wit/_stub.wit
+</span><span style="color:#e45649;">Copying</span><span> root package shopping:purchasehistory
+</span><span>  </span><span style="color:#e45649;">..</span><span> /Users/vigoo/projects/demo/shopping-cart-rpc/purchase-history/wit/purchase-history.wit to /Users/vigoo/projects/demo/shopping-cart-rpc/purchase-history-stub/wit/deps/shopping_purchasehistory/purchase-history.wit
+</span><span style="color:#e45649;">Writing</span><span> wasm-rpc.wit to /Users/vigoo/projects/demo/shopping-cart-rpc/purchase-history-stub/wit/deps/wasm-rpc
+</span><span style="color:#e45649;">Generating</span><span> Cargo.toml to /Users/vigoo/projects/demo/shopping-cart-rpc/purchase-history-stub/Cargo.toml
+</span><span style="color:#e45649;">Generating</span><span> stub source to /Users/vigoo/projects/demo/shopping-cart-rpc/purchase-history-stub/src/lib.rs
+</span><span style="color:#e45649;">Writing</span><span> updated Cargo.toml to </span><span style="color:#50a14f;">&quot;/Users/vigoo/projects/demo/shopping-cart-rpc/Cargo.toml&quot;
+</span></code></pre>
+<p>As a next step, we check if the generated artifacts work, by running <strong>cargo make</strong> to execute the full build flow. It contains custom steps invoking <code>golem-cli</code> to implement the typed worker-to-worker communication.</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> cargo make build-flow
+</span><span style="color:#e45649;">...
+</span><span>    </span><span style="color:#e45649;">Creating</span><span> component /Users/vigoo/projects/demo/shopping-cart-rpc/target/wasm32-wasi/debug/purchase_history.wasm
+</span><span>    </span><span style="color:#e45649;">Creating</span><span> component /Users/vigoo/projects/demo/shopping-cart-rpc/target/wasm32-wasi/debug/shopping_cart.wasm
+</span><span>    </span><span style="color:#e45649;">Creating</span><span> component /Users/vigoo/projects/demo/shopping-cart-rpc/target/wasm32-wasi/debug/purchase_history_stub.wasm
+</span><span style="color:#e45649;">[cargo-make]</span><span> INFO - Execute Command: </span><span style="color:#50a14f;">&quot;wasm-rpc-stubgen&quot; &quot;compose&quot; &quot;--source-wasm&quot; &quot;target/wasm32-wasi/debug/shopping_cart.wasm&quot; &quot;--stub-wasm&quot; &quot;target/wasm32-wasi/debug/purchase_history_stub.wasm&quot; &quot;--dest-wasm&quot; &quot;target/wasm32-wasi/debug/shopping_cart_composed.wasm&quot;
+</span><span style="color:#e45649;">Error:</span><span> no dependencies of component `</span><span style="color:#e45649;">target/wasm32-wasi/debug/shopping_cart.wasm</span><span>` were found
+</span></code></pre>
+<p>Don't worry about the failure at the end - it will be fixed in the next step.</p>
+<p>There are several changes in our workspace after running this command:</p>
+<ul>
+<li>We have a <code>Makefile.toml</code> file describing custom build tasks related to worker to worker communication</li>
+<li>We have a completely new sub-project called <code>purchase-history-stub</code> which is added to the Cargo workspace</li>
+<li>The <code>shopping-cart/wit/deps</code> directory now contains three dependencies: the original purchase history module, the generated stub interface, and the general purpose <code>wasm-rpc</code> package.</li>
+<li>These dependencies are also registered in <code>shopping-cart/Cargo.toml</code></li>
+</ul>
+<p>Before further explaining what these generated stubs are, let's finish our example. We need to modify the <strong>shopping cart</strong> template's interface definition (<code>shopping-cart/wit/shopping-cart.wit</code>) to import the generated stub, and to reuse the data types defined for the purchase history template instead of redefining them.</p>
+<p>The updated WIT file would look like this:</p>
+<pre data-lang="wit" style="background-color:#fafafa;color:#383a42;" class="language-wit "><code class="language-wit" data-lang="wit"><span style="color:#a626a4;">package </span><span>shopping:cart;
+</span><span>
+</span><span style="color:#a626a4;">interface </span><span>api {
+</span><span>  </span><span style="color:#a626a4;">use </span><span>shopping:purchase-history/api.{</span><span style="color:#e45649;">product-item</span><span>};
+</span><span>  </span><span style="color:#a626a4;">use </span><span>shopping:purchase-history/api.{</span><span style="color:#e45649;">order</span><span>};
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">record </span><span>order-confirmation {
+</span><span>    </span><span style="color:#e45649;">order-id</span><span>: </span><span style="color:#a626a4;">string</span><span>,
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#a626a4;">variant </span><span>checkout-result {
+</span><span>    error(</span><span style="color:#a626a4;">string</span><span>),
+</span><span>    success(order-confirmation),
+</span><span>  }
+</span><span>
+</span><span>  </span><span style="color:#0184bc;">initialize-cart</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">user-id</span><span>: </span><span style="color:#a626a4;">string</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>();
+</span><span>  </span><span style="color:#0184bc;">add-item</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">item</span><span>: product-item) </span><span style="color:#a626a4;">-&gt; </span><span>();
+</span><span>  </span><span style="color:#0184bc;">remove-item</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">product-id</span><span>: </span><span style="color:#a626a4;">string</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>();
+</span><span>  </span><span style="color:#0184bc;">update-item-quantity</span><span>: </span><span style="color:#a626a4;">func</span><span>(</span><span style="color:#e45649;">product-id</span><span>: </span><span style="color:#a626a4;">string</span><span>, </span><span style="color:#e45649;">quantity</span><span>: </span><span style="color:#a626a4;">u32</span><span>) </span><span style="color:#a626a4;">-&gt; </span><span>();
+</span><span>  </span><span style="color:#0184bc;">checkout</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; </span><span>checkout-result;
+</span><span>  </span><span style="color:#0184bc;">get-cart-contents</span><span>: </span><span style="color:#a626a4;">func</span><span>() </span><span style="color:#a626a4;">-&gt; list</span><span>&lt;product-item&gt;;
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">world </span><span>shopping-cart {
+</span><span>  </span><span style="color:#a626a4;">import </span><span>shopping:purchase-history-stub/stub-purchase-history;
+</span><span>  </span><span style="color:#a626a4;">export </span><span>api;
+</span><span>}
+</span></code></pre>
+<p>There are three changes:</p>
+<ul>
+<li>We renamed the package from the default <code>golem:template</code> to <code>shopping:cart</code> to make it more consistent with the other packages</li>
+<li>We deleted the definition of <code>product-item</code> and <code>order</code>, and instead importing them from the <code>shopping:purchase-history</code> package.</li>
+<li>We added the <code>import</code> statement in the <code>world</code>, which loads the generated <strong>stub</strong> into the template's world, so we can call it from the Rust code to initiate remote calls to the <code>purchase-history</code> workers.</li>
+</ul>
+<p>Because of the change of the package name, we have to update the import in <code>lib.rs</code> :</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#a626a4;">use crate</span><span>::bindings::exports::shopping::cart::api::</span><span style="color:#a626a4;">*</span><span>;
+</span></code></pre>
+<p>The only remaining step is to extend the <code>checkout</code> function with the remote worker invocation!</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#a626a4;">use crate</span><span>::bindings::shopping::purchase_history::api::{Order};
+</span><span style="color:#a626a4;">use crate</span><span>::bindings::shopping::purchase_history_stub::stub_purchase_history;
+</span><span style="color:#a626a4;">use crate</span><span>::bindings::golem::rpc::types::Uri;
+</span><span>
+</span><span style="color:#a626a4;">fn </span><span style="color:#0184bc;">checkout</span><span>() -&gt; CheckoutResult {
+</span><span>  </span><span style="color:#a0a1a7;">// ...
+</span><span>    </span><span style="color:#0184bc;">dispatch_order</span><span>()</span><span style="color:#a626a4;">?</span><span>;
+</span><span>
+</span><span>    </span><span style="color:#a0a1a7;">// Defining the order to be saved in history
+</span><span>    </span><span style="color:#a626a4;">let</span><span> order </span><span style="color:#a626a4;">=</span><span> Order {
+</span><span>        items: state.items.</span><span style="color:#0184bc;">clone</span><span>(),
+</span><span>        order_id: order_id.</span><span style="color:#0184bc;">clone</span><span>(),
+</span><span>        timestamp: std::time::SystemTime::now().</span><span style="color:#0184bc;">duration_since</span><span>(std::time::SystemTime::</span><span style="color:#c18401;">UNIX_EPOCH</span><span>).</span><span style="color:#0184bc;">unwrap</span><span>().</span><span style="color:#0184bc;">as_secs</span><span>(),
+</span><span>        total: state.items.</span><span style="color:#0184bc;">iter</span><span>().</span><span style="color:#0184bc;">map</span><span>(|</span><span style="color:#e45649;">item</span><span>| item.price </span><span style="color:#a626a4;">*</span><span> item.quantity </span><span style="color:#a626a4;">as f32</span><span>).</span><span style="color:#0184bc;">sum</span><span>(),
+</span><span>    };
+</span><span>
+</span><span>    </span><span style="color:#a0a1a7;">// Constructing the remote worker&#39;s URI
+</span><span>    </span><span style="color:#a626a4;">let</span><span> template_id </span><span style="color:#a626a4;">=
+</span><span>  		std::env::var(</span><span style="color:#50a14f;">&quot;PURCHASE_HISTORY_TEMPLATE_ID&quot;</span><span>)
+</span><span>  			.</span><span style="color:#0184bc;">expect</span><span>(</span><span style="color:#50a14f;">&quot;PURCHASE_HISTORY_TEMPLATE_ID not set&quot;</span><span>);
+</span><span>    </span><span style="color:#a626a4;">let</span><span> uri </span><span style="color:#a626a4;">=</span><span> Uri {
+</span><span>        value: format!(</span><span style="color:#50a14f;">&quot;worker://</span><span style="color:#c18401;">{template_id}</span><span style="color:#50a14f;">/</span><span style="color:#c18401;">{}</span><span style="color:#50a14f;">&quot;</span><span>, state.user_id),
+</span><span>    };
+</span><span>
+</span><span>    </span><span style="color:#a0a1a7;">// Connecdting to the remote worker and invoking it
+</span><span>    </span><span style="color:#a626a4;">let</span><span> history </span><span style="color:#a626a4;">= </span><span>stub_purchase_history::Api::new(</span><span style="color:#a626a4;">&amp;</span><span>uri);
+</span><span>    history.</span><span style="color:#0184bc;">add_order</span><span>(</span><span style="color:#a626a4;">&amp;</span><span>order);
+</span><span>}
+</span></code></pre>
+<p>With all these changes, running <code>cargo make</code> again will succeed:</p>
+<pre data-lang="bash" style="background-color:#fafafa;color:#383a42;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#e45649;">$</span><span> cargo make build-flow
+</span><span style="color:#e45649;">...
+</span><span style="color:#e45649;">Writing</span><span> composed component to </span><span style="color:#50a14f;">&quot;target/wasm32-wasi/debug/shopping_cart_composed.wasm&quot;
+</span><span style="color:#e45649;">[cargo-make]</span><span> INFO - Build Done in 7.38 seconds.
+</span></code></pre>
+<p>We first created the <code>Order</code> value to be saved in the remote purchase history. Then we get an <strong>environment variable</strong> to figure out the Golem <em>template-id</em> of the purchase history template. This is something we need to record when uploading the template to Golem, and set it to all shopping cart worker's when creating them. The remote URI consists of the template identifier and the <em>worker name</em>, and in our example the worker name is the same as the <strong>user id</strong> that the shopping cart belongs to. This guarantees that we will have a distinct purchase history worker for each user.</p>
+<p>When we have the URI, we just instantiate the <strong>generated stub</strong> for by passing the remote worker's URI—and we get an interface that corresponds to the remote worker's exported interface! This way we can just call <code>add_order</code> on it, passing the constructed order value.</p>
+<p>Everything else is handled by Golem. If this was the first order of the user, a new purchase history worker is created. Otherwise, the existing worker will be targeted, which is likely already in a suspended state, not actively in any worker executor's memory. Golem restores the worker's state and invokes the <code>add_order</code> function on them, which adds the new order to the list of orders for that user, in a fully durable way, without the need for a database.</p>
+<h3 id="how-does-it-work">How does it work?</h3>
+<p>The generated cargo-make makefile just wraps a couple of <code>golem-cli stubgen</code> commands.</p>
+<p>First, <code>stubgen generate</code> creates a new Rust crate for each <strong>target</strong> that has a similar interface as the original worker, but all the exported functions and interfaces are wrapped in a resource, which has to be instantiated with a <strong>worker URI</strong>. This generated crate can be compiled to a WASM file (or <code>stubgen build</code> can do that automatically) and it also contains a <strong>WIT</strong> file describing this interface.</p>
+<p>The <code>stubgen add-stub-dependency</code> command takes this generated interface specification and <strong>adds it</strong> to an other worker's <code>wit</code> folder—making it a <em>dependency</em> of that worker. So the caller worker is not depending directly on the target worker, it depends on the <strong>generated stub</strong>.</p>
+<p>If we compile this caller worker to WASM, it will not only require host functions provided by Golem (such as the WASI interfaces or Golem specific APIs) but it will also require an <strong>implementation</strong> of the stub interface. That's where the generated Rust crate comes into the picture—its compiled WASM <strong>implements</strong> (exports) the stub interface while the caller WASM <strong>requires</strong> (imports) it. WASM components can be composed so by combining the two we can get a result WASM that no longer tries to import the stub interface—it is going to be wired within the component—only the other dependencies the original modules had.</p>
+<p>One way to do this composition is to use <code>wasm-tools compose</code>, but it is more convenient to use <code>golem-cli</code> (or <code>golem-cloud-cli</code>)'s built-in command for it, called <code>stubgen compose</code>. This is the last step the generated cargo-make file performs when running the <code>build-flow</code> task.</p>
+<p>The following diagram demonstrates how the component's in the example are interacting with each other:</p>
+<p><img src="/images/w2w-comm.png" alt="" /></p>
+<h2 id="conclusion">Conclusion</h2>
+<p>We have seen how the new Golem tools enable simple, fully-typed communication between <strong>workers</strong>. Although the above demonstrated <code>cargo-make</code>-based build is Rust specific, the other <code>stubgen</code> commands are not: they can be used with any language that has WIT binding generator support (see <a href="https://learn.golem.cloud/docs/building-templates/tier-2">Golem's Tier 2 languages</a>)—Rust, C, Go, JavaScript, Python and Scala.js.</p>
+<p>The remote calls are not only simple to use, they are also efficient, and they get translated to direct function calls when the source and the target workers are running on the same <strong>worker executor</strong>. They are also fully durable, as all other external interaction running on Golem. This means we don't have to worry about failures when calling remote workers. Additionally, Golem applies retry policies in case of transient failures, and it makes sure that a remote invocation only happens once.</p>
+<p>This feature is ready to use both in the <a href="http://github.com/golemcloud/golem">open source</a> and the <a href="https://www.golem.cloud/">cloud version</a>.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

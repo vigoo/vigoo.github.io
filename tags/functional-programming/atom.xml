@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - functional programming</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/functional-programming/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2022-06-15T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/functional-programming/atom.xml</id>
+    <entry xml:lang="en">
+        <title>ZIO Kafka with transactions - a debugging story</title>
+        <published>2022-06-15T00:00:00+00:00</published>
+        <updated>2022-06-15T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/zio-kafka-debugging-story/"/>
+        <id>https://blog.vigoo.dev/posts/zio-kafka-debugging-story/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/zio-kafka-debugging-story/">&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;&#x2F;h2&gt;
+&lt;p&gt;With one of our clients, we were working on a chain of services responsible for processing some logs coming from a Kafka topic, partition them by some properties like user and date, infer and aggregate the log schema and eventually store the partitioned data in a different format. The details of this use case are not important for understanding this post, in which I&#x27;m going to explain the recent changes to &lt;a href=&quot;https:&#x2F;&#x2F;ziverge.com&#x2F;blog&#x2F;introduction-to-zio-kafka&quot;&gt;ZIO Kafka&lt;&#x2F;a&gt;, how was it implemented and how did we know it&#x27;s not perfect, and the long story of investigation that finally resulted in a fix making this new feature usable in production.&lt;&#x2F;p&gt;
+&lt;p&gt;We only have to know about the first component of this data pipeline, which is a zio-kafka service:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Consumes it&#x27;s source topic. Each record in this topic consists one or more log entries for a given user. The kafka topic&#x27;s partitions are not aligned with our target partition (of user&#x2F;date), all kafka partitions may contain data from all users.&lt;&#x2F;li&gt;
+&lt;li&gt;The service partitions the source data per user&#x2F;date&#x2F;hour and writes the log entries into Avro files in the local file system&lt;&#x2F;li&gt;
+&lt;li&gt;It also computes and aggregates a log schema in memory for each of these files&lt;&#x2F;li&gt;
+&lt;li&gt;It is using Kafka transactions to achieve &lt;a href=&quot;https:&#x2F;&#x2F;www.baeldung.com&#x2F;kafka-exactly-once&quot;&gt;exactly-once delivery&lt;&#x2F;a&gt;. This means that the processed records are not committed when they are written to the Avro files - there is a periodic event triggered every 30 seconds and at each rebalance that uploads the Avro files to S3, and &lt;em&gt;then&lt;&#x2F;em&gt; it emits Kafka messages to downstream containing references to the uploaded files and their aggregated schema, and it commits all the offsets of all the input Kafka topic&#x27;s &lt;em&gt;transactionally&lt;&#x2F;em&gt;.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;blog-zio-kafka-debugging-1.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;stream-restarting-mode-in-zio-kafka&quot;&gt;Stream restarting mode in zio-kafka&lt;&#x2F;h2&gt;
+&lt;p&gt;When we first implemented this using zio-kafka and started to test it we have seen a lot of errors like&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;Transiting to abortable error state due to org.apache.kafka.clients.consumer.CommitFailedException: Transaction offset Commit failed due to consumer group metadata mismatch: Specified group generation id is not valid.&quot;}&lt;&#x2F;code&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;em&gt;Group generation ID&lt;&#x2F;em&gt; is a counter that gets incremented at each rebalance. The problem was that zio-kafka by default provides a continuous stream for partitions that survives rebalances. So we have a single stream per Kafka partition and after a rebalance we end up with some of them revoked and their streams stopped, some new streams created, but the ones that remained assigned are not going to be recreated.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;blog-zio-kafka-debugging-2.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;This works fine without using transactions, but it means your stream can contain messages from multiple generations. I first tried to solve this by detecting generation switches downstream but quickly realized this cannot work. It&#x27;s too late to commit the previous generation when there are already records from the new generation; we have to do it before the rebalance finishes.&lt;&#x2F;p&gt;
+&lt;p&gt;To solve this I introduced a new &lt;em&gt;mode&lt;&#x2F;em&gt; in zio-kafka back in February 2022, with &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;zio&#x2F;zio-kafka&#x2F;pull&#x2F;427&quot;&gt;this pull request&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This adds a new mode to zio-kafka&#x27;s core run loop which guarantees that every rebalance stops all the partition streams and create new ones every time.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;&#x2F;images&#x2F;blog-zio-kafka-debugging-3.png&quot; alt=&quot;&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;With this approach the library user can build the following logic on top of the &quot;stream of partition streams&quot; API of zio-kafka:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Get the next set of partition streams&lt;&#x2F;li&gt;
+&lt;li&gt;Merge and drain them all&lt;&#x2F;li&gt;
+&lt;li&gt;Perform a &lt;em&gt;flush&lt;&#x2F;em&gt; - upload and commit everything before start working on the new set of streams&lt;&#x2F;li&gt;
+&lt;li&gt;Repeat&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;This alone is still not enough - we have to block the rebalancing until we are done with the committing otherwise we would still get the invalid generation ID error.&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;onRevoke&lt;&#x2F;code&gt; and &lt;code&gt;onAssigned&lt;&#x2F;code&gt; callbacks from the underlying Java Kafka library are working in a way that they block the rebalance process so that&#x27;s the place where we can finish every processing for the revoked partitions. This extension point is provided by zio-kafka too but it&#x27;s completely detached from the streaming API so I have introduced a rebalance event queue with with some promises and timeouts to coordinate this:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;In &lt;code&gt;onRevoke&lt;&#x2F;code&gt; we publish a rebalance event and wait until it gets processed.&lt;&#x2F;li&gt;
+&lt;li&gt;Because the new run loop mode is guaranteed to terminate all streams on rebalance (which &lt;em&gt;is&lt;&#x2F;em&gt; already happening, as we are in &lt;code&gt;onRevoke&lt;&#x2F;code&gt;) we can be sure that eventually the main consumer stream&#x27;s current stage - that drains the previous generation&#x27;s partition streams will finish soon&lt;&#x2F;li&gt;
+&lt;li&gt;and then it performs the rotation and fulfills the promise in the rebalance event.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;With these changes our service started to work - but we had to know if it works correctly.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;qos-tests&quot;&gt;QoS tests&lt;&#x2F;h2&gt;
+&lt;p&gt;We implemented a QoS test running on Spark which periodically checks that we are not loosing any data with our new pipeline.&lt;&#x2F;p&gt;
+&lt;p&gt;Our log entries have associated unique identifiers coming from upstream - so what we can do in this test is to consume an hour amount of log records from the same Kafka topic our service is consuming from, and read all the Avro files produced in that period (with some padding of course to have some tolerance for lag) and then see if there are any missing records in our output.&lt;&#x2F;p&gt;
+&lt;p&gt;Another source of truth for the investigation was an older system doing something similar, resulting in the same input being available as archived CSV files in some cases. Comparing the archived CSV files with the archived Avro files I could verify that the QoS test itself works correctly, by checking that both methods report the same set of missing records.&lt;&#x2F;p&gt;
+&lt;p&gt;What we learned from these tests was that:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;there is data loss&lt;&#x2F;li&gt;
+&lt;li&gt;the data loss is related to rebalances&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;To understand it&#x27;s related to rebalances I was comparing failing QoS reports from several hours, figured out the ingestion time for some of the missing log records within these hours, and checked our service and infrastructure logs around that time. Every time there was a rebalance near the reported errors.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;additional-tests&quot;&gt;Additional tests&lt;&#x2F;h2&gt;
+&lt;p&gt;During the investigation I added some additional debug features and logs to the system.&lt;&#x2F;p&gt;
+&lt;p&gt;One of them is an extra verification step, enabled only temporarily in our development cluster, that&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;aggregates all the log identifiers at the earliest point - as soon as they got in the zio-kafka partition stream&lt;&#x2F;li&gt;
+&lt;li&gt;after uploading the Avro files and committing the records, it re-downloads all the files from S3 and checks if they got all the log identifiers that they should.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;This never reported any error so based on that I considered the flow &lt;em&gt;after&lt;&#x2F;em&gt; zio-kafka correct.&lt;&#x2F;p&gt;
+&lt;p&gt;We also have a lot of debug logs coming from the Java Kafka library, from zio-kafka and from our service to help understanding the issue:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;After each rebalance, the Java library logs the offset it&#x27;s starting to read from&lt;&#x2F;li&gt;
+&lt;li&gt;When committing I&#x27;m logging the minimum and maximum offset contained by the committed and uploaded Avro files per kafka partition&lt;&#x2F;li&gt;
+&lt;li&gt;All streams creation and termination are logged&lt;&#x2F;li&gt;
+&lt;li&gt;If records within a partition stream are skipping an offset (this was never logged actually)&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;I wrote a test app that reads our service&#x27;s logs from a given period, logged from all the Kubernetes pods it&#x27;s running on, and runs a state machine that verifies that all the logged offsets from the different pods are in sync. It fails in two cases:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;When a pod &lt;em&gt;resets its offsets&lt;&#x2F;em&gt; to something that was previously seen in the logs and there is a gap&lt;&#x2F;li&gt;
+&lt;li&gt;When a pod &lt;em&gt;rotates&lt;&#x2F;em&gt; a kafka without it got assigned to that pod first (so if multiple pods would somehow consume the same partition which Kafka prevents)&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;I tried for long to write integration tests using embedded Kafka (similar to how it&#x27;s done in zio-kafka&#x27;s test suite) that reproduces the data loss issue, without any luck. In all my simulated cases everything works perfectly.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;theories-and-fixes&quot;&gt;Theories and fixes&lt;&#x2F;h2&gt;
+&lt;p&gt;From logs from the time ranges where the data loss is reported from, these additional checks were not showing any discrepancies.&lt;&#x2F;p&gt;
+&lt;p&gt;This could only mean two things:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;All the kafka&#x2F;zio-kafka level is correct but we are still loosing data in our service-specific logic, somewhere in writing to Avro-s and uploading to S3.&lt;&#x2F;li&gt;
+&lt;li&gt;On Kafka level everything is fine but somehow zio-kafka does not pass all the records to our service&#x27;s logic&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;I trusted the validation mode I described earlier (the one that re-downloads the data) so I ruled out the first option.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;zio-kafka-internals&quot;&gt;zio-kafka internals&lt;&#x2F;h2&gt;
+&lt;p&gt;Before discussing the fixes I tried to make in zio-kafka, first let&#x27;s talk about how the library works.&lt;&#x2F;p&gt;
+&lt;p&gt;The zio-kafka library wraps the Java library for Kafka and provides a ZIO Stream interface for consuming the records. As I mentioned earlier, it creates a separate stream for each kafka partition assigned to the consumer. The primary operation on the Java interface is called &lt;code&gt;poll&lt;&#x2F;code&gt;. This method is responsible for fetching data for all the subscribed partitions for a given timeout. Another important property is that in case of rebalancing, the &lt;code&gt;poll&lt;&#x2F;code&gt; is blocked until the rebalancing completes, and it calls the already mentioned revoked&#x2F;assigned callbacks in this blocked state.&lt;&#x2F;p&gt;
+&lt;p&gt;Another thing it has to support is back pressure. We don&#x27;t want this &lt;code&gt;poll&lt;&#x2F;code&gt; to fetch more and more data for partitions where we did process the previous records yet. In other words, upstream demand in our ZIO Streams must control what partitions we &lt;code&gt;poll&lt;&#x2F;code&gt;. In the Java level this is controlled by pausing and resuming individual partitions.&lt;&#x2F;p&gt;
+&lt;p&gt;So let&#x27;s see a summary of how the consumer streams work:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Each partition stream is a repeated ZIO effect that enqueues a &lt;code&gt;Request&lt;&#x2F;code&gt; in a &lt;em&gt;queue&lt;&#x2F;em&gt; and then waits for the promise contained in this request to be fulfilled. The promise will contain a chunk of records fetched from Kafka if everything went well.&lt;&#x2F;li&gt;
+&lt;li&gt;There is a single (per consumer) &lt;em&gt;run loop&lt;&#x2F;em&gt; which periodically calls &lt;code&gt;poll&lt;&#x2F;code&gt;. Before calling it, it pauses&#x2F;resumes partitions based on which partitions has at least one &lt;code&gt;Request&lt;&#x2F;code&gt; since the last &lt;code&gt;poll&lt;&#x2F;code&gt;.&lt;&#x2F;li&gt;
+&lt;li&gt;This, as ZIO streams are pull based, implements the back pressure semantics mentioned earlier.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;There is a similar mechanism for gathering commit requests and then performing them as part of the &lt;em&gt;run loop&lt;&#x2F;em&gt; but in our use case that is not used - the transactional producer is independent of this mechanism.&lt;&#x2F;p&gt;
+&lt;p&gt;There is one more concept which is very important for to understand the problem: &lt;em&gt;buffered records&lt;&#x2F;em&gt;. Imagine that we are consuming five partitions, &lt;code&gt;1 .. 5&lt;&#x2F;code&gt; and only have a request (downstream pull) for partition &lt;code&gt;1&lt;&#x2F;code&gt;. This means we are pausing &lt;code&gt;2 .. 5&lt;&#x2F;code&gt; and do a &lt;code&gt;poll&lt;&#x2F;code&gt; but what if the resulting record set contains records from other partitions? There could be multiple reason for this (and some of them may not be possible in practice), for example there could be some data already buffered within the Java library for the paused partitions, or maybe a rebalance assigns some new partitions which are not paused yet (as we don&#x27;t know we are going to get them) resulting in immediately fetching some data for them.&lt;&#x2F;p&gt;
+&lt;p&gt;The library handles these cases in a simple way: it &lt;em&gt;buffers&lt;&#x2F;em&gt; these records which were not requested in a per-partition map, and when a partition is pulled next time, it will not only give the records returned by &lt;code&gt;poll&lt;&#x2F;code&gt; to the request&#x27;s promise, but also all the buffered ones, prepended to the new set of records.&lt;&#x2F;p&gt;
+&lt;p&gt;Another important detail for this investigation is that we don&#x27;t care about graceful shutdown, or if records got lost during shutdown. This is also very interesting in general, but our service is not trying to finish writing and uploading all data during shutdown, it simply ignores the partial data and quits without committing them so they get reprocessed as soon as possible in another consumer.&lt;&#x2F;p&gt;
+&lt;p&gt;What happens during rebalancing? Let&#x27;s forget the default mode of zio-kafka for this discussion and focus on the new mode which &lt;em&gt;restarts&lt;&#x2F;em&gt; all the partition streams every time.&lt;&#x2F;p&gt;
+&lt;p&gt;We don&#x27;t know in advance that a rebalance will happen, it happens during the call to &lt;code&gt;poll&lt;&#x2F;code&gt;. The method in the &lt;em&gt;run loop&lt;&#x2F;em&gt; that contains this logic is called &lt;code&gt;handlePoll&lt;&#x2F;code&gt; and does roughly the following (in our case):&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;store the current state (containing the current streams, requests, buffered records etc) in a ref&lt;&#x2F;li&gt;
+&lt;li&gt;pause&#x2F;resume partitions based on the current requests, as described earlier&lt;&#x2F;li&gt;
+&lt;li&gt;call &lt;code&gt;poll&lt;&#x2F;code&gt;
+&lt;ul&gt;
+&lt;li&gt;during &lt;code&gt;poll&lt;&#x2F;code&gt; in the revoked callback we end all partition streams. This means they get an interrupt signal and they stop. As I mentioned earlier, in this mode the consumer merges the partition streams and drain them; this is the other side of it, interrupting all the streams so we know that eventually this merged stream will also stop.&lt;&#x2F;li&gt;
+&lt;li&gt;dropping all the buffered records, but first adding them to a &lt;em&gt;drain queue&lt;&#x2F;em&gt; (this is a fix that was not part of the original implementation). It is now guaranteed that the partition streams will get the remaining buffered elements before they stop.&lt;&#x2F;li&gt;
+&lt;li&gt;storing the fact of the rebalancing, so the rest of &lt;code&gt;handlePoll&lt;&#x2F;code&gt; knows about it when &lt;code&gt;poll&lt;&#x2F;code&gt; returns.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;once &lt;code&gt;poll&lt;&#x2F;code&gt; returned, buffer all records for all unrequested partitions. this is another place where a fix was made, currently we treat &lt;em&gt;all&lt;&#x2F;em&gt; records unrequested in case of a rebalancing, because all the streams were restarted, so the original requests were made by the previous set of streams; fulfilling them would loose data because the new streams are not waiting for the same promises.&lt;&#x2F;li&gt;
+&lt;li&gt;the next step would be to fulfill all the requests that we can by using the combination of buffered records and the &lt;code&gt;poll&lt;&#x2F;code&gt; result. But we had a rebalance and dropped all the requests! So this step must not do anything.&lt;&#x2F;li&gt;
+&lt;li&gt;finally we start new streams for each assigned partition&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;So based on all this, and the theory that the commits&#x2F;offsets are all correct but somehow data is lost between the Java library and the service logic, the primary suspect was the &lt;em&gt;buffered records&lt;&#x2F;em&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s see what fixes and changes I made, in time order:&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;fix-attempt-1&quot;&gt;Fix attempt 1&lt;&#x2F;h2&gt;
+&lt;p&gt;The first time I suspected buffered records are behind the issue I realized that when we end &lt;em&gt;all&lt;&#x2F;em&gt; partition streams during rebalancing, we loose the buffered records. This is not a problem if those partitions are really revoked - it means there was no demand for those partitions, so it&#x27;s just that some records were read ahead and now they get dropped and will be reprocessed on another consumer.&lt;&#x2F;p&gt;
+&lt;p&gt;But if the same partition is &quot;reassigned&quot; to the same consumer, this could be a data loss! The reason is that there is an internal state in Kafka which is a per-consumer, per-partition &lt;em&gt;position&lt;&#x2F;em&gt;. In this case this position would point to &lt;em&gt;after&lt;&#x2F;em&gt; the buffered records, so the next &lt;code&gt;poll&lt;&#x2F;code&gt; will get the next records and the previously buffered ones will not be prepended as usual because the revocation clears the buffer.&lt;&#x2F;p&gt;
+&lt;p&gt;Note that this whole problem would not exist if the reassigned partitions get &lt;em&gt;reseted&lt;&#x2F;em&gt; to the last committed offset after rebalancing. I don&#x27;t think this is the case, only when a new partition is assigned to a consumer with no previous position.&lt;&#x2F;p&gt;
+&lt;p&gt;My first fix was passing the buffered records to the user-defined revoke handler so it could write the remaining records to the Avro files before uploading them. This was just a quick test, as it does not really fit into the API of zio-kafka.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;fix-attempt-2&quot;&gt;Fix attempt 2&lt;&#x2F;h2&gt;
+&lt;p&gt;After playing with the first fix for a while I thought it solved the issue but it was just not reproducing - it is not completely clear why, probably I missed some test results.&lt;&#x2F;p&gt;
+&lt;p&gt;But I wrote a second version of the same fix, this time by adding the remaining buffered elements to the end of the partition streams before they stop, instead of explicitly passing them to the revoke handler.&lt;&#x2F;p&gt;
+&lt;p&gt;This should work exactly the same but handles the problem transparently.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;fix-attempt-3&quot;&gt;Fix attempt 3&lt;&#x2F;h2&gt;
+&lt;p&gt;After some more testing it was clear that the QoS tests were still showing data loss. The investigation continued and the next problem I have found was that in &lt;code&gt;handlePoll&lt;&#x2F;code&gt; after a rebalance we were not storing the buffered records anymore in this &quot;restarting streams&quot; mode. I did not catch this in the first fix attempts I was focusing on dealing with the buffered records at the &lt;em&gt;end&lt;&#x2F;em&gt; of the revoked streams.&lt;&#x2F;p&gt;
+&lt;p&gt;What does it mean it was not storing the buffered records? In &lt;code&gt;handlePoll&lt;&#x2F;code&gt; there is a series of state manipulation functions and the buffered records map is part of this state. The logic here is quite complicated and it very much depends on whether we are running the consumer in &lt;em&gt;normal&lt;&#x2F;em&gt; or &lt;em&gt;stream restarting&lt;&#x2F;em&gt; mode. The problem was that for some reason after a rebalance (in the new mode only) this buffered records field was cleared instead of preserving records from before the rebalance.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;fix-attempt-4&quot;&gt;Fix attempt 4&lt;&#x2F;h2&gt;
+&lt;p&gt;Very soon turned out that my previous fix was not doing anything, because there was one more problem in the state handling in &lt;code&gt;handlePoll&lt;&#x2F;code&gt;. As I wrote, it bufferes only those records which were not &lt;em&gt;requested&lt;&#x2F;em&gt;. For those partitions which have a request, it fulfills these requests with the new records instead. When the reassigned partitions are not restarted during rebalancing (as in the &lt;em&gt;normal mode&lt;&#x2F;em&gt;) this is OK but for us, as we are creating new streams, the old requests must be dropped and not taken into account when deciding which records to buffer.&lt;&#x2F;p&gt;
+&lt;p&gt;In other words, in &lt;em&gt;restarting streams mode&lt;&#x2F;em&gt; we have to buffer all records after a rebalance.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;fix-attempt-5&quot;&gt;Fix attempt 5&lt;&#x2F;h2&gt;
+&lt;p&gt;I was very confident about the previous fix but something was still not OK, the test continued to report data loss. After several code reviews and discussions, I realized that it is not guaranteed that the &lt;code&gt;onRevoked&lt;&#x2F;code&gt; and &lt;code&gt;onAssigned&lt;&#x2F;code&gt; callbacks are called within a single &lt;code&gt;poll&lt;&#x2F;code&gt;! My code was not prepared for this (the original zio-kafka code was, actually, but I did not realize this for a long time).&lt;&#x2F;p&gt;
+&lt;p&gt;First of all I had to change the way how the rebalance callbacks are passing information to the poll handler. The previously added rebalance event (which was a simple case class) was changed to be either &lt;code&gt;Revoked&lt;&#x2F;code&gt;, &lt;code&gt;Assigned&lt;&#x2F;code&gt; or &lt;code&gt;RevokedAndAssigned&lt;&#x2F;code&gt; and I made sure that for each case all the run loop state variables are modified correctly.&lt;&#x2F;p&gt;
+&lt;p&gt;Immediately after deploying this, I saw evidence in the logs that indeed the revoked and assigned callbacks are called separately, so the fix was definitely needed. The only problem was that I did not really understand how could this cause data loss, and by doing some rebalancing tests it turned out that the problem still exists.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;fix-attempt-6&quot;&gt;Fix attempt 6&lt;&#x2F;h2&gt;
+&lt;p&gt;One more thing I added in the previous attempt was a log in a place that was suspicious to me and I did not care about it earlier. When adding requests to the run loop - these are added to the run loop&#x27;s command queue when a partition stream tries to pull, completely asynchronous to the run loop itself - it was checking if currently the run loop is in the middle of a rebalancing. So in case the rebalancing takes multiple &lt;code&gt;poll&lt;&#x2F;code&gt;s, as we have seen, it is possible that between the &lt;code&gt;onRevoked&lt;&#x2F;code&gt; and &lt;code&gt;onAssigned&lt;&#x2F;code&gt; events we get some new requests from the streams.&lt;&#x2F;p&gt;
+&lt;p&gt;In the restart-streams mode all partition streams are interrupted on the revoke event, and no new streams are created until the assigned event. This means that these requests can &lt;em&gt;only&lt;&#x2F;em&gt; come from the previous streams so they should be ignored. But what zio-kafka was doing was to add these requests to the run loop&#x27;s pending requests. This is correct behavior in its normal mode, because on rebalance some of the streams survive it and their requests can be still fulfilled.&lt;&#x2F;p&gt;
+&lt;p&gt;But in our case it is incorrect, because after the assignment is done and some records are fetched by &lt;code&gt;poll&lt;&#x2F;code&gt;, these pending requests get fulfilled with them, &quot;stealing&quot; the records from the new partition streams!&lt;&#x2F;p&gt;
+&lt;p&gt;At this point I really felt like this was the last missing piece of the puzzle.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;And it was!&lt;&#x2F;p&gt;
+&lt;p&gt;The final set of fixes are published &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;zio&#x2F;zio-kafka&#x2F;pull&#x2F;473&quot;&gt;in this pull request&lt;&#x2F;a&gt;. The service and its tests are running perfectly since more than 10 days, proving that it is correct.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>

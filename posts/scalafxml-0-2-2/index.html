@@ -1,0 +1,74 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>ScalaFXML 0.2.2 available</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;scalafxml-0-2-2&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>ScalaFXML 0.2.2 available</h1>
+            
+            <p class="posted-on">Posted on October 22, 2014</p>
+        </header>
+
+        <p>I've released a new version of <a href="https://github.com/vigoo/scalafxml">ScalaFXML</a>, which now supports <em>both</em> <a href="https://github.com/scalafx/scalafx">ScalaFX 8</a> with <em>JavaFX 8</em> on Java 8, and <a href="https://github.com/scalafx/scalafx">ScalaFX 2.2</a> with <em>JavaFX 2.x</em> on Java 7.</p>
+<p>The two branches are separated by the <code>sfx2</code> and <code>sfx8</code> postfixes, and both are available for <em>Scala</em> <code>2.10.x</code> and <code>2.11.x</code>.</p>
+<p>To use it with <a href="http://www.scala-sbt.org/">sbt</a> on Java 7:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>addCompilerPlugin(</span><span style="color:#50a14f;">&quot;org.scalamacros&quot;</span><span> % </span><span style="color:#50a14f;">&quot;paradise&quot;</span><span> % </span><span style="color:#50a14f;">&quot;2.0.1&quot;</span><span> cross CrossVersion.full)
+</span><span>
+</span><span>libraryDependencies += </span><span style="color:#50a14f;">&quot;org.scalafx&quot;</span><span> %% </span><span style="color:#50a14f;">&quot;scalafx&quot;</span><span> % </span><span style="color:#50a14f;">&quot;2.2.67-R10&quot;
+</span><span>
+</span><span>libraryDependencies += </span><span style="color:#50a14f;">&quot;org.scalafx&quot;</span><span> %% </span><span style="color:#50a14f;">&quot;scalafxml-core-sfx2&quot;</span><span> % </span><span style="color:#50a14f;">&quot;0.2.2&quot;
+</span></code></pre>
+<p>And on Java 8:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>addCompilerPlugin(</span><span style="color:#50a14f;">&quot;org.scalamacros&quot;</span><span> % </span><span style="color:#50a14f;">&quot;paradise&quot;</span><span> % </span><span style="color:#50a14f;">&quot;2.0.1&quot;</span><span> cross CrossVersion.full)
+</span><span>
+</span><span>libraryDependencies += </span><span style="color:#50a14f;">&quot;org.scalafx&quot;</span><span> %% </span><span style="color:#50a14f;">&quot;scalafx&quot;</span><span> % </span><span style="color:#50a14f;">&quot;8.0.20-R6&quot;
+</span><span>
+</span><span>libraryDependencies += </span><span style="color:#50a14f;">&quot;org.scalafx&quot;</span><span> %% </span><span style="color:#50a14f;">&quot;scalafxml-core-sfx8&quot;</span><span> % </span><span style="color:#50a14f;">&quot;0.2.2&quot;
+</span></code></pre>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - openapi</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/openapi/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-01-21T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/openapi/atom.xml</id>
+    <entry xml:lang="en">
+        <title>[Video] Beyond OpenAPI @ Functional Scala 2023</title>
+        <published>2024-01-21T00:00:00+00:00</published>
+        <updated>2024-01-21T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/funscala2023-talk/"/>
+        <id>https://blog.vigoo.dev/posts/funscala2023-talk/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/funscala2023-talk/">&lt;p&gt;My talk at &lt;a href=&quot;https:&#x2F;&#x2F;www.functionalscala.com&#x2F;&quot;&gt;Functional Scala 2023&lt;&#x2F;a&gt; about my experience with generating client libraries from OpenAPI specifications, and an alternative code-first approach using &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;zio&#x2F;zio-http&#x2F;&quot;&gt;ZIO Http&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;iframe width=&quot;800&quot; height=&quot;450&quot; src=&quot;https:&#x2F;&#x2F;www.youtube.com&#x2F;embed&#x2F;wwKs37GVubg?si=dMEqTmjUgGBhYB38&quot; title=&quot;YouTube video player&quot; frameborder=&quot;0&quot; allow=&quot;accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share&quot; allowfullscreen&gt;&lt;&#x2F;iframe&gt;</content>
+        
+    </entry>
+</feed>

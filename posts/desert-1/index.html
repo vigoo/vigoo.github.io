@@ -1,0 +1,346 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>desert part 1 - features</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;desert-1&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>desert part 1 - features</h1>
+            
+            <p class="posted-on">Posted on February 19, 2024</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>This is the <strong>first part</strong> of a series of blog posts about my serialization library, <a href="https://vigoo.github.io/desert">desert</a>. I also gave an overview of this library on Functional Scala 2022 - you can check the <a href="https://blog.vigoo.dev/posts/desert-1/@posts/funscala2022-talk.md">talk on YouTube if interested</a>.</p>
+<p>In this post I'm going to give an overview of the features this serialization library provides, and then going to dive into the details of how it supports evolving data types.</p>
+<h2 id="where-is-it-coming-from">Where is it coming from?</h2>
+<p>The idea of creating <code>desert</code> came after some serious disappointment in our previously chosen serialization library. It was used for serialization of both persistent Akka actors and for the distributed actor messages, and it turned out that just by updating the Scala version from 2.12 to 2.13 completely broke our serialization format.</p>
+<p>None of the alternatives looked good enough to me - I wanted something that is code first and fits well to our functional Scala style. Support for multiple platforms or programming languages were not a requirement.</p>
+<p>So I started thinking about what would a perfect serialization library look like, at least for our use cases? It was something that has first-class support for ADTs, for Scala's collection libraries (I don't want to see Scala lists serialized via Java reflection ever again!), with a focus of supporting evolution of the serialized data types. We <em>knew</em> that our persisted data and actor messages will change over time, and we had to be able to survive these changes without any downtime.</p>
+<h2 id="features">Features</h2>
+<p>Let's just go through all the features provided by the library before we talk about how exactly it supports these kind of changes in the serialized data structures.</p>
+<p><code>desert</code> is a Scala library. As probably expected, it captures the core concept of binary serialization though a simple <code>trait</code> called <code>BinaryCodec[T]</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> BinarySerializer</span><span>[</span><span style="color:#c18401;">T</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">serialize</span><span style="color:#c18401;">(</span><span style="color:#e45649;">value</span><span style="color:#c18401;">: T)(</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">context</span><span style="color:#c18401;">: SerializationContext): </span><span style="color:#a626a4;">Unit
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">contramap</span><span style="color:#c18401;">[U](</span><span style="color:#e45649;">f</span><span style="color:#c18401;">: U </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">T): BinarySerializer[U] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">contramapOrFail</span><span style="color:#c18401;">[U](</span><span style="color:#e45649;">f</span><span style="color:#c18401;">: U </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">Either[DesertFailure, T]): BinarySerializer[U] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> BinaryDeserializer</span><span>[</span><span style="color:#c18401;">T</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">deserialize</span><span style="color:#c18401;">()(</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">ctx</span><span style="color:#c18401;">: DeserializationContext): T
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">map</span><span style="color:#c18401;">[U](</span><span style="color:#e45649;">f</span><span style="color:#c18401;">: T </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">U): BinaryDeserializer[U] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">mapOrFail</span><span style="color:#c18401;">[U](</span><span style="color:#e45649;">f</span><span style="color:#c18401;">: T </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">Either[DesertFailure, U]): BinaryDeserializer[U] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> BinaryCodec</span><span>[</span><span style="color:#c18401;">T</span><span>] </span><span style="color:#a626a4;">extends </span><span>BinarySerializer[</span><span style="color:#c18401;">T</span><span>] </span><span style="color:#a626a4;">with </span><span>BinaryDeserializer[</span><span style="color:#c18401;">T</span><span>]
+</span></code></pre>
+<p>These <code>BinaryCodec</code> instances should be made implicitly available for each type we need to serialize. There are multiple ways to create an instance of a binary codec:</p>
+<ul>
+<li>There are many built-in codecs for primitive types, standard collections, date-time classes, etc.</li>
+<li>The <code>map</code> and <code>contramap</code> operators can be used to construct new codecs from existing ones</li>
+<li>There is a codec derivation macro for ADTs (case classes and sealed traits / enums)</li>
+<li>Custom implementation can directly read/write the binary data and access some of the built-in features like the type registry, references, string deduplication and compression</li>
+<li>It is also possible to define these custom implementations in a more functional way on top of <code>ZPure</code></li>
+</ul>
+<p>Under the hood there is a simple <code>BinaryInput</code> / <code>BinaryOutput</code> abstraction which is extensible, by default implemented for Java <code>InputStream</code> and <code>OutputStream</code>.</p>
+<p>On the lowest level, in addition to having an interface for serializing primitive types we also have support for <strong>variable length integer encoding</strong> and for gzip <strong>compression</strong>. Custom codecs can also use the built-in <strong>string deduplication</strong> feature, and encode cyclic graphs using support for storing <strong>references</strong>.</p>
+<p>Sometimes you want to serialize only a part of your data structure - a real-world example we had was having a set of <em>typed actor messages</em> where only a subset of the cases were designed to be used between different nodes. Some cases were only used locally, and in those we would store things that are not serializable at all - for example open websocket connection handles. This is supported by <code>desert</code> by having the concept of both <strong>transient fields</strong> and <strong>transient constructors</strong>.</p>
+<p>What if a field is not an ADT but contains a reference to an arbitrary type with a given interface? Or if we don't know the root type of a message, only a set of possible types which are otherwise unrelated? The library provides a <strong>type registry</strong> for this purpose. Every type registered into this will have an associated identifier, and in places where we don't know the exact type, we can use these to get the codec by it's unique ID from the type registry.</p>
+<p>On the top level <code>desert</code> also comes with a set of <strong>integration modules</strong>. The following modules are available at the time of writing:</p>
+<ul>
+<li><code>desert-akka</code> provides helper functions to serialize from/to <code>ByteString</code>, provides codecs for both typed and untyped <code>ActorRef</code>s, and provides an implementation of Akka's <code>Serializer</code> interface.</li>
+<li><code>desert-cats</code> adds codecs for <code>Validation</code>, <code>NonEmptyList</code>, <code>NonEmptySet</code> and <code>NonEmptyMap</code> from the <a href="https://typelevel.org/cats/">cats library</a>.</li>
+<li><code>desert-cats-effect</code> gives a <a href="https://typelevel.org/cats-effect/">cats-effect</a> <code>IO</code> version of the top level serialization and deserialization functions</li>
+<li><code>desert-zio</code> provides <code>ZIO</code> version of the top level serialization and deserialization functions and adds codec and helper functions to work with <code>Chunk</code>s,</li>
+<li><code>desert-zio-prelude</code> provides a more functional interface for defining custom codecs, as well as having built-in codecs for</li>
+<li><code>desert-shardcake</code> provides easy integration within the <a href="https://devsisters.github.io/shardcake/">Shardcake</a> library</li>
+</ul>
+<p>There are two more modules which implement the same core functionality, <strong>codec derivation</strong>, with different tradeoffs:</p>
+<ul>
+<li><code>desert-shapeless</code> is a <a href="https://github.com/milessabin/shapeless">shapeless</a> based codec deriver, the original implementation of <code>desert</code>'s derivation logic. It only works for <strong>Scala 2</strong> but it has no additional requirements.</li>
+<li><code>desert-zio-scheme</code> is an alternative implementation of the same codec derivation, built on the <code>Deriver</code> feature of <a href="https://zio.dev/zio-schema/">zio-schema</a>. This works both with <strong>Scala 2</strong> and <strong>Scala 3</strong>, and supposed to provide better compile-time error messages, but requires to derive an implicit <code>Schema</code> for each serialized type beside the binary codec.</li>
+</ul>
+<p>I wrote a <a href="https://blog.vigoo.dev/posts/desert-1/@posts/zio-schema-deriving.md">detailed post about typeclass derivation</a> a few months ago.</p>
+<h2 id="data-evolution">Data evolution</h2>
+<p>Let's see in details what it means that <code>desert</code> supports <em>evolving</em> data structures.</p>
+<h3 id="primitives-vs-newtype-wrappers">Primitives vs newtype wrappers</h3>
+<p>Let's start with a simple example: we are serializing a single <code>Int</code>. The default codec just uses the fixed width 32-bit representation of the integer:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">x</span><span>: </span><span style="color:#a626a4;">Int = </span><span style="color:#c18401;">100
+</span></code></pre>
+<p>results in:</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">100</td>
+  </tr>
+</table>
+<p>Imagine that later we decide that <code>Int</code> is just too generic, and what we have here is in fact a <code>Coordinate</code>. We can define a a newtype wrapper like the following:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Coordinate</span><span>(</span><span style="color:#e45649;">value</span><span>: </span><span style="color:#a626a4;">Int</span><span>) </span><span style="color:#a626a4;">extends </span><span>AnyVal
+</span></code></pre>
+<p>and then define the binary codec either by using <code>map</code> and <code>contramap</code> on the integer codec, or by using the <code>deriveForWrapper</code> macro:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Coordinate {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">codec</span><span style="color:#c18401;">: BinaryCodec[Coordinate] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DeriveBinaryCodec.deriveForWrapper
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>The binary representation of a <code>Coordinate</code> will be exactly the same as for an <code>Int</code>, so we are still fully backward and forward compatible regarding our serialization format:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">x</span><span>: </span><span style="color:#c18401;">Coordinate </span><span style="color:#a626a4;">= </span><span>Coordinate(</span><span style="color:#c18401;">100</span><span>)
+</span></code></pre>
+<p>results in:</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">100</td>
+  </tr>
+</table>
+<h3 id="collections">Collections</h3>
+<p>First let's see what happens if we try to serialize a pair of coordinates:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">xy </span><span style="color:#a626a4;">= </span><span>(Coordinate(</span><span style="color:#c18401;">1</span><span>), Coordinate(</span><span style="color:#c18401;">2</span><span>))
+</span></code></pre>
+<p>results in:</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(147, 154, 231); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>    
+  </tr>
+</table>
+<p>the binary representation starts with a <code>0</code>, which is an <em>ADT header</em>. We will talk about it later. The rest of the data is just a flat representation of the two coordinates, taking in total 9 bytes.</p>
+<p>Now we start storing arrays of these coordinates:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">coordinates</span><span>: </span><span style="color:#c18401;">Array</span><span>[(</span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#c18401;">Coordinate</span><span>)] </span><span style="color:#a626a4;">= 
+</span><span>  Array(
+</span><span>    (Coordinate(</span><span style="color:#c18401;">1</span><span>), Coordinate(</span><span style="color:#c18401;">2</span><span>)),
+</span><span>    (Coordinate(</span><span style="color:#c18401;">3</span><span>), Coordinate(</span><span style="color:#c18401;">4</span><span>)),
+</span><span>    (Coordinate(</span><span style="color:#c18401;">5</span><span>), Coordinate(</span><span style="color:#c18401;">6</span><span>))
+</span><span>  )
+</span></code></pre>
+<p>Arrays are serialized simply by writing the length of the array as a variable-length integer and then serializing all elements.</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(147, 154, 231); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">6</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>    
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td> 
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>    
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">3</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">4</td> 
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>    
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">5</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">6</td>    
+  </tr>
+</table>
+<p>The variable-length integer encoding of <code>3</code> is <code>6</code>, and that is simply followed by the three 9-byte long serialized representation of the coordinate pairs.</p>
+<p>What if we decide we don't want to use <code>Array</code> but ZIO's <code>Chunk</code> instead? Or if we realize our data model is more precise if we talk about a <em>set</em> of coordinate pairs? Nothing! Desert uses the same encoding for all collection types, allowing us to always choose the best data type without being worried about breaking the serialization format. In some collections, such as linked lists, there is no way to know the number of elements without iterating through the whole data set. Desert supports these collection types by writing <code>-1</code> as the number of elements, and then prefixing each element with a single byte where <code>1</code> represents we have a next element and <code>0</code> that we don't. This is actually exactly the same binary format as a series of <code>Option[T]</code> values where the first and only <code>None</code> represents the end of the sequence.</p>
+<h3 id="records">Records</h3>
+<p>Maybe using tuples of coordinates was a good idea in the beginning but as our data model evolves we want to introduced a named record type instead:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Point</span><span>(</span><span style="color:#e45649;">x</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">y</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>)
+</span></code></pre>
+<p>We can use <code>desert</code>'s codec derivation feature to get a binary codec for this type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Point {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">schema</span><span style="color:#c18401;">: Schema[Point] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DeriveSchema.gen
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">codec</span><span style="color:#c18401;">: BinaryCodec[Point] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DerivedBinaryCodec.derive
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>When using <code>desert-zio-scheme</code> we also need to derive a <code>Schema</code> instance - this is not required when using the <code>desert-shapeless</code> version of the codec derivation.</p>
+<p>Let's see how <code>desert</code> serializes an instance of this <code>Point</code> type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">pt </span><span style="color:#a626a4;">= </span><span>Point(Coordinate(</span><span style="color:#c18401;">1</span><span>), Coordinate(</span><span style="color:#c18401;">2</span><span>))
+</span></code></pre>
+<p>results in:</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(147, 154, 231); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>    
+  </tr>
+</table>
+<p>This is exactly the same as the tuple's binary representation was, which probably isn't a big surprise as they are structurally equivalent. Still this is an important property as it allows us to replace any tuple with an equivalent record type and keeping the binary format exactly the same!</p>
+<p>If we have to change a record's type, we can only change any of its fields if that field's new type has a compatible binary representation with the old one. All the cases described in this post are valid data evolution steps. Beside those there are a few special type of changes <code>desert</code> supports for records. Let's see!s</p>
+<h3 id="adding-a-field">Adding a field</h3>
+<p>As a next step let's imagine our data type requires a new field. Let's add a <code>z</code> coordinate to our point:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Point</span><span>(</span><span style="color:#e45649;">x</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">y</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">z</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>)
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Point {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">codec</span><span style="color:#c18401;">: BinaryCodec[Point] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DerivedBinaryCodec.derive 
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">pt </span><span style="color:#a626a4;">= </span><span>Point(Coordinate(</span><span style="color:#c18401;">1</span><span>), Coordinate(</span><span style="color:#c18401;">2</span><span>), Coordinate(</span><span style="color:#c18401;">3</span><span>))
+</span></code></pre>
+<p>Serializing this <code>pt</code> value results in:</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(147, 154, 231); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">3</td>    
+  </tr>
+</table>
+<p>If we try to read this value with the <em>deserializer</em> of our original <code>Point</code> type, it will read <code>Point(Coordinate(1), Coordinate(2))</code>, but the next deserialized value will be corrupt as the input stream will point to the beginning of the <code>0, 0, 0, 3</code> value. Similarly, if we would try to read a binary serialized with the old <code>Point</code> <em>serializer</em>, it would read the next four bytes from the data stream which, if even exists, belongs to some other serialized element.</p>
+<p>The solution for this in <code>desert</code> is to <strong>explicitly document data evolution</strong>. This is done by listing each modification in an <em>attribute</em> called <code>evolutionSteps</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>@</span><span style="color:#e45649;">evolutionSteps</span><span>(FieldAdded[</span><span style="color:#c18401;">Coordinate</span><span>](</span><span style="color:#50a14f;">&quot;z&quot;</span><span>, Coordinate(</span><span style="color:#c18401;">0</span><span>)))
+</span><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Point</span><span>(</span><span style="color:#e45649;">x</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">y</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">z</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>)
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Point {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">codec</span><span style="color:#c18401;">: BinaryCodec[Point] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DerivedBinaryCodec.derive 
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">pt </span><span style="color:#a626a4;">= </span><span>Point(Coordinate(</span><span style="color:#c18401;">1</span><span>), Coordinate(</span><span style="color:#c18401;">2</span><span>), Coordinate(</span><span style="color:#c18401;">3</span><span>))
+</span></code></pre>
+<p>With this annotation, we mark <code>z</code> as a newly added field, and provide a <em>default value</em> for it which will be used in cases when reading an old version of the serialized data which did not have this field yet. Every time we change the data type we record the change as a new element in this attribute. There are other supported evolution step types as we will see soon.</p>
+<p>But first let's see what changes in the binary representation of <code>Point</code> now that we added this attribute!</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(147, 154, 231); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">16</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">8</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">3</td>    
+  </tr>
+</table>
+<p>Now that we have an <em>evolution step</em> the first byte, which was always <code>0</code> before, becomes <code>1</code>. Every evolution step increases this value, which is interpreted as the type's <em>version</em>. For each ADT which has a version other than 0, this first version byte is followed by a list of the binary encoding of the evolution steps. Here the <code>16</code> is the variable-length encoding of the value <code>8</code>, which is the length of the "version 0" part of the data type. This is followed by <code>8</code> which is just the variable-length encoding of the value <code>4</code>, and it represents the <em>field added</em> evolution step, encoding the newly added field's size.</p>
+<p>With this format when the <em>old</em> deserializer reads the point, it knows it needs to skip additional 4 bytes after reading the <code>x</code> and <code>y</code> coordinates. Also when the <em>new</em> deserializer encounters an old point, that binary data will begin with <code>0</code>, so the deserializer is aware that it's an older version and can set the deserialized value's <code>z</code> coordinate to the provided default.</p>
+<p>By documenting the data type change we get full forward and backward compatibility in this case. The cost is that instead of <code>13</code> bytes, now each <code>Point</code> takes <code>15</code> bytes.</p>
+<h3 id="making-a-field-optional">Making a field optional</h3>
+<p>Another special data type change is making an existing field optional. Staying with the previous example we could change our <code>Point</code> type like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>@</span><span style="color:#e45649;">evolutionSteps</span><span>(
+</span><span>  FieldAdded[</span><span style="color:#c18401;">Coordinate</span><span>](</span><span style="color:#50a14f;">&quot;z&quot;</span><span>, Coordinate(</span><span style="color:#c18401;">0</span><span>)),
+</span><span>  FieldMadeOptional(</span><span style="color:#50a14f;">&quot;z&quot;</span><span>)
+</span><span>)
+</span><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Point</span><span>(</span><span style="color:#e45649;">x</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">y</span><span>: </span><span style="color:#c18401;">Coordinate</span><span>, </span><span style="color:#e45649;">z</span><span>: </span><span style="color:#c18401;">Option</span><span>[</span><span style="color:#c18401;">Coordinate</span><span>])
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Point {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">codec</span><span style="color:#c18401;">: BinaryCodec[Point] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">DerivedBinaryCodec.derive 
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">pt </span><span style="color:#a626a4;">= </span><span>Point(Coordinate(</span><span style="color:#c18401;">1</span><span>), Coordinate(</span><span style="color:#c18401;">2</span><span>), None)
+</span></code></pre>
+<p>This of course can no longer guarantee full forward and backward compatibility - but it can be useful as an intermediate step in getting rid of some unused parts of the data model, while still being able to access it when it's available from older serialized data.</p>
+<p>This evolution step is represented by a variable-length integer <code>-1</code> in the ADT header. All positive values are representing the <em>field added</em> case, with the actual value containing the size of the added field. -1 is a special marker for field removed, and it is followed by another variable-length integer encoding the field position which has been made optional. Then serializing the <code>Option</code> field, the integer gets prefixed by a <code>1</code> if the value was <code>Some</code>, or the whole option is serialized as a <code>0</code> if it was <code>None</code>.</p>
+<p>The total serialized record of the above example would look like this:</p>
+<table style="border-collapse: initial; border: 0px; width: auto; color: black">
+  <tr>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(147, 154, 231); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">16</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(60, 200, 150); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(60, 200, 150); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>    
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(154, 231, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">1</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 154, 147); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">2</td>
+    <td style="border: 1px solid; padding: 6px; text-align: center; background-color: rgb(231, 147, 200); margin: 0px; border-spacing: 1px; font-family: monospace; font-weight: normal">0</td>
+  </tr>
+</table>
+<p>The first byte is now <code>2</code> as we have two evolution steps. The next one still defines that the original part of the data is 8 bytes long, the third byte shows that this time the new <em>z</em> field is taking only 1 byte (as it was set to <code>None</code>). The header is now containing two more bytes, as described above: the first <code>1</code> means a field has been made optional, and the second points to the field.</p>
+<p>This can be still loaded by the very first point serializer (or even as the coordinate pair tuple), as everything after the first two coordinates would be skipped. It can also be loaded as a <code>Point</code> with non-optional z coordinate, but only if the serialized data is a <code>Some</code>. So in the above example it would lead to a deserialization error. The change is fully backward compatible so our latest deserializer can still load all the variants we have seen before.</p>
+<h3 id="removing-a-field">Removing a field</h3>
+<p>The final special data evolution step supported by the library is <em>removing</em> a field completely. This is more limited than the previous ones though - backward compatibility is easy, newer versions of the deserializer just have to skip the removed fields which they can easily do. But forward compatibility is only possible if the removed field was an <strong>option field</strong> - that's the only type <code>desert</code> can automatically provide a default value, <code>None</code> for.</p>
+<p>The binary header for removing a field needs to store the actual <em>field name</em> because it cannot otherwise identify the field which is not actually in the rest of the data set. To make this more space-efficient, <code>desert</code> uses string deduplication and only needs to serialize the actual field name once.</p>
+<h3 id="sum-types">Sum types</h3>
+<p>Scala 2 sealed trait hierarchies and Scala 3 enums are simply serialized with the same techniques mentioned above, but with a <em>constructor ID</em> serialized as a prefix to the binary. Constructor identifiers are associated in order - as the constructors appear in the source code. This means that adding new constructors is backward and forward compatible, as long as they are added as the <em>last</em> constructor. Otherwise the identifiers will be rearranged and binary compatibility breaks.</p>
+<h3 id="transients">Transients</h3>
+<p>It is possible to make a previously non-transient field transient and maintain binary compatibility. The rules are the same as for <em>removing</em> a field.</p>
+<h3 id="type-registry">Type registry</h3>
+<p>As mentioned earlier, a <em>type registry</em> can be used to associate identifiers to types, and then serialize arbitrary values using these identifiers. Maintaining the stability of this mapping is also very important when evolving data types. What if we want to delete a type which was added to the type registry because we never want to use it again, and we already migrated our serialized data and we are sure we will never encounter that ID again during deserialization?</p>
+<p>We still cannot just simply remove the entry from the type registry, because it will break all the following identifiers as they get assigned sequentially. The library has a solution for this - it is possible to registry empty placeholders where we previously had an actual type - it will maintain the identifier order, but will lead to a runtime error when that identifier is encountered during deserialization.</p>
+<h2 id="summary">Summary</h2>
+<p>In this post I summarized the key features of the <code>desert</code> serialization library, and explained in detail how it supports changes into the data model while trying to keep maximal backward and forward compatibility.</p>
+<p>In the next post I will show how the same library can be implemented for <strong>Rust</strong>, how the Scala solution maps into different concepts in the other language and what difficulties I've encountered during the migration process.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

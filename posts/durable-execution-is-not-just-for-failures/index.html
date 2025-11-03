@@ -1,0 +1,134 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Durable Execution is not just for failures</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;durable-execution-is-not-just-for-failures&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Durable Execution is not just for failures</h1>
+            
+            <p class="posted-on">Posted on March 28, 2025</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>When talking about <a href="https://golem.cloud">Golem</a> or other <strong>durable execution engines</strong> the most important property we are always pointing out is that by making the application <em>durable</em>, it can automatically survive various failure scenarios. In case of a transient error, or some other external event such as updating or restarting the underlying servers durable programs can survive by seamlessly continuing their execution from the point where they were interrupted, without any visible (except for some latency, of course) effect for the application's users.</p>
+<p>But having this core capability has many other interesting consequences.</p>
+<p>A durable program can be dropped out of memory any time without having to explicitly save its state or shut it down in any way - and whenever it is needed it can be automatically recovered and it continues from where it left. The application developers can rely on very simple code storing everything in memory - as it is guaranteed that the in-memory state never gets lost.</p>
+<p>If a <strong>Golem worker</strong> (a running durable program) is not performing any active job at the moment - for example it is waiting to be invoked, or waiting for some scheduled event - they automatically get dropped out of the executor's memory to make space for other workers. This means we can have an (almost arbitrary) large number of "running" workers, if they are not performing CPU intensive tasks. Sure, having to continuously recover dropped out workers is affecting latency, but still, it means we can run these large number of simultaneous, stateful programs even on a locally started Golem on a developer machine.</p>
+<h2 id="demo">Demo</h2>
+<h3 id="setting-it-up">Setting it up</h3>
+<p>In this short blog post we are going to demonstrate this. We are going to start the latest version of Golem (1.2) locally, then use the CLI (and some <a href="https://www.nushell.sh">Nushell</a> snippets) to build, deploy and run a large number of workers.</p>
+<p>First we download the latest <code>golem</code> command line application <a href="https://learn.golem.cloud/quickstart">according to Golem's Quick Start pages</a>. With that we can start our local Golem cluster - all the core Golem services are integrated in this single <code>golem</code> binary:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem server run
+</span></code></pre>
+<p>We are going to use the same <code>golem</code> CLI application to create, deploy and invoke Golem components.</p>
+<p>Next we create a new <em>golem application</em>:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem app new manyworkers rust
+</span></code></pre>
+<p><img src="/images/2025-03-28/1.png" alt="" /></p>
+<p>Golem comes with a set of <strong>components templates</strong> for all supported languages. One of these templates is a simple <em>shopping cart</em> implementation in Rust, where each Golem worker (running instance of this component) represents a single shopping cart, keeping its contents in memory.</p>
+<p>We are going to create <strong>10</strong> (identical) versions of this template, simulating that we have more than one applications running in a cluster. Even though they are going to be exactly the same to keep the post simple, from Golem's point of view it is going to be 10 different applications, compiled and deployed separately.</p>
+<p>Let's call the <code>golem component new</code> command 10 times in the newly generated application to set this up!</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>0..9 | each { |x| golem component new rust/example-shopping-cart $&quot;demo:cart(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">x</span><span>)&quot; }
+</span></code></pre>
+<p>This command created 10 components in our application, with names <code>demo:cart0</code> to <code>demo:cart9</code>. First let's build and deploy these components:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem app build
+</span><span>golem app deploy
+</span></code></pre>
+<p><img src="/images/2025-03-28/2.png" alt="" /></p>
+<p>To see the interface of this example, let's query one using <code>component get</code>:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem component get demo:cart0
+</span></code></pre>
+<p><img src="/images/2025-03-28/3.png" alt="" /></p>
+<p>Before spawning our thousands of workers, we try out this exported interface by creating a single worker of <code>demo:cart0</code> called <code>test</code> and calling a few methods in it:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span> golem worker invoke demo:cart0/test initialize-cart &#39;&quot;user1&quot;&#39;
+</span></code></pre>
+<p><img src="/images/2025-03-28/4.png" alt="" /></p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem worker invoke demo:cart0/test add-item &#39;{ product-id: &quot;p1&quot;, name: &quot;Example product&quot;, price: 1000.0, quantity: 2 }&#39;
+</span></code></pre>
+<p><img src="/images/2025-03-28/5.png" alt="" /></p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem worker invoke demo:cart0/test get-cart-contents
+</span></code></pre>
+<p><img src="/images/2025-03-28/6.png" alt="" /></p>
+<p>For some more context, we can also check the size of the compiled WASM files (we were doing a debug build so they are relatively large) for these components:</p>
+<p><img src="/images/2025-03-28/7.png" alt="" /></p>
+<p>We can also query metadata of the created worker to get the same size information, and it also going to tell us the amount of <strong>memory</strong> the instance allocates on startup:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem worker get demo:cart0/test
+</span></code></pre>
+<p><img src="/images/2025-03-28/9.png" alt="" /></p>
+<p>And we can query the test worker's <em>oplog</em> to get an idea of how much additional memory it allocated dynamically runtime:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem worker oplog demo:cart0/test --query memory
+</span></code></pre>
+<p><img src="/images/2025-03-28/8.png" alt="" /></p>
+<h3 id="spawning-many-workers">Spawning many workers</h3>
+<p>Now that we have seen how a single worker looks like, let's spawn 1000 workers of each test component. This is going to take some time as it actually <strong>instantiates</strong> the WASM program for each to make the initial two invocations.</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>mut j = 0;
+</span><span>loop {
+</span><span>    mut i = 0;
+</span><span>    loop {
+</span><span>           golem worker new $&quot;demo:cart(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">i</span><span>)/(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">j</span><span>)&quot;;
+</span><span>           golem worker invoke $&quot;demo:cart(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">i</span><span>)/(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">j</span><span>)&quot; initialize-cart &#39;&quot;user1&quot;&#39;;
+</span><span>           golem worker invoke $&quot;demo:cart(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">i</span><span>)/(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">j</span><span>)&quot; add-item $&quot;{ product-id: \&quot;p1\&quot;, name: \&quot;Example product (</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">j</span><span>)/(</span><span style="color:#a626a4;">$</span><span style="color:#e45649;">i</span><span>)\&quot;, price: 1000.0, quantity: 2 }&quot;;
+</span><span>           
+</span><span>           </span><span style="color:#a626a4;">if $</span><span style="color:#e45649;">i</span><span> &gt;= 9 { break; };
+</span><span>           </span><span style="color:#a626a4;">$</span><span style="color:#e45649;">i</span><span> = </span><span style="color:#a626a4;">$</span><span style="color:#e45649;">i</span><span> + 1;
+</span><span>    }
+</span><span>    </span><span style="color:#a626a4;">if $</span><span style="color:#e45649;">j</span><span> &gt;= 999 { break; };
+</span><span>    </span><span style="color:#a626a4;">$</span><span style="color:#e45649;">j</span><span> = </span><span style="color:#a626a4;">$</span><span style="color:#e45649;">j</span><span> + 1;
+</span><span>}
+</span></code></pre>
+<p>After that, we have 10000 "running" workers (all idle, waiting for a next invocation). We can check by listing for example one of the component's workers:</p>
+<pre data-lang="nu" style="background-color:#fafafa;color:#383a42;" class="language-nu "><code class="language-nu" data-lang="nu"><span>golem worker list demo:cart5
+</span></code></pre>
+<p><img src="/images/2025-03-28/10.png" alt="" /></p>
+<p>Of course only some of these workers (the last accessed ones) are really in the locally running executor's memory. Whenever a worker that's not in memory is going to be accessed, it is loaded and its state is transparently restored before it gets the request. Golem is tracking the resource usage of its running components and if there is not enough memory to load the new component, an old one is going to be dropped out.</p>
+<h3 id="trying-it-out">Trying it out</h3>
+<p>To demonstrate this, we can just invoke workers randomly from the 10000 we've created:</p>
+<p><img src="/images/2025-03-28/11.png" alt="" /></p>
+<p>Thanks to the durable execution model, every one of the 10000 workers react just as if it was running.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

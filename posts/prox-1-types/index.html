@@ -1,0 +1,284 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>prox part 1 - type level programming</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;prox-1-types&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>prox part 1 - type level programming</h1>
+            
+            <p class="posted-on">Posted on February 10, 2019</p>
+        </header>
+
+        <h2 id="blog-post-series">Blog post series</h2>
+<ul>
+<li><a href="https://blog.vigoo.dev/posts/prox-1-types/">Part 1 - type level programming</a></li>
+<li><a href="https://blog.vigoo.dev/posts/prox-2-io-akkastreams/">Part 2 - akka streams with cats effect</a></li>
+<li><a href="https://blog.vigoo.dev/posts/prox-3-zio/">Part 3 - effect abstraction and ZIO</a></li>
+<li><a href="https://blog.vigoo.dev/posts/prox-4-simplify/">Part 4 - simplified redesign</a></li>
+</ul>
+<h2 id="intro">Intro</h2>
+<p>I started writing <a href="https://github.com/vigoo/prox">prox</a> at the end of 2017 for two reasons. First, I never liked any of the existing solutions for running external processes and capture their input/output streams. And I just returned from the <a href="https://scala.io/">scala.io conference</a> full of inspiration; I wanted to try out some techniques and libraries and this seemed to be a nice small project to do so.</p>
+<p>Since then, <a href="https://github.com/vigoo/prox">prox</a> has been proved to be useful, we are using it at <a href="https://prezi.com/">Prezi</a> in all our Scala projects where we have to deal with external processes. The last stable version was created last October, after <a href="https://typelevel.org/cats-effect/">cats-effect 1.0</a> and <a href="https://fs2.io/">fs2 1.0</a> was released.</p>
+<p>This is the first part of a series of blog posts dedicated to this library. In the first one I'm going to talk about <a href="https://github.com/milessabin/shapeless">shapeless</a> and <em>type level programming</em> techniques are used to create a strongly typed interface for starting system processes. In future posts I will explore replacing its dependencies such as using <a href="https://doc.akka.io/docs/akka/2.5/stream/">akka-streams</a> instead of <a href="https://fs2.io/">fs2</a> or <a href="https://scalaz.github.io/scalaz-zio/">ZIO</a> instead of <a href="https://typelevel.org/cats-effect/">cats-effect</a>. These different versions will be a good opportunity to do some performance comparison, and to close the series with creating a new version of the library which is easier to use in the alternative environments.</p>
+<h2 id="limiting-redirection">Limiting redirection</h2>
+<p>When I started writing the library I wanted to explore how I can express some strict constraints on the type level:</p>
+<ul>
+<li>A process can have its input, output and error streams redirected, but only once</li>
+<li>Processes without redirected output can be piped to processes without a redirected input</li>
+</ul>
+<p>In prox <em>0.2.1</em> a single system process is described by the following type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">class</span><span style="color:#c18401;"> Process</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">OutResult</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>, 
+</span><span>              </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>](
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#c18401;">String</span><span>,
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">arguments</span><span>: </span><span style="color:#c18401;">List</span><span>[</span><span style="color:#c18401;">String</span><span>],
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">workingDirectory</span><span>: </span><span style="color:#c18401;">Option</span><span>[</span><span style="color:#c18401;">Path</span><span>],
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">inputSource</span><span>: </span><span style="color:#c18401;">ProcessInputSource</span><span>,
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">outputTarget</span><span>: </span><span style="color:#c18401;">ProcessOutputTarget</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">OutResult</span><span>],
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">errorTarget</span><span>: </span><span style="color:#c18401;">ProcessErrorTarget</span><span>[</span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>],
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">environmentVariables</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">String</span><span>])
+</span><span>    </span><span style="color:#a626a4;">extends </span><span>ProcessNode[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">ORS</span><span>, </span><span style="color:#c18401;">ERS</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">        </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>but let's focus first on the requirement to be able to redirect one of the streams <em>maximum once</em>.
+This is encoded by the <code>IRS</code>, <code>ORS</code> and <code>ERS</code> type parameters, which are all have to be subtypes of <code>RedirectionState</code>. <code>RedirectionState</code> is a <strong>phantom type</strong>; there are no values ever created of this type, it is only used in type signatures to encode whether one of the three streams are already redirected or not:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a0a1a7;">/** Phantom type representing the redirection state of a process */
+</span><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> RedirectionState
+</span><span>
+</span><span style="color:#a0a1a7;">/** Indicates that the given channel is not redirected yet */
+</span><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> NotRedirected </span><span style="color:#a626a4;">extends </span><span>RedirectionState
+</span><span>
+</span><span style="color:#a0a1a7;">/** Indicates that the given channel has already been redirected */
+</span><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> Redirected </span><span style="color:#a626a4;">extends </span><span>RedirectionState
+</span></code></pre>
+<p>So for example with a simplified model of a <em>process</em>, <code>Process[IRS &lt;: RedirectionState, ORS &lt;: RedirectionState, ERS &lt;: RedirectionState]</code>, using the output redirection operator <code>&gt;</code> would change the types in the following way:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">p1</span><span>: </span><span style="color:#c18401;">Process</span><span>[</span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>] </span><span style="color:#a626a4;">= ???
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">p2</span><span>: </span><span style="color:#c18401;">Process</span><span>[</span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">Redirected</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>] </span><span style="color:#a626a4;">=</span><span> p1 &gt; (home / </span><span style="color:#50a14f;">&quot;tmp&quot;</span><span> / </span><span style="color:#50a14f;">&quot;out.txt&quot;</span><span>)
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">p3 </span><span style="color:#a626a4;">=</span><span> p2 &gt; (home / </span><span style="color:#50a14f;">&quot;tmp&quot;</span><span> / </span><span style="color:#50a14f;">&quot;another.txt&quot;</span><span>) </span><span style="color:#a0a1a7;">// THIS MUST NOT COMPILE
+</span></code></pre>
+<p>How can we restrict the redirect function to only work on <code>Process[_, NotRedirected, _]</code>? We can define it as an <strong>extension method</strong> with an implicit class (once again this is a simplified version focusing only on the <em>redirection state</em> handling):</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>  </span><span style="color:#a626a4;">implicit class</span><span style="color:#c18401;"> ProcessNodeOutputRedirect</span><span>[
+</span><span>      </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>      </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>      </span><span style="color:#c18401;">PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">Process</span><span>[</span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">ERS</span><span>]](</span><span style="color:#e45649;">process</span><span>: </span><span style="color:#c18401;">PN</span><span>) </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">&gt;</span><span style="color:#c18401;">[To](</span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To)(</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">target</span><span style="color:#c18401;">: CanBeProcessOutputTarget[To]): Process[IRS, Redirected, ERS] </span><span style="color:#a626a4;">= ???
+</span><span style="color:#c18401;">  }
+</span></code></pre>
+<p>By forcing the <code>ORS</code> type parameter to be <code>NotRedirected</code> and setting it to <code>Redirected</code> in the result type we can guarantee that this function can only be called on a process that does not have their output redirected yet. The <em>target</em> of the redirection is extensible through the <code>CanBeProcessOutputTarget</code> type class, as we will see later.</p>
+<h2 id="dependent-types">Dependent types</h2>
+<p>Reality is much more complicated, because of <em>process piping</em> and because the process types encode the redirection result types too. Let's get back to our <code>&gt;</code> function and see how we could modify it so it works with piped processes too. Anyway, how is process piping encoded in this library?</p>
+<p>Two processes connected through a pipe are represented by the <code>PipedProcess</code> class. Both <code>Procses</code> and <code>PipedProcess</code> implements the following trait:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> ProcessNode</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>]
+</span></code></pre>
+<p>We've already seen <code>Process</code>. <code>PipedProcess</code> is a bit more complicated:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">class</span><span style="color:#c18401;"> PipedProcess</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">PN1Out</span><span>, 
+</span><span>                   </span><span style="color:#c18401;">PN1 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>], 
+</span><span>                   </span><span style="color:#c18401;">PN2 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>], 
+</span><span>                   </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>]
+</span><span>    (</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">from</span><span>: </span><span style="color:#c18401;">PN1</span><span>, </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">createTo</span><span>: </span><span style="color:#c18401;">PipeConstruction</span><span>[</span><span style="color:#c18401;">PN1Out</span><span>] </span><span style="color:#a626a4;">=&gt; </span><span style="color:#c18401;">PN2</span><span>)
+</span><span>    </span><span style="color:#a626a4;">extends </span><span>ProcessNode[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">ORS</span><span>, </span><span style="color:#c18401;">ERS</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">        </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>To make <code>&gt;</code> work on both, we can start by modifying its definition to work on <em>any</em> <code>ProcessNode</code> not just <code>Process</code> (omitting the output type params for now):</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit class</span><span style="color:#c18401;"> ProcessNodeOutputRedirect</span><span>[
+</span><span>    </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>    </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>    </span><span style="color:#c18401;">PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">ERS</span><span>]](</span><span style="color:#e45649;">process</span><span>: </span><span style="color:#c18401;">PN</span><span>) </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">&gt;</span><span style="color:#c18401;">[To](</span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To)(</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">target</span><span style="color:#c18401;">: CanBeProcessOutputTarget[To]): ProcessNode[IRS, Redirected, ERS] </span><span style="color:#a626a4;">= ???
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>This has a serious problem though. The output type is <code>ProcessNode</code> and not the "real" process type, which means that we lose type information and all the other dependent typed operations will not work. We have to make the result type <strong>depend</strong> on the input!</p>
+<p>We may try to use the <code>RedirectionOutput</code> type class like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit class</span><span style="color:#c18401;"> ProcessNodeOutputRedirect</span><span>[
+</span><span>    </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>    </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>    </span><span style="color:#c18401;">PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">ERS</span><span>]](</span><span style="color:#e45649;">process</span><span>: </span><span style="color:#c18401;">PN</span><span>) </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">&gt;</span><span style="color:#c18401;">[To](</span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To)
+</span><span style="color:#c18401;">           (</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">target</span><span style="color:#c18401;">: CanBeProcessOutputTarget[To],
+</span><span style="color:#c18401;">            </span><span style="color:#e45649;">redirectOutput</span><span style="color:#c18401;">: RedirectOutput[PN, To]): redirectOutput.Result </span><span style="color:#a626a4;">=</span><span style="color:#c18401;"> redirectOutput(to)
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>Here the result (<code>redirectOutput.Result</code>) is a <em>path dependent type</em>. This may work in some simple cases but have two serious issues:</p>
+<ul>
+<li>It is not possible to use <code>redirectOutput.Result</code> in the <em>parameter block</em> of the function, so if another type class needed it as a type parameter we could not pass it.</li>
+<li>Further implicit resolutions and type level operations will quickly break as the compiler will not be able to unify the various path dependent types</li>
+</ul>
+<p>The <strong>Aux pattern</strong>, used heavily in the <a href="https://github.com/milessabin/shapeless">shapeless</a> library provides a nice pattern for fixing both problems. We start by defining a <em>type class</em> for describing the operation, in this case <em>redirecting the output channel of a process</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> RedirectOutput</span><span>[</span><span style="color:#c18401;">PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#e45649;">_</span><span>], </span><span style="color:#c18401;">To</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Result </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, Redirected, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">apply</span><span style="color:#c18401;">(</span><span style="color:#e45649;">process</span><span style="color:#c18401;">: PN, </span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To)(</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">target</span><span style="color:#c18401;">: CanBeProcessOutputTarget[To]): Result
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> RedirectOutput {
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Aux[PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, NotRedirected, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">], To, Result0] </span><span style="color:#a626a4;">= 
+</span><span style="color:#c18401;">        RedirectOutput[PN, To] { </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Result </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">Result0 }
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a0a1a7;">// ... type class instances
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>The type class itself is straightforward. We have to implement it for both <code>Process</code> and <code>PipedProcess</code> and set the <code>Result</code> type accordingly, then implement <code>apply</code> that sets up the actual redirection. But what the <code>Aux</code> type is for?</p>
+<p>It solves the problems with the <em>path dependent</em> version if we use it like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit class</span><span style="color:#c18401;"> ProcessNodeOutputRedirect</span><span>[
+</span><span>    </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>    </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, 
+</span><span>    </span><span style="color:#c18401;">PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#c18401;">ERS</span><span>]](</span><span style="color:#e45649;">process</span><span>: </span><span style="color:#c18401;">PN</span><span>) </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">&gt;</span><span style="color:#c18401;">[To, Result </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, Redirected, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">]](</span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To)
+</span><span style="color:#c18401;">           (</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">target</span><span style="color:#c18401;">: CanBeProcessOutputTarget[To],
+</span><span style="color:#c18401;">            </span><span style="color:#e45649;">redirectOutput</span><span style="color:#c18401;">: RedirectOutput.Aux[PN, To, Result]): Result </span><span style="color:#a626a4;">=</span><span style="color:#c18401;"> redirectOutput(to)
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>By lifting the <code>Result</code> from the type class instance to a type parameter the compiler can now "extract" the calculated type from <code>redirectOutput.Result</code> to the <code>&gt;</code> function's <code>Result</code> type parameter and use it directly, both for other further type requirements or as we do here, in the result type.</p>
+<p>This is the basic pattern used for <em>all</em> the operations in prox. You can check <a href="http://gigiigig.github.io/posts/2015/09/13/aux-pattern.html">Luigi's short introduction to the <code>Aux</code> pattern</a> for a more detailed explanation.</p>
+<h2 id="starting-the-processes">Starting the processes</h2>
+<p>So far we just combined purely functional data structures in a complicated way. The result value may encode the launching of several system processes that are connected via pipes to each other and possibly other streams as we will see.</p>
+<p>When we eventually decide to <em>start</em> these processes, we need a way to observe their status, wait for them to stop, get their exit code, and to access the data sent to the output streams if they were redirected. And we need this <em>per process</em>, while launching the whole process graph in a <em>single step</em>.</p>
+<p>First let's model a single <em>running process</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> RunningProcess</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">OutResult</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">isAlive</span><span style="color:#c18401;">: IO[</span><span style="color:#a626a4;">Boolean</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">waitForExit</span><span style="color:#c18401;">(): IO[ProcessResult[OutResult, ErrResult]]
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">terminate</span><span style="color:#c18401;">(): IO[ProcessResult[OutResult, ErrResult]]
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>and <code>ProcessResult</code> that represents an already <em>terminated process</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">case class</span><span style="color:#c18401;"> ProcessResult</span><span>[</span><span style="color:#c18401;">OutResult</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>](
+</span><span>    </span><span style="color:#e45649;">exitCode</span><span>: </span><span style="color:#a626a4;">Int</span><span>, 
+</span><span>    </span><span style="color:#e45649;">fullOutput</span><span>: </span><span style="color:#c18401;">OutResult</span><span>, 
+</span><span>    </span><span style="color:#e45649;">fullError</span><span>: </span><span style="color:#c18401;">ErrResult
+</span><span>)
+</span></code></pre>
+<p>Now we need to define a <code>start</code> extension method on <code>ProcessNode</code> that returns somehow one well typed <code>RunningProcess</code> for <em>each</em> system process that it starts.</p>
+<p>Let's forget for a second about having multiple processes piped together and just consider the single process case. For that, we would need somehing like this (the <code>Out</code> parameter is needed only for piping so I omitted it):</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">start</span><span>: </span><span style="color:#c18401;">IO</span><span>[</span><span style="color:#c18401;">RunningProcess</span><span>[</span><span style="color:#c18401;">OutResult</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>]]
+</span></code></pre>
+<p>Now we can see why <code>Process</code> has those additional type paramters. It is not enough to encode whether the output and error channels were redirected or not, we also have to encode the expected <em>result type</em> of redirecting these. By storing these types in type parameters of <code>Process</code> we can easily imagine that by using the pattern described in the previous section, the <em>result type</em> can <strong>depend</strong> on what we redirected the process to.</p>
+<p>Let's see some examples of what this means!</p>
+<table><thead><tr><th>Target</th><th>Result type</th></tr></thead><tbody>
+<tr><td>A file system path</td><td>The result type is <code>Unit</code>, the redirection happens on OS level</td></tr>
+<tr><td>Sink</td><td>The result type is <code>Unit</code>, only the sink's side effect matters</td></tr>
+<tr><td>Pipe with monoid elem type</td><td>The stream is folded by the monoid, the result type is <code>T</code></td></tr>
+<tr><td>Pipe with non-monoid elem type</td><td>The stream captures the elements in a vector, the result type is <code>Vector[T]</code></td></tr>
+<tr><td>Custom fold function</td><td>The result type is the function's result type</td></tr>
+</tbody></table>
+<p>The <code>CanBeProcessOutputTarget</code> type class we've seen earlier defines both the stream element type and the result type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> CanBeProcessOutputTarget</span><span>[</span><span style="color:#c18401;">To</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">  </span><span style="color:#a0a1a7;">/** Output stream element type */
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Out
+</span><span style="color:#c18401;">  </span><span style="color:#a0a1a7;">/** Result type of running the output stream */
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">OutResult
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">apply</span><span style="color:#c18401;">(</span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To): ProcessOutputTarget[Out, OutResult]
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p><code>ProcessOutputTarget</code> contains the actual IO code to build the redirection of the streams, I won't get into details in this post. Note that there are similar type classes for <em>error</em> and <em>input</em> redirection too.</p>
+<p>For two processes piped together we have to provide <em>two</em> <code>RunningProcess</code> instances with the proper result type parameters. So we can see that it is not enough that the <em>redirection</em> stores the result type in the process type, the <em>start</em> method must be dependent typed too.</p>
+<p>One way to encode this in the type system would be something like this (simplified):</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">p1 </span><span style="color:#a626a4;">= </span><span>Process()
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">p2 </span><span style="color:#a626a4;">= </span><span>Process()
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">p3 </span><span style="color:#a626a4;">= </span><span>Process()
+</span><span>
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">rp1</span><span>: </span><span style="color:#c18401;">IO</span><span>[</span><span style="color:#c18401;">RunningProcess</span><span>] </span><span style="color:#a626a4;">=</span><span> p1.start
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">rp2</span><span>: </span><span style="color:#c18401;">IO</span><span>[(</span><span style="color:#c18401;">RunningProcess</span><span>, </span><span style="color:#c18401;">RunningProcess</span><span>)] </span><span style="color:#a626a4;">= </span><span>(p1 | p2).start
+</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">rp3</span><span>: </span><span style="color:#c18401;">IO</span><span>[(</span><span style="color:#c18401;">RunningProcess</span><span>, </span><span style="color:#c18401;">RunningProcess</span><span>, </span><span style="color:#c18401;">RunningProcess</span><span>)] </span><span style="color:#a626a4;">= </span><span>(p1 | p2 | p3).start
+</span></code></pre>
+<p>We encode piped processes with tuples of <code>RunningProcess</code> and single process with a single <code>RunningProcess</code>. To implement this we can make use of the <a href="https://github.com/milessabin/shapeless">shapeless</a> library's <code>HList</code> implementation.</p>
+<p>HLists are heterogeneous lists; basically similar to a tuple, but with all the "usual" list-like functions implemented as dependent typed functions. It's type describes the types of all its elements, and you can split it to head/tail, append two, etc. And we can do it both on the <em>type level</em> (computing the result type of appending two <code>HList</code>'s, for example) and on the <em>value leve</em> (appending the two values creating a third <code>HList</code> value).</p>
+<p>We can implement the <code>start</code> method more easily by building a <code>HList</code>, while still keep the desired interface as <a href="https://github.com/milessabin/shapeless">shapeless</a> implements a conversion from <code>HList</code> to tuples.</p>
+<p>We can define two separate <em>start functions</em>, one producing <code>HList</code> and another the tuples (IO releated parameters omitted):</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">start</span><span>[</span><span style="color:#c18401;">RP</span><span>](</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">start</span><span>: </span><span style="color:#c18401;">Start</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">PN</span><span>, </span><span style="color:#c18401;">RP</span><span>, </span><span style="color:#e45649;">_</span><span>]]): </span><span style="color:#c18401;">IO</span><span>[</span><span style="color:#c18401;">RP</span><span>] </span><span style="color:#a626a4;">= ???
+</span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">startHL</span><span>[</span><span style="color:#c18401;">RPL </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">HList</span><span>](</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">start</span><span>: </span><span style="color:#c18401;">Start</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">PN</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#c18401;">RP</span><span>[</span><span style="color:#c18401;">IO</span><span>]): </span><span style="color:#c18401;">IO</span><span>[</span><span style="color:#c18401;">RPL</span><span>] = </span><span style="color:#e45649;">???
+</span></code></pre>
+<p>The <code>Start</code> type class calculates both the tupled and the <code>HList</code> version's result type. The implementation's responsibility is to start the actual system processes and wire the streams together.</p>
+<p>The interesting part is how we use <em>type level calculations</em> from <a href="https://github.com/milessabin/shapeless">shapeless</a> to calculte the tuple and <code>HList</code> types for piped processes. This is all done using the technique I described earlier, but may look a bit shocking first. Let's take a look!</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit def </span><span style="color:#0184bc;">startPipedProcess</span><span>[
+</span><span>  </span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>,
+</span><span>  </span><span style="color:#c18401;">PN1 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>],
+</span><span>  </span><span style="color:#c18401;">PN2 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>],
+</span><span>  </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>,
+</span><span>  </span><span style="color:#c18401;">RP1</span><span>, </span><span style="color:#c18401;">RPL1 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">HList</span><span>, </span><span style="color:#c18401;">RP1Last </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RunningProcess</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>],
+</span><span>  </span><span style="color:#c18401;">RP2</span><span>, </span><span style="color:#c18401;">RPL2 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">HList</span><span>, </span><span style="color:#c18401;">RP2Head </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RunningProcess</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>], </span><span style="color:#c18401;">RP2Tail </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">HList</span><span>,
+</span><span>  </span><span style="color:#c18401;">RPT</span><span>, </span><span style="color:#c18401;">RPL </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">HList</span><span>]
+</span><span>  (</span><span style="color:#a626a4;">implicit
+</span><span>   </span><span style="color:#e45649;">start1</span><span>: </span><span style="color:#c18401;">Start</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">PN1</span><span>, </span><span style="color:#c18401;">RP1</span><span>, </span><span style="color:#c18401;">RPL1</span><span>],
+</span><span>   </span><span style="color:#e45649;">start2</span><span>: </span><span style="color:#c18401;">Start</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">PN2</span><span>, </span><span style="color:#c18401;">RP2</span><span>, </span><span style="color:#c18401;">RPL2</span><span>],
+</span><span>   </span><span style="color:#e45649;">last1</span><span>: </span><span style="color:#c18401;">Last</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">RPL1</span><span>, </span><span style="color:#c18401;">RP1Last</span><span>],
+</span><span>   </span><span style="color:#e45649;">rp1LastType</span><span>: </span><span style="color:#c18401;">RP1Last </span><span>&lt;:&lt; </span><span style="color:#c18401;">RunningProcess</span><span>[</span><span style="color:#a626a4;">Byte</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>],
+</span><span>   </span><span style="color:#e45649;">hcons2</span><span>: </span><span style="color:#c18401;">IsHCons</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">RPL2</span><span>, </span><span style="color:#c18401;">RP2Head</span><span>, </span><span style="color:#c18401;">RP2Tail</span><span>],
+</span><span>   </span><span style="color:#e45649;">prepend</span><span>: </span><span style="color:#c18401;">Prepend</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">RPL1</span><span>, </span><span style="color:#c18401;">RPL2</span><span>, </span><span style="color:#c18401;">RPL</span><span>],
+</span><span>   </span><span style="color:#e45649;">tupler</span><span>: </span><span style="color:#c18401;">Tupler</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">RPL</span><span>, </span><span style="color:#c18401;">RPT</span><span>]):
+</span><span>  </span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">PipedProcess</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#a626a4;">Byte</span><span>, </span><span style="color:#c18401;">PN1</span><span>, </span><span style="color:#c18401;">PN2</span><span>, </span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">ORS</span><span>, </span><span style="color:#c18401;">ERS</span><span>], </span><span style="color:#c18401;">RPT</span><span>, </span><span style="color:#c18401;">RPL</span><span>] </span><span style="color:#a626a4;">=
+</span><span>
+</span><span>    </span><span style="color:#a626a4;">new </span><span style="color:#c18401;">Start</span><span>[</span><span style="color:#c18401;">PipedProcess</span><span>[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#a626a4;">Byte</span><span>, </span><span style="color:#c18401;">PN1</span><span>, </span><span style="color:#c18401;">PN2</span><span>, </span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">ORS</span><span>, </span><span style="color:#c18401;">ERS</span><span>]] {
+</span><span>      </span><span style="color:#a626a4;">override type </span><span>RunningProcesses </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">RPT
+</span><span>      </span><span style="color:#a626a4;">override type </span><span>RunningProcessList </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">RPL
+</span><span>
+</span><span>      </span><span style="color:#a0a1a7;">// ...
+</span><span>    }
+</span></code></pre>
+<p>The way to parse this is to follow the type level computations performed through the <em>Aux types</em> in the implicit parameter list:</p>
+<ul>
+<li><code>PN1</code> and <code>PN2</code> are the types of the two processes piped together</li>
+<li>The first two implicit definition calculates the <em>running process tuple</em> and the <em>running process HList</em> types of these inidividual process nodes and "stores" the results in <code>RP1</code>, <code>RPL1</code>, <code>RP2</code> and <code>RPL2</code> type parameters. For example if the two processes pipe together are single <code>Process</code> instances, then <code>RP1</code> and <code>RP2</code> would be some kind of <code>RunningProcess</code>, and the HLists would be one element long, like <code>RunningProcess :: HNil</code>.</li>
+<li>The <code>last1</code> implicit parameter is a type level <em>last</em> functinon on the first process's <code>HList</code>. This is required because <code>PN1</code> itself can also be a sequence of piped processes, and we are connecting <code>PN2</code> to the <strong>last</strong> of these. The <code>RP1Last</code> type parameter becomes the <em>type</em> of the <em>last running process</em> of the first process node.</li>
+<li>The next line, <code>rp1LastType</code> is an additional constraint fixing the <em>output stream element type</em> of <code>RP1Last</code> to <code>Byte</code>. The piping implementation is not able to connect streams of arbitrary element types, as the <em>process input</em> is always required to be a <em>byte stream</em>.</li>
+<li><code>hcons2</code> is similar to the <code>last1</code> but here we are calculating the type level <em>head type</em> of the <code>HList</code> called <code>RPL2</code>. The head will be in <code>RP2Head</code> and the tail <code>HList</code> in <code>RP2Tail</code>.</li>
+<li>In the <code>prepend</code> step we concatenate <code>RPL1</code> with <code>RPL2</code> using the <code>Prepend</code> operation, the result <code>HList</code> type is in <code>RPL</code>. This is the <code>HList</code> representation of the piped running process.</li>
+<li>Finally we use the <code>Tupler</code> operation to calculate the tuple type from the <code>HList</code>, and store it in <code>RPT</code>.</li>
+</ul>
+<p>The compiler perform the type level calculations and we can use the result types <code>RPT</code> and <code>RPL</code> to actually implement the <em>start typeclass</em>. This is the most complicated type level calculation in the library.</p>
+<h2 id="final-thoughts">Final thoughts</h2>
+<p>As we've seen, Scala's type system can bring us quite far in expressing a dependent typed interface. On the other hand writing and reading code in this style is really hard, and if things go wrong, decoding the compiler's error messages is not an easy task either. This is a serious tradeoff that has to be considered and in many cases a more dynamic but much more readable and maintainable approach can be better.</p>
+<p>With <a href="https://github.com/vigoo/prox">prox</a> I explicitly wanted to explore these features of the Scala language.</p>
+<p>In the next posts we will ignore the type level parts of the library and focus on different <em>streaming</em> and <em>effect</em> libraries.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

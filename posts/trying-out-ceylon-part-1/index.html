@@ -1,0 +1,281 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Trying out Ceylon - Part 1</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;trying-out-ceylon-part-1&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Trying out Ceylon - Part 1</h1>
+            
+            <p class="posted-on">Posted on November 17, 2013</p>
+        </header>
+
+        <p>Ceylon's first production release was announced on 12th of November. I decided to try it out after going through the quick introduction, as it looked quite promising. In a series of posts I'd like to share my first attempts to use this interesting language.</p>
+<p>This first release came with an eclipse plugin as well - after installing it I was immediately able to start working on my test project. In this few hours the plugin seemed to be stable enough, I did not experience any problems.</p>
+<p>I have a <code>JVLT</code> file which I created while attending a foreign language course about a year ago. I was using only a limited subset of this application, so basically what I have is a .jvlt file, which is in fact a ZIP archive, in which a <code>dict.xml</code> stores a set of words and for each word one or more translation and the lesson we have learnt it.</p>
+<p>See the following example:</p>
+<pre data-lang="xml" style="background-color:#fafafa;color:#383a42;" class="language-xml "><code class="language-xml" data-lang="xml"><span>&lt;</span><span style="color:#e45649;">dictionary </span><span style="color:#c18401;">language</span><span>=</span><span style="color:#50a14f;">&quot;french&quot; </span><span style="color:#c18401;">version</span><span>=</span><span style="color:#50a14f;">&quot;1.4&quot;</span><span>&gt;
+</span><span>  &lt;</span><span style="color:#e45649;">entry </span><span style="color:#c18401;">id</span><span>=</span><span style="color:#50a14f;">&quot;e275&quot;</span><span>&gt;
+</span><span>    &lt;</span><span style="color:#e45649;">orth</span><span>&gt;à côté de&lt;/</span><span style="color:#e45649;">orth</span><span>&gt;
+</span><span>    &lt;</span><span style="color:#e45649;">sense </span><span style="color:#c18401;">id</span><span>=</span><span style="color:#50a14f;">&quot;e275-s1&quot;</span><span>&gt;
+</span><span>      &lt;</span><span style="color:#e45649;">trans</span><span>&gt;mellett&lt;/</span><span style="color:#e45649;">trans</span><span>&gt;
+</span><span>    &lt;/</span><span style="color:#e45649;">sense</span><span>&gt;
+</span><span>    &lt;</span><span style="color:#e45649;">sense </span><span style="color:#c18401;">id</span><span>=</span><span style="color:#50a14f;">&quot;e275-s2&quot;</span><span>&gt;
+</span><span>      &lt;</span><span style="color:#e45649;">trans</span><span>&gt;mellé&lt;/</span><span style="color:#e45649;">trans</span><span>&gt;
+</span><span>    &lt;/</span><span style="color:#e45649;">sense</span><span>&gt;
+</span><span>    &lt;</span><span style="color:#e45649;">lesson</span><span>&gt;8&lt;/</span><span style="color:#e45649;">lesson</span><span>&gt;
+</span><span>  &lt;/</span><span style="color:#e45649;">entry</span><span>&gt;
+</span><span>&lt;/</span><span style="color:#e45649;">dictionary</span><span>&gt;
+</span></code></pre>
+<p>My idea was to write an application that helps me learning and practicing these words.</p>
+<p>In this first post I'm going to load the dictionary from the JVLT file.</p>
+<p>To get started, I created a new Ceylon module with the help of the IDE called jvlt. This immediately created three program units: <code>module.ceylon</code>, <code>package.ceylon</code> and <code>run.ceylon</code>. The <code>module.ceylon</code> contains the module definition, which also describes the module's dependencies. As I was trying to implement the dictionary reader, I ended up with the following module definition:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#a626a4;">module </span><span style="color:#e45649;">jvlt </span><span style="color:#50a14f;">&quot;1.0.0&quot;</span><span> {
+</span><span>    </span><span style="color:#a626a4;">shared import </span><span style="color:#e45649;">ceylon</span><span>.</span><span style="color:#e45649;">file </span><span style="color:#50a14f;">&quot;1.0.0&quot;</span><span>;
+</span><span>	</span><span style="color:#a626a4;">import </span><span style="color:#e45649;">ceylon</span><span>.</span><span style="color:#e45649;">collection </span><span style="color:#50a14f;">&quot;1.0.0&quot;</span><span>;
+</span><span>    </span><span style="color:#a626a4;">import </span><span style="color:#e45649;">ceylon</span><span>.</span><span style="color:#e45649;">interop</span><span>.</span><span style="color:#e45649;">java </span><span style="color:#50a14f;">&quot;1.0.0&quot;</span><span>;
+</span><span> 
+</span><span>    </span><span style="color:#a626a4;">import </span><span style="color:#e45649;">javax</span><span>.</span><span style="color:#e45649;">xml </span><span style="color:#50a14f;">&quot;7&quot;</span><span>; 
+</span><span> 
+</span><span>    </span><span style="color:#a626a4;">import </span><span style="color:#e45649;">ceylon</span><span>.</span><span style="color:#e45649;">test </span><span style="color:#50a14f;">&quot;1.0.0&quot;</span><span>;
+</span><span>}
+</span></code></pre>
+<p>Let's start with the data model we want to build up! The dictionary consists of words:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Represents a foreign word with one or more senses&quot;
+</span><span style="color:#a626a4;">shared class </span><span style="color:#c18401;">Word</span><span>(</span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">String </span><span style="color:#e45649;">word</span><span>, </span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">Set</span><span>&lt;</span><span style="color:#e45649;">string</span><span>&gt; </span><span style="color:#e45649;">senses</span><span>, </span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">Integer </span><span style="color:#e45649;">lesson</span><span>){ 
+</span><span>}
+</span></code></pre>
+<p>The word, senses and lessons are all shared attributes of this class, accessible from the outside. To make it easy to access the word objects by their foreign word, I'm currently storing them in a map:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Represents a dictionary of words in a given language&quot;
+</span><span style="color:#a626a4;">shared class </span><span style="color:#c18401;">Dictionary</span><span>(</span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">String </span><span style="color:#e45649;">language</span><span>, </span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">Map</span><span>&lt;</span><span style="color:#e45649;">string word</span><span>=</span><span style="color:#50a14f;">&quot;&quot;</span><span>&gt; </span><span style="color:#e45649;">words</span><span>) {
+</span><span>}
+</span></code></pre>
+<p>Basically that's the data model, but I wrapped the whole thing in an abstract JVLT class which looks like this:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Represents a JVLT file&quot;
+</span><span style="color:#a626a4;">abstract shared class </span><span style="color:#c18401;">JVLT</span><span>() {
+</span><span> 
+</span><span>	</span><span style="color:#50a14f;">&quot;The dictionary stored in this JVLT&quot;
+</span><span> 	</span><span style="color:#a626a4;">formal shared </span><span style="color:#c18401;">Dictionary </span><span style="color:#e45649;">dictionary</span><span>;
+</span><span>}
+</span></code></pre>
+<p>The idea is that you get a JVLT instance from one of the helper functions and then use it as a root of the data model.</p>
+<p>The next thing is to create this data model from the JVLT files. For this, I needed two things:</p>
+<ul>
+<li>Reading a ZIP archive</li>
+<li>Parsing XML</li>
+</ul>
+<p>It turned out that Ceylon's file module has ZIP support, with the <code>createZipFileSystem</code> function as an entry point. I made two module-level functions beside the JVLT class for creating instances deriving from the abstract JVLT class:</p>
+<ul>
+<li><code>loadJVLT</code> which loads a JVLT ZIP archive from the file system</li>
+<li><code>loadJVLTFromDictionaryString</code> oads directly a dict.xml-like XML passed as a simple string. I'm using this for unit testing the XML parser.</li>
+</ul>
+<p>Let's see the ZIP handling first:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Loads a JVLT file from a `.jvlt` ZIP archive, if possible.&quot;
+</span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">JVLT</span><span>? </span><span style="color:#e45649;">loadJVLT</span><span>(</span><span style="color:#c18401;">File </span><span style="color:#e45649;">file</span><span>) {
+</span><span>	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">zip</span><span> = </span><span style="color:#e45649;">createZipFileSystem</span><span>(</span><span style="color:#e45649;">file</span><span>);
+</span><span> 	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">dictPath</span><span> = </span><span style="color:#e45649;">zip</span><span>.</span><span style="color:#e45649;">parsePath</span><span>(</span><span style="color:#50a14f;">&quot;/dict.xml&quot;</span><span>);
+</span><span> 	</span><span style="color:#a626a4;">if</span><span> (</span><span style="color:#a626a4;">is </span><span style="color:#c18401;">File </span><span style="color:#e45649;">dictFile</span><span> = </span><span style="color:#e45649;">dictPath</span><span>.</span><span style="color:#e45649;">resource</span><span>) {  
+</span><span>  		</span><span style="color:#a626a4;">try</span><span> (</span><span style="color:#e45649;">reader</span><span> = </span><span style="color:#e45649;">dictFile</span><span>.</span><span style="color:#c18401;">Reader</span><span>()) {
+</span><span>   
+</span><span>   			</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">loadJVLTFromDictionaryString</span><span>(</span><span style="color:#e45649;">readAll</span><span>(</span><span style="color:#e45649;">reader</span><span>));
+</span><span>  		}
+</span><span> 	} </span><span style="color:#a626a4;">else</span><span> {
+</span><span>  		</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">null</span><span>;
+</span><span> 	}
+</span><span>}
+</span></code></pre>
+<p>Well, the error handling is not too sophisticated in this case, it either returns a JVLT or returns <code>null</code> if the given file did not have a <code>dict.xml</code> in it. Other error conditions such as a <code>dict.xml</code> with a wrong format, etc., are not handled currently. As you can see, I'm reusing my other load function here, once the <code>dict.xml</code> is read.</p>
+<p>There are two interesting things here. First, the if statement where we check if the resource is an instance of <code>File</code> and immediately store it in the value called <code>dictFile</code>. The <code>dictPath.resource</code> attribute has the type <code>Resource</code> which is a Ceylon interface. It is either an <code>ExistingResource</code>: <code>Directory</code>, <code>File</code> or <code>Link</code>, or <code>Nil</code>. In any case if it is not a <code>File</code> instance, we just return <code>null</code>.</p>
+<p>For simplicity, I'm reading the full <code>dict.xml</code> into a string before parsing it. For this purpose I wrote a small helper function <code>readAll</code>:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Reads all lines from a file reader and returns the concatenated string&quot;
+</span><span style="color:#c18401;">String </span><span style="color:#e45649;">readAll</span><span>(</span><span style="color:#c18401;">File</span><span>.</span><span style="color:#c18401;">Reader </span><span style="color:#e45649;">reader</span><span>) { 
+</span><span>	</span><span style="color:#a626a4;">variable </span><span style="color:#c18401;">String </span><span style="color:#e45649;">result</span><span> = </span><span style="color:#50a14f;">&quot;&quot;</span><span>;
+</span><span> 
+</span><span> 	</span><span style="color:#a626a4;">while</span><span> (</span><span style="color:#a626a4;">exists </span><span style="color:#e45649;">line</span><span> = </span><span style="color:#e45649;">reader</span><span>.</span><span style="color:#e45649;">readLine</span><span>()) {
+</span><span>  		</span><span style="color:#e45649;">result</span><span> += </span><span style="color:#e45649;">line</span><span>; 
+</span><span> 	}
+</span><span> 
+</span><span> 	</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">result</span><span>;
+</span><span>}
+</span></code></pre>
+<p>Probably it's not an optimal solution, but works :)</p>
+<p>Now that we have our data model and have a way to build it up from XML, we can write some unit tests to see how it works. The Ceylon SDK has a test module and the Ceylon IDE supports running the tests. There is a <a href="http://ceylon-lang.org/documentation/1.0/ide/test-plugin/">separate page in the documentation</a> describing how. It is really simple, I had to add the test module as a dependency, and I created a separate file to hold my test definitions. The class groups the tests together and optionally supports running extra code before/after each test case, as in other test frameworks:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#a626a4;">class </span><span style="color:#c18401;">DictionaryParserTests</span><span>() {
+</span><span>
+</span><span>	</span><span style="color:#a626a4;">shared </span><span style="color:#e45649;">test </span><span style="color:#a626a4;">void </span><span style="color:#e45649;">emptyDictionary</span><span>() {
+</span><span>	  	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">dic</span><span> = </span><span style="color:#e45649;">loadJVLTFromDictionaryString</span><span>(</span><span style="color:#50a14f;">&quot;&lt;dictionary&gt;&quot;</span><span>);
+</span><span>	  
+</span><span>	  	</span><span style="color:#a626a4;">assert</span><span> (</span><span style="color:#e45649;">dic</span><span>.</span><span style="color:#e45649;">dictionary</span><span>.</span><span style="color:#e45649;">words</span><span>.</span><span style="color:#e45649;">empty</span><span>);
+</span><span>	  	</span><span style="color:#a626a4;">assert</span><span> (</span><span style="color:#e45649;">dic</span><span>.</span><span style="color:#e45649;">dictionary</span><span>.</span><span style="color:#e45649;">language</span><span> == </span><span style="color:#50a14f;">&quot;unknown&quot;</span><span>);
+</span><span>	}
+</span><span>
+</span><span> 	</span><span style="color:#a626a4;">shared </span><span style="color:#e45649;">test </span><span style="color:#a626a4;">void </span><span style="color:#e45649;">languageAttributeRead</span><span>() {
+</span><span>  		</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">dic</span><span> = </span><span style="color:#e45649;">loadJVLTFromDictionaryString</span><span>(</span><span style="color:#50a14f;">&quot;&lt;dictionary language=&quot;</span><span style="color:#e45649;">testlang</span><span style="color:#50a14f;">&quot;&gt;&quot;</span><span>);
+</span><span>  		</span><span style="color:#a626a4;">assert</span><span> (</span><span style="color:#e45649;">dic</span><span>.</span><span style="color:#e45649;">dictionary</span><span>.</span><span style="color:#e45649;">language</span><span> == </span><span style="color:#50a14f;">&quot;testlang&quot;</span><span>);
+</span><span> 	}
+</span><span>
+</span><span>	</span><span style="color:#a0a1a7;">// ...
+</span><span>
+</span></code></pre>
+<p>I won't paste here all the test code, only a few samples to get the feeling how the Ceylon code looks like. To test whether a given word's translations are loaded correctly, I wrote a helper function:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#a626a4;">void </span><span style="color:#e45649;">assertSenses</span><span>(</span><span style="color:#c18401;">JVLT </span><span style="color:#e45649;">jvlt</span><span>, </span><span style="color:#c18401;">String </span><span style="color:#e45649;">w</span><span>, [</span><span style="color:#c18401;">String</span><span>+] </span><span style="color:#e45649;">expectedSenses</span><span>) {
+</span><span>  
+</span><span>    </span><span style="color:#c18401;">Word</span><span>? </span><span style="color:#e45649;">word</span><span> = </span><span style="color:#e45649;">jvlt</span><span>.</span><span style="color:#e45649;">dictionary</span><span>.</span><span style="color:#e45649;">words</span><span>[</span><span style="color:#e45649;">w</span><span>];
+</span><span>    </span><span style="color:#a626a4;">if</span><span> (</span><span style="color:#a626a4;">exists </span><span style="color:#e45649;">word</span><span>) {
+</span><span>    	</span><span style="color:#a626a4;">assert</span><span> (</span><span style="color:#e45649;">word</span><span>.</span><span style="color:#e45649;">senses</span><span>.</span><span style="color:#e45649;">equals</span><span>(</span><span style="color:#c18401;">HashSet</span><span>(</span><span style="color:#e45649;">expectedSenses</span><span>)));  
+</span><span>    } </span><span style="color:#a626a4;">else</span><span> {
+</span><span>     	</span><span style="color:#e45649;">fail</span><span>(</span><span style="color:#50a14f;">&quot;Word does not exists&quot;</span><span>);
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>This helper function can be used to assert that a word has been loaded correctly:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#a626a4;">shared </span><span style="color:#e45649;">test </span><span style="color:#a626a4;">void </span><span style="color:#e45649;">wordWithMultipleSenses</span><span>() {
+</span><span>	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">dic</span><span> = </span><span style="color:#e45649;">loadJVLTFromDictionaryString</span><span>(
+</span><span>  		</span><span style="color:#50a14f;">&quot;&lt;dictionary&gt;
+</span><span style="color:#50a14f;">   			&lt;entry id=&quot;</span><span style="color:#e45649;">e1</span><span style="color:#50a14f;">&quot;&gt;
+</span><span style="color:#50a14f;">    			&lt;orth&gt;src1&lt;/orth&gt;
+</span><span style="color:#50a14f;">    			&lt;sense id=&quot;</span><span style="color:#e45649;">e1</span><span>-</span><span style="color:#e45649;">s1</span><span style="color:#50a14f;">&quot;&gt;
+</span><span style="color:#50a14f;">     				&lt;trans&gt;dst1&lt;/trans&gt;
+</span><span style="color:#50a14f;">    			&lt;/sense&gt;
+</span><span style="color:#50a14f;">    			&lt;sense id=&quot;</span><span style="color:#e45649;">e1</span><span>-</span><span style="color:#e45649;">s2</span><span style="color:#50a14f;">&quot;&gt;
+</span><span style="color:#50a14f;">     				&lt;trans&gt;dst2&lt;/trans&gt;
+</span><span style="color:#50a14f;">    			&lt;/sense&gt;    
+</span><span style="color:#50a14f;">   			&lt;/entry&gt;  
+</span><span style="color:#50a14f;">   		&lt;/dictionary&gt;&quot;</span><span>);
+</span><span> 
+</span><span> 	</span><span style="color:#e45649;">assertSenses</span><span>(</span><span style="color:#e45649;">dic</span><span>, </span><span style="color:#50a14f;">&quot;src1&quot;</span><span>, [</span><span style="color:#50a14f;">&quot;dst1&quot;</span><span>, </span><span style="color:#50a14f;">&quot;dst2&quot;</span><span>]);
+</span><span>}
+</span></code></pre>
+<p>Now the only problem is that there is no XML parsing support in the Ceylon SDK currently, so it has to be done using Java interop. As I wrote the code to build up the data model from the XML, I wrote several helper functions to make it easier to fit into the language. So let's see first how the dictionary loading is defined, and then I'll show the helper functions.</p>
+<p>The XML parsing is done by two module level functions which are not shared - only used by the JVLT constructor functions I shown before. The first one creates a map entry for a single word:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Creates a word entry for the dictionary&quot;
+</span><span style="color:#c18401;">String</span><span>-&gt;</span><span style="color:#c18401;">Word </span><span style="color:#e45649;">loadEntry</span><span>(</span><span style="color:#c18401;">Element </span><span style="color:#e45649;">elem</span><span>) {
+</span><span> 
+</span><span> 	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">w</span><span> = </span><span style="color:#c18401;">Word</span><span> {
+</span><span>  		</span><span style="color:#e45649;">word</span><span> = </span><span style="color:#e45649;">selectNodeText</span><span>(</span><span style="color:#e45649;">elem</span><span>, </span><span style="color:#50a14f;">&quot;orth&quot;</span><span>) </span><span style="color:#a626a4;">else </span><span style="color:#50a14f;">&quot;???&quot;</span><span>;
+</span><span>  		</span><span style="color:#e45649;">lesson</span><span> = </span><span style="color:#e45649;">selectNodeInteger</span><span>(</span><span style="color:#e45649;">elem</span><span>, </span><span style="color:#50a14f;">&quot;lesson&quot;</span><span>) </span><span style="color:#a626a4;">else </span><span style="color:#c18401;">0</span><span>;
+</span><span>  		</span><span style="color:#e45649;">senses</span><span> = </span><span style="color:#c18401;">HashSet</span><span>(</span><span style="color:#e45649;">selectNodes</span><span>(</span><span style="color:#e45649;">elem</span><span>, </span><span style="color:#50a14f;">&quot;sense/trans&quot;</span><span>)
+</span><span>  					.</span><span style="color:#e45649;">map</span><span>((</span><span style="color:#c18401;">Node </span><span style="color:#e45649;">n</span><span>) =&gt; </span><span style="color:#e45649;">n</span><span>.</span><span style="color:#e45649;">textContent</span><span>));
+</span><span> 	};
+</span><span> 	</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">w</span><span>.</span><span style="color:#e45649;">word</span><span>-&gt;</span><span style="color:#e45649;">w</span><span>;
+</span><span>}
+</span></code></pre>
+<p>and the second one loads all the words from the XML document:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Loads a dictionary from JVLT&#39;s `dict.xml` format.&quot;
+</span><span style="color:#c18401;">Dictionary </span><span style="color:#e45649;">loadDictionaryFromXML</span><span>(</span><span style="color:#c18401;">Document </span><span style="color:#a626a4;">doc</span><span>) { 
+</span><span>
+</span><span>	</span><span style="color:#a626a4;">doc</span><span>.</span><span style="color:#e45649;">documentElement</span><span>.</span><span style="color:#e45649;">normalize</span><span>();
+</span><span>
+</span><span> 	</span><span style="color:#a626a4;">return </span><span style="color:#c18401;">Dictionary</span><span> { 
+</span><span>  		</span><span style="color:#e45649;">language</span><span> = </span><span style="color:#e45649;">getAttribute</span><span>(</span><span style="color:#a626a4;">doc</span><span>.</span><span style="color:#e45649;">documentElement</span><span>, </span><span style="color:#50a14f;">&quot;language&quot;</span><span>) </span><span style="color:#a626a4;">else </span><span style="color:#50a14f;">&quot;unknown&quot;</span><span>;
+</span><span>  		</span><span style="color:#e45649;">words</span><span> = </span><span style="color:#c18401;">HashMap</span><span>({ 
+</span><span>     		</span><span style="color:#a626a4;">for</span><span> (</span><span style="color:#e45649;">node </span><span style="color:#a626a4;">in </span><span style="color:#e45649;">selectNodes</span><span>(</span><span style="color:#a626a4;">doc</span><span>, </span><span style="color:#50a14f;">&quot;dictionary/entry&quot;</span><span>))
+</span><span>       			</span><span style="color:#a626a4;">if</span><span> (</span><span style="color:#a626a4;">is </span><span style="color:#c18401;">Element </span><span style="color:#e45649;">elem</span><span> = </span><span style="color:#e45649;">node</span><span>)
+</span><span>             		</span><span style="color:#e45649;">loadEntry</span><span>(</span><span style="color:#e45649;">elem</span><span>) });   
+</span><span> 	};
+</span><span>}
+</span></code></pre>
+<p>The function which returns the JVLT instance uses this function and Java interop to read the dictionary:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#50a14f;">&quot;Loads a JVLT file by the parsing the dictionary XML directly from a string&quot;
+</span><span style="color:#a626a4;">shared </span><span style="color:#c18401;">JVLT </span><span style="color:#e45649;">loadJVLTFromDictionaryString</span><span>(</span><span style="color:#c18401;">String </span><span style="color:#e45649;">dictXML</span><span>) {
+</span><span>	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">docBuilderFactory</span><span> = </span><span style="color:#c18401;">DocumentBuilderFactory</span><span>.</span><span style="color:#e45649;">newInstance</span><span>();
+</span><span> 	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">builder</span><span> = </span><span style="color:#e45649;">docBuilderFactory</span><span>.</span><span style="color:#e45649;">newDocumentBuilder</span><span>();
+</span><span> 	</span><span style="color:#a626a4;">value doc</span><span> = </span><span style="color:#e45649;">builder</span><span>.</span><span style="color:#e45649;">parse</span><span>(</span><span style="color:#c18401;">ByteArrayInputStream</span><span>(</span><span style="color:#e45649;">javaString</span><span>(</span><span style="color:#e45649;">dictXML</span><span>).</span><span style="color:#e45649;">bytes</span><span>));
+</span><span> 
+</span><span> 	</span><span style="color:#a626a4;">object </span><span style="color:#e45649;">result </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">JVLT</span><span>() { 
+</span><span>  		</span><span style="color:#e45649;">dictionary</span><span> = </span><span style="color:#e45649;">loadDictionaryFromXML</span><span>(</span><span style="color:#a626a4;">doc</span><span>);
+</span><span> 	}
+</span><span> 	</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">result</span><span>;
+</span><span>}
+</span></code></pre>
+<p>There are two things to notice here: we had to convert from Ceylon's string to Java string. This is not done automatically and we need the <code>ceylon.interop.java</code> module to do it. In the last lines we define an anonymous class extending from JVLT and overwriting it's abstract dictionary attribute. Then this anonymous class instance is returned as the loaded JVLT.</p>
+<p>To make the XML parsing less painful, I defined a few helper functions in a separate compilation unit (<code>XmlHelper.ceylon</code>). I won't show here the full file but there are some interesting parts. First, from Ceylon you cannot call static methods, but you can import them. I'm using the following two import statements:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#a626a4;">import </span><span style="color:#e45649;">org</span><span>.</span><span style="color:#e45649;">w3c</span><span>.</span><span style="color:#e45649;">dom</span><span> { </span><span style="color:#c18401;">Node</span><span>, </span><span style="color:#c18401;">NodeList</span><span>, </span><span style="color:#c18401;">Element</span><span> }
+</span><span style="color:#a626a4;">import </span><span style="color:#e45649;">javax</span><span>.</span><span style="color:#e45649;">xml</span><span>.</span><span style="color:#e45649;">xpath</span><span> { </span><span style="color:#c18401;">XPathFactory</span><span> { </span><span style="color:#e45649;">newXPathFactory</span><span> = </span><span style="color:#e45649;">newInstance</span><span> },
+</span><span>       </span><span style="color:#c18401;">XPathConstants</span><span> { </span><span style="color:#e45649;">nodeSet</span><span> = </span><span style="color:#e45649;">\iNODESET</span><span> }}
+</span></code></pre>
+<p>The first one is straightforward. It imports three DOM interfaces. The second one first imports the <code>XPathFactory.newInstance</code> static method and also renames it, as newInstance is a too generic name without its class name as a prefix. The third line imports a constant value and gives it a Ceylon-compatible name. Because in Ceylon only the types can start with an uppercase character, we have to use a special and ugly syntax which helps the interoperability - prefixing it with <code>\i</code>.</p>
+<p>The <code>ceylon.interop.java</code> module has helper classes to make Java Iterable objects iterable in Ceylon, but unfortunately the <code>NodeList</code> interface is not iterable in Java either. So I wrote a simple wrapper that iterates through a node list:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#a626a4;">class </span><span style="color:#c18401;">NodeListIterator</span><span>(</span><span style="color:#c18401;">NodeList </span><span style="color:#e45649;">nodes</span><span>) </span><span style="color:#a626a4;">satisfies </span><span style="color:#c18401;">Iterable</span><span>&lt;</span><span style="color:#c18401;">Node</span><span>&gt; {
+</span><span>	</span><span style="color:#a626a4;">shared actual default </span><span style="color:#c18401;">Iterator</span><span>&lt;</span><span style="color:#c18401;">Node</span><span>&gt; </span><span style="color:#e45649;">iterator</span><span>() {
+</span><span>  		</span><span style="color:#a626a4;">object </span><span style="color:#e45649;">it </span><span style="color:#a626a4;">satisfies </span><span style="color:#c18401;">Iterator</span><span>&lt;</span><span style="color:#c18401;">Node</span><span>&gt; {   
+</span><span>   			</span><span style="color:#a626a4;">variable </span><span style="color:#c18401;">Integer </span><span style="color:#e45649;">i</span><span> = </span><span style="color:#c18401;">0</span><span>;
+</span><span>   
+</span><span>   			</span><span style="color:#a626a4;">shared actual </span><span style="color:#c18401;">Node</span><span>|</span><span style="color:#c18401;">Finished </span><span style="color:#e45649;">next</span><span>() {
+</span><span>    			</span><span style="color:#a626a4;">if</span><span> (</span><span style="color:#e45649;">i</span><span> &lt; </span><span style="color:#e45649;">nodes</span><span>.</span><span style="color:#e45649;">length</span><span>) {
+</span><span>     				</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">nodes</span><span>.</span><span style="color:#e45649;">item</span><span>(</span><span style="color:#e45649;">i</span><span>++);
+</span><span>    			} </span><span style="color:#a626a4;">else</span><span> {
+</span><span>     				</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">finished</span><span>;
+</span><span>    			}
+</span><span>   			}
+</span><span>  		}
+</span><span>  		</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">it</span><span>;
+</span><span> 	}
+</span><span>}
+</span></code></pre>
+<p>Using this iterator and the imports I wrote a <code>selectNodes</code> function to run XPath expressions and return the result as a Ceylon iterable:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span>{</span><span style="color:#c18401;">Node</span><span>*} </span><span style="color:#e45649;">selectNodes</span><span>(</span><span style="color:#c18401;">Node </span><span style="color:#e45649;">root</span><span>, </span><span style="color:#c18401;">String </span><span style="color:#e45649;">xpath</span><span>) { 
+</span><span>	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">factory</span><span> = </span><span style="color:#e45649;">newXPathFactory</span><span>();
+</span><span> 	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">xpathCompiler</span><span> = </span><span style="color:#e45649;">factory</span><span>.</span><span style="color:#e45649;">newXPath</span><span>();
+</span><span> 	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">expr</span><span> = </span><span style="color:#e45649;">xpathCompiler</span><span>.</span><span style="color:#e45649;">compile</span><span>(</span><span style="color:#e45649;">xpath</span><span>);
+</span><span> 	</span><span style="color:#a626a4;">value </span><span style="color:#e45649;">nodeList</span><span> = </span><span style="color:#e45649;">expr</span><span>.</span><span style="color:#e45649;">evaluate</span><span>(</span><span style="color:#e45649;">root</span><span>, </span><span style="color:#e45649;">nodeSet</span><span>); 
+</span><span> 	</span><span style="color:#a626a4;">if</span><span> (</span><span style="color:#a626a4;">is </span><span style="color:#c18401;">NodeList </span><span style="color:#e45649;">nodeList</span><span>) {  
+</span><span>  		</span><span style="color:#a626a4;">return </span><span style="color:#c18401;">NodeListIterator</span><span>(</span><span style="color:#e45649;">nodeList</span><span>);
+</span><span> 	}
+</span><span> 	</span><span style="color:#a626a4;">else</span><span> {
+</span><span>  		</span><span style="color:#a626a4;">return</span><span> [];
+</span><span> 	}
+</span><span>}
+</span></code></pre>
+<p>Using this function it is very easy to write a variant that selects a single node:</p>
+<pre data-lang="ceylon" style="background-color:#fafafa;color:#383a42;" class="language-ceylon "><code class="language-ceylon" data-lang="ceylon"><span style="color:#c18401;">Node</span><span>? </span><span style="color:#e45649;">selectNode</span><span>(</span><span style="color:#c18401;">Node </span><span style="color:#e45649;">root</span><span>, </span><span style="color:#c18401;">String </span><span style="color:#e45649;">xpath</span><span>) { 
+</span><span>	</span><span style="color:#a626a4;">return </span><span style="color:#e45649;">selectNodes</span><span>(</span><span style="color:#e45649;">root</span><span>, </span><span style="color:#e45649;">xpath</span><span>).</span><span style="color:#e45649;">first</span><span>;
+</span><span>}
+</span></code></pre>
+<p>There are some other helper functions returning the node's text, converting it to integer, etc. but I think they are not that interesting. Now that I have my data model which is built from my JVLT file, the next thing is to make a user interface somehow where the vocabulary can be shown an the user's knowledge can be tested/improved. This will be the topic of some future posts, as soon as I have time to experiment more with this new language.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

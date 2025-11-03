@@ -1,0 +1,70 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Gradle-Haskell-plugin with experimental Stack support</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;gradle-haskell-plugin-stack&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Gradle-Haskell-plugin with experimental Stack support</h1>
+            
+            <p class="posted-on">Posted on December 22, 2015</p>
+        </header>
+
+        <p>I've released a <strong>new version (0.4)</strong> of <a href="https://github.com/prezi/gradle-haskell-plugin">gradle-haskell-plugin</a> today, with <strong>experimental stack support</strong>.
+It is not enabled by default, but I used it exclusively for months and it seems to get quite stable. To use it you need <a href="https://haskellstack.com">stack</a>,
+have it enabled with <code>-Puse-stack</code> and have to keep some rules in your <code>.cabal</code> file, as explained <a href="https://github.com/prezi/gradle-haskell-plugin#explanation-stack-mode">in the README</a>.</p>
+<h2 id="how-does-it-work">How does it work?</h2>
+<p>The core idea did not change <a href="https://blog.vigoo.dev/posts/gradle-haskell-plugin/">compared to the original, cabal based solution</a>.</p>
+<p>To support chaining the binary artifacts, I had to add a new option to <em>stack</em> called <a href="https://github.com/commercialhaskell/stack/pull/990">extra package databases</a>. The databases listed in this section are passed <em>after the global</em> but <strong>before</strong> the snapshot and the local databases, which means that the snapshot database cannot be used (the packages in the binary artifacts are not "seeing" them). This sounds bad, but <em>gradle-haskell-plugin</em> does a workaround; it <strong>generates</strong> the <code>stack.yaml</code> automatically, and in a way that:</p>
+<ul>
+<li>it disables snapshots on stack level (uses a resolver like <code>ghc-7.10.2</code>)</li>
+<li>lists all the dependencies explicitly in <code>extra-deps</code></li>
+<li>but it still figures out the <em>versions</em> of the dependencies (to be listed in <code>extra-deps</code>) based on a given <em>stackage snapshot</em>!</li>
+</ul>
+<p>With this approach we get the same behavior that was already proven in cabal mode, but with the advantage that the generated <code>stack.yaml</code> completely defines the project for any tool that knows stack. So after gradle extracted the dependencies and generated the <code>stack.yaml</code>, it is no longer needed to succesfully compile/run/test the project, which means that tools like IDE integration will work much better than with the more hacky cabal mode of the plugin.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

@@ -1,0 +1,219 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>prox part 3 - effect abstraction and ZIO</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;prox-3-zio&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>prox part 3 - effect abstraction and ZIO</h1>
+            
+            <p class="posted-on">Posted on August 13, 2019</p>
+        </header>
+
+        <h2 id="blog-post-series">Blog post series</h2>
+<ul>
+<li><a href="https://blog.vigoo.dev/posts/prox-1-types/">Part 1 - type level programming</a></li>
+<li><a href="https://blog.vigoo.dev/posts/prox-2-io-akkastreams/">Part 2 - akka streams with cats effect</a></li>
+<li><a href="https://blog.vigoo.dev/posts/prox-3-zio/">Part 3 - effect abstraction and ZIO</a></li>
+<li><a href="https://blog.vigoo.dev/posts/prox-4-simplify/">Part 4 - simplified redesign</a></li>
+</ul>
+<h2 id="intro">Intro</h2>
+<p>The <a href="https://blog.vigoo.dev/posts/prox-3-zio/2019-02-10-prox-1-types.html">first post</a> introduced the <em>prox library</em> and demonstrated the advanced type level programming techniques it uses. Then in the <a href="https://blog.vigoo.dev/posts/prox-3-zio/2019-03-07-prox-2-io-akkastreams.html">second part</a> of this series we experimented with replacing the <em>streaming library</em> from <a href="https://fs2.io/">fs2</a> to <a href="https://doc.akka.io/docs/akka/2.5/stream/">Akka Streams</a>.</p>
+<p>In both cases the library used <a href="https://typelevel.org/cats-effect/">cats-effect</a> for describing side effects. But it did not really take advantage of <em>cats-effect</em>'s effect abstraction: it explicitly defined everything to be a computation in <a href="https://typelevel.org/cats-effect/datatypes/io.html"><code>IO</code></a>, cats-effect's implementation of describing effectful computations.</p>
+<p>But we can do better! By not relying on <code>IO</code> but the various type classes the <em>cats-effect</em> library provides we can make <em>prox</em> work with any kind of effect library out of the box. One such example is <a href="https://github.com/zio/zio">ZIO</a>.</p>
+<h2 id="effect-abstraction">Effect abstraction</h2>
+<p>Let's see an example of how <code>IO</code> used to be used in the library! The following function is in the <code>Start</code> type class, and it starts a process or piped process group:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">apply</span><span>(</span><span style="color:#e45649;">process</span><span>: </span><span style="color:#c18401;">PN</span><span>, </span><span style="color:#e45649;">dontStartOutput</span><span>: </span><span style="color:#a626a4;">Boolean = </span><span style="color:#c18401;">false</span><span>, </span><span style="color:#e45649;">blocker</span><span>: </span><span style="color:#c18401;">Blocker</span><span>)
+</span><span>         (</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">contextShift</span><span>: </span><span style="color:#c18401;">ContextShift</span><span>[</span><span style="color:#c18401;">IO</span><span>]): </span><span style="color:#c18401;">IO</span><span>[</span><span style="color:#c18401;">RunningProcesses</span><span>]
+</span></code></pre>
+<p>We can observe two things here:</p>
+<ul>
+<li>The function returns an effectful computation in <code>IO</code></li>
+<li>An implicit <em>context shifter</em> is needed by the implementations which are calling some streaming functions needing it.</li>
+</ul>
+<p>To make it independent of the effect library implementation we have to get rid of <code>IO</code> and use a generic type instead, let's call it <code>F</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">apply</span><span>(</span><span style="color:#e45649;">process</span><span>: </span><span style="color:#c18401;">PN</span><span>, 
+</span><span>          </span><span style="color:#e45649;">dontStartOutput</span><span>: </span><span style="color:#a626a4;">Boolean = </span><span style="color:#c18401;">false</span><span>, 
+</span><span>          </span><span style="color:#e45649;">blocker</span><span>: </span><span style="color:#c18401;">Blocker</span><span>)
+</span><span>         (</span><span style="color:#a626a4;">implicit
+</span><span>          </span><span style="color:#e45649;">concurrent</span><span>: </span><span style="color:#c18401;">Concurrent</span><span>[</span><span style="color:#c18401;">F</span><span>],
+</span><span>          </span><span style="color:#e45649;">contextShift</span><span>: </span><span style="color:#c18401;">ContextShift</span><span>[</span><span style="color:#c18401;">F</span><span>]): </span><span style="color:#c18401;">F</span><span>[</span><span style="color:#c18401;">RunningProcesses</span><span>]
+</span></code></pre>
+<p>Beside using <code>F</code> instead of <code>IO</code> everywhere we also have a new requirement, our context type (<code>F</code>) have to have an implementation of the <a href="https://typelevel.org/cats-effect/typeclasses/concurrent.html"><code>Concurrent</code></a> type class.</p>
+<p><em>Cats-effect</em> defines a hierarchy of type classes to deal with effectful computations. At the time of writing it looks like this:
+<img src="https://typelevel.org/cats-effect/img/cats-effect-typeclasses.svg"/></p>
+<p>Read the <a href="https://typelevel.org/cats-effect/typeclasses/">official documentation</a> for more information.</p>
+<p>Prox is based on the <code>ProcessNode</code> type which has two implementations, a single <code>Process</code> or a set of processes piped together to a <code>PipedProcess</code>. Because these types store their I/O redirection within themselves, they also have to be enriched with a context type parameter.</p>
+<p>For example <code>Process</code> will look like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">class</span><span style="color:#c18401;"> Process</span><span>[</span><span style="color:#c18401;">F</span><span>[</span><span style="color:#e45649;">_</span><span>], </span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">OutResult</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>, </span><span style="color:#c18401;">IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>, </span><span style="color:#c18401;">ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState</span><span>]
+</span><span>(</span><span style="color:#a626a4;">val </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#c18401;">String</span><span>,
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">arguments</span><span>: </span><span style="color:#c18401;">List</span><span>[</span><span style="color:#c18401;">String</span><span>],
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">workingDirectory</span><span>: </span><span style="color:#c18401;">Option</span><span>[</span><span style="color:#c18401;">Path</span><span>],
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">inputSource</span><span>: </span><span style="color:#c18401;">ProcessInputSource</span><span>[</span><span style="color:#c18401;">F</span><span>],
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">outputTarget</span><span>: </span><span style="color:#c18401;">ProcessOutputTarget</span><span>[</span><span style="color:#c18401;">F</span><span>, </span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">OutResult</span><span>],
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">errorTarget</span><span>: </span><span style="color:#c18401;">ProcessErrorTarget</span><span>[</span><span style="color:#c18401;">F</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">ErrResult</span><span>],
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">environmentVariables</span><span>: </span><span style="color:#c18401;">Map</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">String</span><span>],
+</span><span> </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">removedEnvironmentVariables</span><span>: </span><span style="color:#c18401;">Set</span><span>[</span><span style="color:#c18401;">String</span><span>])
+</span><span>  </span><span style="color:#a626a4;">extends </span><span>ProcessNode[</span><span style="color:#c18401;">Out</span><span>, </span><span style="color:#c18401;">Err</span><span>, </span><span style="color:#c18401;">IRS</span><span>, </span><span style="color:#c18401;">ORS</span><span>, </span><span style="color:#c18401;">ERS</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">    </span><span style="color:#a0a1a7;">// ...
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>The context parameter (<code>F</code>) is needed because the <em>input source</em> and <em>output target</em> are all representing effectful code such as writing to the standard output, reading from a file, or passing data through concurrent streams.</p>
+<p>Let's see some examples of how the abstract types of <em>cats-effect</em> can be used to describe the computation, when we cannot rely on <code>IO</code> itself!</p>
+<p>The most basic operation is to <em>delay the execution</em> of some code that does not use the effect abstractions. This is how we wrap the Java process API, for example.</p>
+<p>While with the original implementation of <em>prox</em> it was done by using the <code>IO</code> constructor:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>IO {
+</span><span>    systemProcess.isAlive
+</span><span>}
+</span></code></pre>
+<p>with an arbitrary <code>F</code> we only need to require that it has an implementation of the <code>Sync</code> type class:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">private class</span><span style="color:#c18401;"> WrappedProcess</span><span>[</span><span style="color:#c18401;">F</span><span>[</span><span style="color:#e45649;">_</span><span>] </span><span style="color:#a626a4;">: </span><span style="color:#c18401;">Sync</span><span>,  </span><span style="color:#a0a1a7;">// ...
+</span></code></pre>
+<p>and then use the <code>delay</code> function:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>Sync[</span><span style="color:#c18401;">F</span><span>].delay {
+</span><span>    systemProcess.isAlive
+</span><span>}
+</span></code></pre>
+<p>Similarily the <code>Concurrent</code> type class can be used to start a concurrent computation on a <em>fiber</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>Concurrent[</span><span style="color:#c18401;">F</span><span>].start(stream.compile.toVector)
+</span></code></pre>
+<h2 id="type-level">Type level</h2>
+<p>This would be it - except that we need one more thing because of the type level techniques described in the <a href="https://blog.vigoo.dev/posts/prox-3-zio/2019-02-10-prox-1-types.html">first post</a>.</p>
+<p>To understand the problem, let's see how the <em>output redirection</em> operator works. It is implemented as an <em>extension method</em> on the <code>ProcessNode</code> type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit class</span><span style="color:#c18401;"> ProcessNodeOutputRedirect</span><span>[</span><span style="color:#c18401;">PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#c18401;">NotRedirected</span><span>, </span><span style="color:#e45649;">_</span><span>]](</span><span style="color:#e45649;">processNode</span><span>: </span><span style="color:#c18401;">PN</span><span>) </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">&gt;</span><span style="color:#c18401;">[F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">], To, NewOut, NewOutResult, Result </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, Redirected, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">]]
+</span><span style="color:#c18401;">    (</span><span style="color:#e45649;">to</span><span style="color:#c18401;">: To)
+</span><span style="color:#c18401;">    (</span><span style="color:#a626a4;">implicit
+</span><span style="color:#c18401;">     </span><span style="color:#e45649;">target</span><span style="color:#c18401;">: CanBeProcessOutputTarget.Aux[F, To, NewOut, NewOutResult],
+</span><span style="color:#c18401;">     </span><span style="color:#e45649;">redirectOutput</span><span style="color:#c18401;">: RedirectOutput.Aux[F, PN, To, NewOut, NewOutResult, Result]): Result </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">      redirectOutput(processNode, to)
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>This extension method basically just finds the appropriate type class implementations and then call it to alter the process node to register the output redirection:</p>
+<ul>
+<li>we are redirecting the output of <code>processNode</code> (of type <code>PN</code>) to <code>to</code> (of type <code>To</code>)</li>
+<li><code>target</code> is the <code>CanBeProcessOutputTarget</code> implementation, containing the actual code to set up the redirection</li>
+<li><code>redirectOutput</code> is the process node type specific implementation of the <code>RedirectOutput</code> interface, knowing how to set up the redirection of a <code>Process</code> or a <code>PipedProcess</code></li>
+</ul>
+<p>This code would compile, but we won't be able to use it. For example for the following code:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>running &lt;- (Process[</span><span style="color:#c18401;">IO</span><span>](</span><span style="color:#50a14f;">&quot;echo&quot;</span><span>, List(</span><span style="color:#50a14f;">&quot;Hello world!&quot;</span><span>)) &gt; tempFile.toPath).start(blocker)
+</span></code></pre>
+<p>It fails with not being able to resolve the implicits correctly. The exact error of course depends much on the context but one example for the above line could be:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>[error] prox/src/test/scala/io/github/vigoo/prox/ProcessSpecs.scala:95:63: diverging implicit expansion for type cats.effect.Concurrent[F]
+</span><span>[error] starting with method catsIorTConcurrent in object Concurrent
+</span><span>[error]         running &lt;- (Process[IO](&quot;echo&quot;, List(&quot;Hello world!&quot;)) &gt; tempFile.toPath).start(blocker)
+</span></code></pre>
+<p>This does not really help understanding the real problem though. As we have seen earlier, in this library the <code>Process</code> types have to be parameterized with the context as well, because they store their redirection logic within themselves. That's why we specify it explicitly in the example to be <code>IO</code>: <code>Process[IO](...)</code>. What we would expect is that by tying <code>F[_]</code> to <code>IO</code> at the beginning, all the subsequent operations such as the <code>&gt;</code> redirection would respect this and the context gets inferred to be <code>IO</code> everywhere in the expression.</p>
+<p>The compiler cannot do this. If we check the definition of <code>&gt;</code> again, you can see that there is no connection expressed between the type <code>PN</code> (the actual process node type) and <code>F</code> which is used as a type parameter for the implicit parameters.</p>
+<p>The fix is to link the two, and we have a technique exactly for this that I described earlier: the <em>aux pattern</em>.</p>
+<p>First let's write some code that, in compile time, can "extract" the context type from a process node type:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> ContextOf</span><span>[</span><span style="color:#c18401;">PN</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Context[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> ContextOf {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Aux[PN, F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">]] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">ContextOf[PN] {
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">type </span><span style="color:#c18401;">Context[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">  }
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">apply</span><span style="color:#c18401;">[PN </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">], F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">]](</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">contextOf</span><span style="color:#c18401;">: ContextOf.Aux[PN, F]): Aux[PN, F] </span><span style="color:#a626a4;">=</span><span style="color:#c18401;"> contextOf
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit def </span><span style="color:#0184bc;">contextOfProcess</span><span style="color:#c18401;">[F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">], Out, Err, OutResult, ErrResult, IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState, ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState, ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState]:
+</span><span style="color:#c18401;">  Aux[Process[F, Out, Err, OutResult, ErrResult, IRS, ORS, ERS], F] </span><span style="color:#a626a4;">=
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">new </span><span style="color:#c18401;">ContextOf[Process[F, Out, Err, OutResult, ErrResult, IRS, ORS, ERS]] {
+</span><span style="color:#c18401;">      </span><span style="color:#a626a4;">override type </span><span style="color:#c18401;">Context[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">implicit def </span><span style="color:#0184bc;">contextOfPipedProcess</span><span style="color:#c18401;">[
+</span><span style="color:#c18401;">  F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">],
+</span><span style="color:#c18401;">  Out, Err,
+</span><span style="color:#c18401;">  PN1 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">],
+</span><span style="color:#c18401;">  PN2 </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">, </span><span style="color:#e45649;">_</span><span style="color:#c18401;">],
+</span><span style="color:#c18401;">  IRS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState, ORS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState, ERS </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">RedirectionState]:
+</span><span style="color:#c18401;">  Aux[PipedProcess[F, Out, Err, </span><span style="color:#a626a4;">Byte</span><span style="color:#c18401;">, PN1, PN2, IRS, ORS, ERS], F] </span><span style="color:#a626a4;">=
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">new </span><span style="color:#c18401;">ContextOf[PipedProcess[F, Out, Err, </span><span style="color:#a626a4;">Byte</span><span style="color:#c18401;">, PN1, PN2, IRS, ORS, ERS]] {
+</span><span style="color:#c18401;">      </span><span style="color:#a626a4;">override type </span><span style="color:#c18401;">Context[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">] </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">F[</span><span style="color:#e45649;">_</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">}
+</span></code></pre>
+<p>Both <code>Process</code> and <code>PipedProcess</code> have the context as their first type parameter. By creating the <code>ContextOf</code> type class and the corresponding <code>Aux</code> type we can extend the <code>&gt;</code> operator to <em>require</em> such a connection (a way to get a <code>F[_]</code> context out of a type <code>PN</code>) in compile time, and with the aux pattern it unifies the type parameters and the context type gets <em>chained</em> through all the subsequent calls as we desired:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">&gt;</span><span>[</span><span style="color:#c18401;">F</span><span>[</span><span style="color:#e45649;">_</span><span>], </span><span style="color:#c18401;">To</span><span>, </span><span style="color:#c18401;">NewOut</span><span>, </span><span style="color:#c18401;">NewOutResult</span><span>, </span><span style="color:#c18401;">Result </span><span style="color:#a626a4;">&lt;: </span><span style="color:#c18401;">ProcessNode</span><span>[</span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#e45649;">_</span><span>, </span><span style="color:#c18401;">Redirected</span><span>, </span><span style="color:#e45649;">_</span><span>]]
+</span><span>    (</span><span style="color:#e45649;">to</span><span>: </span><span style="color:#c18401;">To</span><span>)
+</span><span>    (</span><span style="color:#a626a4;">implicit
+</span><span>     </span><span style="color:#e45649;">contextOf</span><span>: </span><span style="color:#c18401;">ContextOf</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">PN</span><span>, </span><span style="color:#c18401;">F</span><span>],
+</span><span>     </span><span style="color:#e45649;">target</span><span>: </span><span style="color:#c18401;">CanBeProcessOutputTarget</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">F</span><span>, </span><span style="color:#c18401;">To</span><span>, </span><span style="color:#c18401;">NewOut</span><span>, </span><span style="color:#c18401;">NewOutResult</span><span>],
+</span><span>     </span><span style="color:#e45649;">redirectOutput</span><span>: </span><span style="color:#c18401;">RedirectOutput</span><span>.</span><span style="color:#c18401;">Aux</span><span>[</span><span style="color:#c18401;">F</span><span>, </span><span style="color:#c18401;">PN</span><span>, </span><span style="color:#c18401;">To</span><span>, </span><span style="color:#c18401;">NewOut</span><span>, </span><span style="color:#c18401;">NewOutResult</span><span>, </span><span style="color:#c18401;">Result</span><span>]): </span><span style="color:#c18401;">Result </span><span style="color:#a626a4;">= </span><span>{
+</span><span>      redirectOutput(processNode, to)
+</span><span>    }
+</span></code></pre>
+<h2 id="zio">ZIO</h2>
+<p>Now that everything is in place, we can try out whether <em>prox</em> is really working with other effect libraries such as <a href="https://github.com/zio/zio">ZIO</a>.</p>
+<p><em>ZIO</em> has a compatibility layer for <em>cats-effect</em>. It's the implementation of the type classes cats-effect provides. It is in an extra library called <a href="https://github.com/zio/interop-cats">zio-interop-cats</a>.</p>
+<p>For running processes with <em>prox</em> we can use the following variants of the <code>ZIO</code> type:</p>
+<ul>
+<li><code>RIO[-R, +A]</code> which is an alias for <code>ZIO[R, scala.Throwable, A]</code></li>
+<li>or <code>Task[A]</code> which is an alias for <code>ZIO[scala.Any, scala.Throwable, A]</code> if we don't take advantage of the environment parameter <code>R</code>.</li>
+</ul>
+<p>This in fact assuming the correct context only means switching <code>IO</code> to <code>RIO</code> or <code>Task</code> in the type parameter for <code>Process</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">import</span><span> zio.interop.catz.</span><span style="color:#e45649;">_
+</span><span>
+</span><span>Blocker[</span><span style="color:#c18401;">RIO</span><span>[</span><span style="color:#c18401;">Console</span><span>, </span><span style="color:#e45649;">?</span><span>]].use { </span><span style="color:#e45649;">blocker </span><span style="color:#a626a4;">=&gt;
+</span><span>  </span><span style="color:#a626a4;">for </span><span>{
+</span><span>      </span><span style="color:#a0a1a7;">// ...
+</span><span>      </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">&lt;-</span><span> console.putStrLn(</span><span style="color:#50a14f;">&quot;Starting external process...&quot;</span><span>)
+</span><span>      </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">&lt;- </span><span>(Process[</span><span style="color:#c18401;">Task</span><span>](</span><span style="color:#50a14f;">&quot;echo&quot;</span><span>, List(</span><span style="color:#50a14f;">&quot;Hello world!&quot;</span><span>)) &gt; tempFile.toPath).start(blocker)
+</span><span>      </span><span style="color:#a0a1a7;">// ...
+</span><span>  } </span><span style="color:#a626a4;">yield </span><span style="color:#c18401;">()
+</span><span>}
+</span></code></pre>
+<p>A nice way to have everything set up for this is to use the interop library's <a href="https://zio.dev/docs/interop/interop_catseffect#cats-app"><code>CatsApp</code></a> trait as an entrypoint for the application.</p>
+<p>This brings all the necessary implicits in scope and requires you to implement the following function as the entry point of the application:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">run</span><span>(</span><span style="color:#e45649;">args</span><span>: </span><span style="color:#c18401;">List</span><span>[</span><span style="color:#c18401;">String</span><span>]): </span><span style="color:#c18401;">ZIO</span><span>[</span><span style="color:#c18401;">Environment</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#a626a4;">Int</span><span>]
+</span></code></pre>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

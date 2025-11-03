@@ -1,0 +1,280 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.3&#x27;s code-first TypeScript agents</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem-code-first-agents&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.3&#x27;s code-first TypeScript agents</h1>
+            
+            <p class="posted-on">Posted on October 04, 2025</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>In the <a href="https://blog.vigoo.dev/posts/golem-new-js-engine/">previous post about Golem 1.3</a> I explained that the new release comes with a new JavaScript engine. This engine fixes some important bugs and allows us to move faster and provide a better JS/TS experience - but it comes with a price. One of the tradeoffs was that building an actual WebAssembly component containing this engine requires the Rust toolchain - we are generating a Rust component that implements the component's (WIT) interface by delegating the calls to <code>rquickjs</code>.</p>
+<p>But we don't want TypeScript developers to compile Rust components. Even more importantly, we don't want them to have to learn about the WebAssembly Component Model's own interface definition language, WIT, or any other WASM specific tooling; they should just write TypeScript code and Golem should deal with all the underlying complexity.</p>
+<h2 id="history">History</h2>
+<p>Before showing how we solved this issue, let's talk about our previous approach. Up until today Golem embraced the component model - we've built it on it from the beginning, and I talked multiple times (on <a href="https://blog.vigoo.dev/posts/golem-and-the-wasm-component-model/">LambdaConf</a> and on <a href="https://blog.vigoo.dev/posts/golem-powered-by-wasm/">Wasm I/O</a>) about how we take advantage of various properties of it. Golem components were just arbitrary WebAssembly components, and Golem directly exposed the component's exported interface through its invocation and remote procedure call APIs. Although we provided more and more help in <em>building</em> these components by making our CLI tool aware of WIT interfaces, relationship between components and so on, the idea still was that Golem should just work with any component built by any WebAssembly tooling.</p>
+<p>We take a leap from this with Golem 1.3 and while the underlying technology is still the same, we decided to hide its complexity more from the users, and focus on one (and a few more later) supported language and do it in a way that our users are not exposed to the ever changing and evolving complexity of WebAssembly tooling. The first such supported language is <strong>TypeScript</strong>.</p>
+<h2 id="the-new-way">The new way</h2>
+<p>Let's go through the technical details of how we are doing it!</p>
+<p>We can avoid the need to generate and build Rust crates (when using TS) and avoid having to learn about WIT with a simple shift in Golem's approach to user defined components: we no longer support components with an arbitrary, user-defined WIT interface. There is one specific <code>WIT world</code> (a set of imports and exports) applied to every Golem component. This world <em>imports</em> all the supported host APIs of Golem - it's durability controls, forking, ability to update and query information about agents, etc. It also imports all the supported AI libraries <a href="https://github.com/golemcloud/golem-ai">of the golem-ai project</a>.</p>
+<p>With this predefined set of imports, we can generate the Rust crate with <a href="https://github.com/golemcloud/wasm-rquickjs/">wasm-rquickjs</a> once, build time, and the resulting WASM will contain a QuickJs engine with all the bindings set up to work with Golem. This WASM is then packaged in our TypeScript SDK and published <a href="https://www.npmjs.com/package/@golemcloud/golem-ts-sdk">on npmjs.com</a>.</p>
+<p>It's clear that this way we can provide support for the fixed set of features Golem provides. But we still want our users to be able to define their own interfaces that can be invoked through <a href="https://learn.golem.cloud/invoke">Golem's invocation API</a>, bound to HTTP routes, or called through RPC from one agent to another. How can we do this while having a static WIT interface which is even hidden from our users?</p>
+<p>The answer is again a tradeoff - we give up some performance and composability coming from the component model to have something much more flexible and extensible.</p>
+<p>The idea is that every Golem component implements the following interface:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>package golem:agent;
+</span><span>
+</span><span>interface guest {
+</span><span>  use common.{agent-error, agent-type, data-value};
+</span><span>
+</span><span>  /// Initializes the agent of a given type with the given constructor parameters.
+</span><span>  /// If called a second time, it fails.
+</span><span>  initialize: func(agent-type: string, input: data-value) -&gt; result&lt;_, agent-error&gt;;
+</span><span>
+</span><span>  /// Invokes an agent. If create was not called before, it fails
+</span><span>  invoke: func(method-name: string, input: data-value) -&gt; result&lt;data-value, agent-error&gt;;
+</span><span>
+</span><span>  /// Gets the agent type. If create was not called before, it fails
+</span><span>  get-definition: func() -&gt; agent-type;
+</span><span>
+</span><span>  /// Gets the agent types defined by this component
+</span><span>  discover-agent-types: func() -&gt; result&lt;list&lt;agent-type&gt;, agent-error&gt;;
+</span><span>}
+</span></code></pre>
+<p>This is quite low level and dynamic, so let's see what this means:</p>
+<ul>
+<li>Every Golem <strong>component</strong> can implement one or more <strong>agent types</strong>. The agent types are defined by the <code>agent-type</code> data type and the component can self-describe the set of agent types it implements, using the <code>discover-agent-types</code> exported function.</li>
+<li>Every <strong>instance</strong> of a Golem component (called worker in previous Golem versions) is a single instance of one of the <strong>agent types</strong> implemented by the component.</li>
+<li>The instance is initialized by the <code>initialize</code> exported function - this selects the agent type the instance belongs to, and passes <strong>constructor parameters</strong> (in form of a dynamic value of the <code>data-value</code> type). The initialize call is always the first call to an agent and it is automatically called by Golem itself.</li>
+<li>Once an agent is initialized, it can tell its own agent-type (with <code>get-definition</code>), and more importantly it can be <strong>invoked</strong> dynamically using the exported <code>invoke</code> function. This is dynamic in a sense that it is a single exported WIT function that takes the invoked <strong>agent method</strong>'s name as a string, and the parameters as an arbitrary <code>data-value</code> (just like with the constructor parameters). This is not type safe on the component level - but type safety is guaranteed by Golem on both the invocation side and the SDK side.</li>
+</ul>
+<p>To have a better sense of what this interface is capable of, let's take a look at some parts of the <code>agent-type</code> and <code>data-value</code> types.</p>
+<p>The <code>agent-type</code> is all the metadata available about an agent type, including it's constructor and methods, with full type information. In addition to that it can contain additional metadata to help integration with AI systems for example.</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>record agent-type {
+</span><span>  type-name:    string,
+</span><span>  description:  string,
+</span><span>  %constructor: agent-constructor,
+</span><span>  methods:      list&lt;agent-method&gt;,
+</span><span>  dependencies: list&lt;agent-dependency&gt;,
+</span><span>}
+</span></code></pre>
+<p>Dependencies are not used at the moment, but it is going to allow us to statically know the dependency graph of agents. Both the constructor and the agent's methods are using the <code>data-schema</code> type to describe their input (parameters) and output (return type). The earlier mentioned <code>data-value</code> type is an instance of a type defined by <code>data-schema</code>.</p>
+<p>In Golem 1.3, <code>data-schema</code> is still tightly coupled with the component model - it supports all the data types supported by the component model, but extends them with some concepts that are more agent specific. It's defined in the following way:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>variant data-schema {
+</span><span>  /// List of named elements
+</span><span>  %tuple(list&lt;tuple&lt;string, element-schema&gt;&gt;),
+</span><span>  /// List of named variants that can be used 0 or more times in a multimodal `data-value`
+</span><span>  multimodal(list&lt;tuple&lt;string, element-schema&gt;&gt;),
+</span><span>}
+</span><span>
+</span><span>variant element-schema {
+</span><span>  component-model(wit-type),
+</span><span>  unstructured-text(text-descriptor),
+</span><span>  unstructured-binary(binary-descriptor),
+</span><span>}
+</span></code></pre>
+<p>Without going into much detail, an input or output of an agent method can be either a tuple of elements, or multimodal. The tuple case is the traditional case - for example a method with three parameters would have a schema describing a 3-tuple. Multimodal, on the other hand, can be thought of as a list of variant values, where each element of the multimodal schema can appear any number of times. An actual example for such an interface can be an chat agent that accepts (and/or returns) content in multiple media formats, such as text, audio, or image.</p>
+<p>An element of these tuple or multimodal schemas can be one of the WebAssembly component model types (<code>wit-type</code>), an unstructured text (possibly annotated with a language code) or unstructured binary (annotated with a MIME type) data.</p>
+<h2 id="code-first-sdk">Code-first SDK</h2>
+<p>The above defined interface explains how we can define and implement multiple agent types without writing any WIT definitions, but using it directly would be very inconvenient.</p>
+<p>In TypeScript, when using <a href="https://github.com/golemcloud/wasm-rquickjs/">wasm-rquickjs</a>, the implementation would require writing the following functions:</p>
+<pre data-lang="typescript" style="background-color:#fafafa;color:#383a42;" class="language-typescript "><code class="language-typescript" data-lang="typescript"><span style="color:#a626a4;">export namespace </span><span>guest {
+</span><span>    </span><span style="color:#a0a1a7;">/**
+</span><span style="color:#a0a1a7;">     * Initializes the agent of a given type with the given constructor parameters.
+</span><span style="color:#a0a1a7;">     * If called a second time, it fails.
+</span><span style="color:#a0a1a7;">     * </span><span style="color:#a626a4;">@throws</span><span style="color:#a0a1a7;"> AgentError
+</span><span style="color:#a0a1a7;">     */
+</span><span>    </span><span style="color:#a626a4;">export function </span><span style="color:#0184bc;">initialize</span><span>(</span><span style="color:#e45649;">agentType</span><span style="color:#a626a4;">: </span><span>string, </span><span style="color:#e45649;">input</span><span style="color:#a626a4;">: </span><span>DataValue)</span><span style="color:#a626a4;">: </span><span>Promise&lt;void&gt;;
+</span><span>    </span><span style="color:#a0a1a7;">/**
+</span><span style="color:#a0a1a7;">     * Invokes an agent. If create was not called before, it fails
+</span><span style="color:#a0a1a7;">     * </span><span style="color:#a626a4;">@throws</span><span style="color:#a0a1a7;"> AgentError
+</span><span style="color:#a0a1a7;">     */
+</span><span>    </span><span style="color:#a626a4;">export function </span><span style="color:#0184bc;">invoke</span><span>(</span><span style="color:#e45649;">methodName</span><span style="color:#a626a4;">: </span><span>string, </span><span style="color:#e45649;">input</span><span style="color:#a626a4;">: </span><span>DataValue)</span><span style="color:#a626a4;">: </span><span>Promise&lt;DataValue&gt;;
+</span><span>    </span><span style="color:#a0a1a7;">/**
+</span><span style="color:#a0a1a7;">     * Gets the agent type. If create was not called before, it fails
+</span><span style="color:#a0a1a7;">     */
+</span><span>    </span><span style="color:#a626a4;">export function </span><span style="color:#0184bc;">getDefinition</span><span>()</span><span style="color:#a626a4;">: </span><span>Promise&lt;AgentType&gt;;
+</span><span>    </span><span style="color:#a0a1a7;">/**
+</span><span style="color:#a0a1a7;">     * Gets the agent types defined by this component
+</span><span style="color:#a0a1a7;">     * </span><span style="color:#a626a4;">@throws</span><span style="color:#a0a1a7;"> AgentError
+</span><span style="color:#a0a1a7;">     */
+</span><span>    </span><span style="color:#a626a4;">export function </span><span style="color:#0184bc;">discoverAgentTypes</span><span>()</span><span style="color:#a626a4;">: </span><span>Promise&lt;AgentType[]&gt;;
+</span><span>}
+</span></code></pre>
+<p>It's inconvenient to write these by hand, but it's just TypeScript code - we can just write a library on top of it that makes it more user friendly!</p>
+<h3 id="a-pure-typescript-approach">A pure TypeScript approach</h3>
+<p>One possibility would be to write a TypeScript library that exports functions to define the data schemas and agent type metadata, then connect an implementation to each. This can be made very type safe using advanced type level techniques - for example defining the schema would not only assemble a <code>DataSchema</code> value, but would also track the value type (such as a tuple of the agent method parameters) on the type system level. Then when attaching an actual implementation to the defined method, the compiler can infer that the parameters are having these types.</p>
+<p>The SDK would expose some kind of global registry to define these well typed agents in, possibly using a builder-like fluent API. In the end it just implements the above WIT exports itself using the registered agent definitions.</p>
+<p>Parts of this would be very similar to how some TypeScript libraries define schemas for validation. It is important to mention though that with Golem validating the input is not necessary - the runtime guarantees that the agent constructor and agent methods are only called values matching the types from the agent type metadata.</p>
+<p>With a library like this, you could define the simplest possible stateful Golem agent, a counter, in a way like this:</p>
+<pre data-lang="typescript" style="background-color:#fafafa;color:#383a42;" class="language-typescript "><code class="language-typescript" data-lang="typescript"><span style="color:#0184bc;">defineAgentType</span><span>({
+</span><span>  typeName: </span><span style="color:#50a14f;">&quot;counter&quot;</span><span>,
+</span><span>  description: </span><span style="color:#50a14f;">&quot;An example Golem agent implementing a counter&quot;</span><span>,
+</span><span>  id: { name: </span><span style="color:#0184bc;">type_string</span><span>() },
+</span><span>  </span><span style="color:#0184bc;">state</span><span>: (</span><span style="color:#e45649;">_id</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>{ value: </span><span style="color:#c18401;">0 </span><span>},
+</span><span>  methods: [
+</span><span>    </span><span style="color:#0184bc;">agentMethod</span><span>(</span><span style="color:#50a14f;">&quot;increment&quot;</span><span>, {}, { result: </span><span style="color:#0184bc;">type_u32</span><span>() })
+</span><span>  ]
+</span><span>}).</span><span style="color:#0184bc;">implement</span><span>({
+</span><span>  </span><span style="color:#0184bc;">initialize</span><span>: (</span><span style="color:#e45649;">name</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>{
+</span><span>    </span><span style="color:#c18401;">console</span><span>.</span><span style="color:#0184bc;">log</span><span>(</span><span style="color:#50a14f;">`Counter ${</span><span style="color:#e45649;">name</span><span style="color:#50a14f;">} created`</span><span>)
+</span><span>  },
+</span><span>  </span><span style="color:#0184bc;">increment</span><span>: (</span><span style="color:#e45649;">state</span><span>) </span><span style="color:#a626a4;">=&gt; </span><span>{
+</span><span>    </span><span style="color:#e45649;">state</span><span>.value </span><span style="color:#a626a4;">+= </span><span style="color:#c18401;">1</span><span>;
+</span><span>    </span><span style="color:#a626a4;">return </span><span style="color:#e45649;">state</span><span>.value;
+</span><span>  }
+</span><span>})
+</span></code></pre>
+<p>Here the agent's identity (constructor parameters), state and agent methods would be defined in terms of typed versions of <code>DataSchema</code>, with schema constructors such as <code>type_string()</code>. Then in the <code>implement</code> call the object passed would require implementations for the constructor and the methods using the data schema to infer their parameter and return types.</p>
+<p>Note that this is just a sketch - we decided to <em>not</em> implement a library like this.</p>
+<h3 id="golem-s-typescript-sdk">Golem's TypeScript SDK</h3>
+<p>The approach we chose is to take advantage of <strong>decorators</strong> and the <a href="https://ts-morph.com">ts-morph library</a> to make writing the agents even more convenient. The primary advantage is <em>not</em> having to specify data schemas at all. When compiling the TypeScript code the types are extracted and made available for the SDK in runtime - it can transform the TypeScript AST to the matching <code>DataSchema</code> values and <code>AgentType</code> definitions, or fail in a user friendly way if something in the user's code is not supported.</p>
+<p>Before looking into the details, see how the same <em>counter</em> example looks like with the actual Golem TS SDK!</p>
+<pre data-lang="typescript" style="background-color:#fafafa;color:#383a42;" class="language-typescript "><code class="language-typescript" data-lang="typescript"><span style="color:#a626a4;">import </span><span>{
+</span><span>    </span><span style="color:#e45649;">BaseAgent</span><span>,
+</span><span>    </span><span style="color:#e45649;">agent</span><span>,
+</span><span>    </span><span style="color:#e45649;">description</span><span>,
+</span><span>} </span><span style="color:#a626a4;">from </span><span style="color:#50a14f;">&#39;@golemcloud/golem-ts-sdk&#39;</span><span>;
+</span><span>
+</span><span>@</span><span style="color:#0184bc;">agent</span><span>()
+</span><span style="color:#a626a4;">class </span><span style="color:#c18401;">CounterAgent </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">BaseAgent {
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">private readonly </span><span style="color:#e45649;">name</span><span style="color:#a626a4;">: </span><span style="color:#c18401;">string;
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">private </span><span style="color:#e45649;">value</span><span style="color:#a626a4;">: </span><span style="color:#c18401;">number </span><span style="color:#a626a4;">= </span><span style="color:#c18401;">0;
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">constructor</span><span style="color:#c18401;">(</span><span style="color:#e45649;">name</span><span style="color:#a626a4;">: </span><span style="color:#c18401;">string) {
+</span><span style="color:#c18401;">        </span><span style="color:#e45649;">super</span><span style="color:#c18401;">()
+</span><span style="color:#c18401;">        </span><span style="color:#e45649;">this</span><span style="color:#c18401;">.name </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">name</span><span style="color:#c18401;">;
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    @</span><span style="color:#0184bc;">description</span><span style="color:#c18401;">(</span><span style="color:#50a14f;">&quot;Increases the count by one and returns the new value&quot;</span><span style="color:#c18401;">)
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">async </span><span style="color:#0184bc;">increment</span><span style="color:#c18401;">()</span><span style="color:#a626a4;">: </span><span style="color:#c18401;">Promise&lt;number&gt; {
+</span><span style="color:#c18401;">        </span><span style="color:#e45649;">this</span><span style="color:#c18401;">.value </span><span style="color:#a626a4;">+= </span><span style="color:#c18401;">1;
+</span><span style="color:#c18401;">        </span><span style="color:#a626a4;">return </span><span style="color:#e45649;">this</span><span style="color:#c18401;">.value;
+</span><span style="color:#c18401;">    }
+</span><span style="color:#c18401;">}
+</span><span>
+</span></code></pre>
+<p>Every class annotated with <code>@agent</code> becomes an <strong>exported agent type</strong>. There are not many restrictions - they have to extend <code>BaseAgent</code>, and every type used in the constructor and the methods of this class must be something that the SDK can express with a <code>DataSchema</code>. But it is fully automatic - we can define and use complex custom data types in the agent's interface without having to manually write any schema for them.</p>
+<p>A component can define as many agent types (classes decorated as <code>@agent()</code> as necessary). The only reason to have multiple <em>components</em> in an application is to have different update policies or other configuration for them.</p>
+<p>In addition to automatically converting these annotated classes into agent type definitions and their implementations, the SDK also provides support for <strong>remote agent calls</strong>. Every agent class gets a static method on it (put there by the decorator) called <code>get</code>. The get method has "get-or-create" semantics. Every agent is identified by their constructor parameters. There can be only one instance with a specific constructor parameter value. The get-or-create semantics of the <code>get</code> method guarantees that this is true (it creates a new agent if it did not exist yet, otherwise returns a reference to the existing one).</p>
+<p>In the above example our counter has a string identifier called <code>name</code>. As I wrote earlier, in Golem every component instance corresponds to a single agent. This means that referring to and calling any other agent (either the same type, or another type) ends up being an "agent-to-agent" remote procedure call under the hood.</p>
+<p>With the SDK this is very convenient - we can use the <code>get</code> method to get a remote agent reference by just passing the constructor parameters to it, then call any of the agent's methods directory on the agent reference:</p>
+<pre data-lang="typescript" style="background-color:#fafafa;color:#383a42;" class="language-typescript "><code class="language-typescript" data-lang="typescript"><span style="color:#a626a4;">const </span><span style="color:#e45649;">anotherCounter </span><span style="color:#a626a4;">= </span><span style="color:#e45649;">CounterAgent</span><span>.</span><span style="color:#0184bc;">get</span><span>(</span><span style="color:#50a14f;">&quot;not-my-name&quot;</span><span>);
+</span><span style="color:#a626a4;">const </span><span style="color:#e45649;">newValue </span><span style="color:#a626a4;">= await </span><span style="color:#e45649;">anotherCounter</span><span>.</span><span style="color:#0184bc;">increment</span><span>();
+</span></code></pre>
+<p>What happens under the hood is that when compiling the TypeScript agent (using <code>golem-cli app build</code>), first a pre-compilation step called <code>golem-typegen</code> analyses the source code and emits a JSON describing the agent classes and their method parameter and return types. This step uses <a href="https://ts-morph.com">ts-morph</a>, which is a wrapper of the TypeScript compiler API, to get the AST of the user code and extract the necessary information by traversing that.</p>
+<p>This generated JSON gets bundled into the final JS code and it's used by the decorator logic to implement the <code>discoverAgentTypes</code>, <code>initialize</code> and <code>invoke</code> methods.</p>
+<h3 id="future">Future</h3>
+<p>Note that this approach of having the low-level agent interface, and building SDKs on top means that even though we chose a specific approach we support as the official way of writing TypeScript agents for Golem, it is easy to experiment with alternative techniques and publish alternative SDKs. Also the official can be extended with different styles of agent definitions, if we decide to do so.</p>
+<p>It is also possible to experiment with supporting other languages. The next Golem release after 1.3 will bring back support for using Rust. With Rust we are getting the same code-first agent SDK as with TypeScript, only instead of ts-morph generated ASTs and decorators it is going to be built on proc macros and type classes.</p>
+<h2 id="composition">Composition</h2>
+<p>There are two additional interesting build steps hidden behind the scenes that we haven't talked about yet. Both are implemented using WebAssembly <strong>component composition</strong> - something that we no longer expose to our users (to avoid having to fall back to WASM tooling and hand-written WIT specs) but we still use it under the hood.</p>
+<h3 id="base-wasm-and-user-js">Base WASM and user JS</h3>
+<p>The result of the compilation steps described above - <code>golem-typegen</code> and then compiling the TypeScript code itself - results in a single JS file. On the other hand we want to have a Golem component - which is a WASM component. I explained above that by restricting a Golem component to always implement a specific world, we can precompile the JavaScript engine with all the import and export bindings. This precompiled WASM is part of the <code>golem-ts-sdk</code> NPM package. We still have to somehow inject the compiled JavaScript file into this component!</p>
+<p>What we do is the following:</p>
+<ul>
+<li>The precompiled WASM <strong>imports</strong> a specific WIT interface with a single method that returns a JS string</li>
+<li>We generate <em>another WASM component</em> bundling the compiled JS and exposing a single <strong>export</strong> that returns this string.</li>
+<li>The import matches the export so we can <strong>compose</strong> the two WASM components into one.</li>
+</ul>
+<p>Generating raw WASM component bytecode might not be very difficult for this particular use case, but we wanted something more scalable. As you will see in the next section, this is not the only place where we needed to generate WASM on the fly.</p>
+<p>Instead we are using <a href="https://www.moonbitlang.com">MoonBit</a> to compile high level MoonBit source code directly into WASM. We can even embed the MoonBit compiler in Golem's CLI so there are no external dependencies for our users, thanks to that the <a href="https://www.moonbitlang.com/blog/moonbit-wasm-compiler">compiler itself is running on WASM</a>. MoonBit is a high level and very exciting new programming language, and what makes it a perfect choice for this job is that it generates really concise WASM bytecode.</p>
+<p>I have written a small helper crate for Rust, <a href="https://github.com/golemcloud/moonbit-component-generator">moonbit-component-generator</a> that embeds the compiler and helps with generating these small wrapper components.</p>
+<p>For injecting the scripts, we basically give the WIT of the component we want to generate:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#a626a4;">let mut</span><span> component </span><span style="color:#a626a4;">= </span><span>MoonBitComponent::empty_from_wit(
+</span><span>  </span><span style="color:#a626a4;">r</span><span style="color:#50a14f;">#&quot;
+</span><span style="color:#50a14f;">    package golem:script-source;
+</span><span style="color:#50a14f;">
+</span><span style="color:#50a14f;">    world script-source {
+</span><span style="color:#50a14f;">      export get-script: func() -&gt; string;
+</span><span style="color:#50a14f;">    }
+</span><span style="color:#50a14f;">  &quot;#</span><span>,
+</span><span>  Some(</span><span style="color:#50a14f;">&quot;script-source&quot;</span><span>),
+</span><span>)</span><span style="color:#a626a4;">?</span><span>;
+</span></code></pre>
+<p>Then we define the MoonBit bindings based on this WIT, and add our implementation as a MoonBit source string:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>component
+</span><span>  .</span><span style="color:#0184bc;">define_bindgen_packages</span><span>()
+</span><span>  .</span><span style="color:#0184bc;">context</span><span>(</span><span style="color:#50a14f;">&quot;Defining bindgen packages&quot;</span><span>)</span><span style="color:#a626a4;">?</span><span>;
+</span><span>
+</span><span style="color:#a626a4;">let mut</span><span> stub_mbt </span><span style="color:#a626a4;">= </span><span>String::new();
+</span><span>uwriteln!(stub_mbt, </span><span style="color:#50a14f;">&quot;// Generated by `moonbit-component-generator`&quot;</span><span>);
+</span><span>uwriteln!(stub_mbt, </span><span style="color:#50a14f;">&quot;&quot;</span><span>);
+</span><span>uwriteln!(stub_mbt, </span><span style="color:#50a14f;">&quot;pub fn get_script() -&gt; String {{&quot;</span><span>);
+</span><span style="color:#a626a4;">for</span><span> line </span><span style="color:#a626a4;">in</span><span> script.</span><span style="color:#0184bc;">lines</span><span>() {
+</span><span>  uwriteln!(stub_mbt, </span><span style="color:#50a14f;">&quot;    #|{line}&quot;</span><span>);
+</span><span>}
+</span><span>uwriteln!(stub_mbt, </span><span style="color:#50a14f;">&quot;}}&quot;</span><span>);
+</span><span>
+</span><span>component
+</span><span>  .</span><span style="color:#0184bc;">write_world_stub</span><span>(</span><span style="color:#a626a4;">&amp;</span><span>stub_mbt)
+</span><span>  .</span><span style="color:#0184bc;">context</span><span>(</span><span style="color:#50a14f;">&quot;Writing world stub&quot;</span><span>)</span><span style="color:#a626a4;">?</span><span>;
+</span></code></pre>
+<p>And finally build the WASM component:</p>
+<pre data-lang="rust" style="background-color:#fafafa;color:#383a42;" class="language-rust "><code class="language-rust" data-lang="rust"><span>component
+</span><span>  .</span><span style="color:#0184bc;">build</span><span>(None, target)
+</span><span>  .</span><span style="color:#0184bc;">context</span><span>(</span><span style="color:#50a14f;">&quot;Building component&quot;</span><span>)</span><span style="color:#a626a4;">?</span><span>;
+</span></code></pre>
+<p>The resulting WASM is ready to be composed with the prebuilt JavaScript engine. For this we can use the <a href="https://crates.io/crates/wac-graph">wac-graph</a> Rust crate (or the <code>wac</code> command line tool when doing it by hand).</p>
+<h3 id="wit-wrapper-for-agents">WIT wrapper for Agents</h3>
+<p>As I wrote in the <em>History</em> section of this post, Golem built directly on the WASM component model. It's component exports and invocation mechanism directly depends on analyzing the component's WIT exports and providing ways to invoke them remotely.</p>
+<p>We've also created a <a href="https://learn.golem.cloud/rib">scripting language called <strong>Rib</strong></a> that is used for defining HTTP APIs on top of Golem components as well as for playing with them through a REPL; this scripting language uses WASM-specific syntax and naming conventions allow users to call component model interfaces through Golem. Rib here is just used as an example of something still depending on component exports. For more information check the linked official documentation, or <a href="https://www.youtube.com/watch?v=vgrZxN0t-N0">Afsal Thaj's presentation from Wasm I/O 2025</a>.</p>
+<p>Although we decided to move our user experience to the higher level agent interface described in this post, many parts of Golem still depends on components exporting their interfaces on the component model level. Most of these can be evolved in future versions to directly know about the agent type metadata, etc., but this is going to be a migration process through multiple Golem releases.</p>
+<p>Until then, without some additional trick, we would be in a very bad situation when for example using Rib to define HTTP API mappings or just manually trying to invoke an agent method. The only relevant exported WIT interface is the low-level dynamic one - each invocation would need to be put together by passing agent type name and agent method name strings, and assembling parameter values by converting them to the <code>data-value</code> component model value representation. This would be completely unusable in practice.</p>
+<p>What we did for this release to avoid rewriting a large part of the system is that as part of the build process we generate <strong>a static wrapper</strong> that exports a WIT interface that represents the user-defined agent types coming from code.</p>
+<p>The steps to do this are the following:</p>
+<ul>
+<li>First the user's code is compiled to JS and composed with the base WASM, as explained before</li>
+<li>Then we instantiate this WASM and call the <code>discoverAgentTypes</code> export - we get back the agent type metadata</li>
+<li>Using this we generate a <strong>WIT interface per agent type</strong>, with an <code>initialize</code> function representing the constructor and one exported function for each agent method</li>
+<li>We generate a <strong>MoonBit</strong> implementation of these interfaces. These implementations encode/decode the values into <code>data-value</code> and calls the underlying component's dynamic <code>initialize</code> and <code>invoke</code> exports.</li>
+<li>Finally we compose this wrapper with the original component too. The resulting WASM will have all the exports and imports as the original one, but in addition to that will also export static, well typed interfaces for each agent type defined in the TypeScript code.</li>
+</ul>
+<p>Even though this static wrapper will most likely not be needed in the next major Golem release, the technique may remain used if we want to use a Golem component in context of another WASM environment or tool.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

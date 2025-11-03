@@ -1,0 +1,262 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Writing kubectl plugins with ZIO K8s</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;zio-k8s-plugins&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Writing kubectl plugins with ZIO K8s</h1>
+            
+            <p class="posted-on">Posted on March 07, 2021</p>
+        </header>
+
+        <p>Originally posted <a href="https://ziverge.com/blog/zio-k8s-kubectl-plugin">at the Ziverge blog</a>.</p>
+<p>Andrea Peruffo recently published <a href="https://www.lightbend.com/blog/writing-kubectl-plugins-with-scala-or-java-with-fabric8-kubernetes-client-on-graalvm?utm_campaign=Oktopost-BLG+-+Writing+Kubectl+plugins+in+Java+or+Scala">a blog post on the Lightbend blog</a> about how they migrated a <code>kubectl</code> plugin from Golang to Scala using the <a href="https://github.com/fabric8io/kubernetes-client">Fabric8</a> Kubernetes client and a few Scala libraries. This is a perfect use case for the <a href="https://coralogix.github.io/zio-k8s/">zio-k8s library</a> announced <a href="https://coralogix.com/log-analytics-blog/the-coralogix-operator-a-tale-of-zio-and-kubernetes/">two weeks ago</a>, so we decided to write this post demonstrating how to implement the same example using the ZIO ecosystem.</p>
+<p>We are going to implement the same example, originally described in the <a href="https://dev.to/ikwattro/write-a-kubectl-plugin-in-java-with-jbang-and-fabric8-566">Write a kubectl plugin in Java with JBang and fabric8</a> article, using the following libraries:</p>
+<ul>
+<li><a href="https://zio.dev/">ZIO</a></li>
+<li><a href="https://coralogix.github.io/zio-k8s/">ZIO K8s</a></li>
+<li><a href="https://zio.github.io/zio-logging/">ZIO Logging</a></li>
+<li><a href="https://vigoo.github.io/clipp/docs/">clipp</a></li>
+<li><a href="https://sttp.softwaremill.com/en/latest/">sttp</a></li>
+<li><a href="https://circe.github.io/circe/">circe</a></li>
+</ul>
+<p>The source code of the example <a href="https://github.com/zivergetech/zio-k8s-kubectl-plugin-example">can be found here</a>.</p>
+<p>The linked blog post does a great job in explaining the benefits and difficulties of compiling to native image with GraalVM so we are not going to repeat it here. Instead, we will focus on how the implementation looks in the functional Scala world.</p>
+<p>The example has to implement two <em>kubectl commands</em>: <code>version</code> to print its own version and <code>list</code> to list information about <em>all Pods of the Kubernetes cluster</em> in either ASCII table, JSON or YAML format.</p>
+<h3 id="cli-parameters">CLI parameters</h3>
+<p>Let's start with defining these command line options with the <a href="https://vigoo.github.io/clipp/docs/">clipp</a> library!</p>
+<p>First, we define the data structures that describe our parameters:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> Format
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Format {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">case object</span><span style="color:#c18401;"> Default </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">Format
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">case object</span><span style="color:#c18401;"> Json </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">Format
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">case object</span><span style="color:#c18401;"> Yaml </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">Format
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">sealed trait</span><span style="color:#c18401;"> Command
+</span><span style="color:#a626a4;">object</span><span style="color:#c18401;"> Command {
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> ListPods(</span><span style="color:#e45649;">format</span><span style="color:#c18401;">: Format) </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">Command
+</span><span style="color:#c18401;">  </span><span style="color:#a626a4;">case object</span><span style="color:#c18401;"> Version </span><span style="color:#a626a4;">extends </span><span style="color:#c18401;">Command
+</span><span style="color:#c18401;">}
+</span><span>
+</span><span style="color:#a626a4;">final case class</span><span style="color:#c18401;"> Parameters</span><span>(</span><span style="color:#e45649;">verbose</span><span>: </span><span style="color:#a626a4;">Boolean</span><span>, </span><span style="color:#e45649;">command</span><span>: </span><span style="color:#c18401;">Command</span><span>)
+</span></code></pre>
+<p>When parsing the arguments (passed as an array of strings), we need to either produce a <code>Parameters</code> value or fail and print some usage information.</p>
+<p>With <code>clipp</code>, this is done by defining a parameter parser using its parser DSL in a <em>for comprehension</em>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">spec </span><span style="color:#a626a4;">=
+</span><span>  </span><span style="color:#a626a4;">for </span><span>{
+</span><span>    </span><span style="color:#e45649;">_           </span><span style="color:#a626a4;">&lt;-</span><span> metadata(</span><span style="color:#50a14f;">&quot;kubectl lp&quot;</span><span>)
+</span><span>    </span><span style="color:#e45649;">verbose     </span><span style="color:#a626a4;">&lt;-</span><span> flag(</span><span style="color:#50a14f;">&quot;Verbose logging&quot;</span><span>, </span><span style="color:#c18401;">&#39;v&#39;</span><span>, </span><span style="color:#50a14f;">&quot;verbose&quot;</span><span>)
+</span><span>    </span><span style="color:#e45649;">commandName </span><span style="color:#a626a4;">&lt;-</span><span> command(</span><span style="color:#50a14f;">&quot;version&quot;</span><span>, </span><span style="color:#50a14f;">&quot;list&quot;</span><span>)
+</span><span>    </span><span style="color:#e45649;">command     </span><span style="color:#a626a4;">&lt;- 
+</span><span>      commandName </span><span style="color:#a626a4;">match </span><span>{
+</span><span>        </span><span style="color:#a626a4;">case </span><span style="color:#50a14f;">&quot;version&quot; </span><span style="color:#a626a4;">=&gt; 
+</span><span>          pure(Command.Version)
+</span><span>        </span><span style="color:#a626a4;">case </span><span style="color:#50a14f;">&quot;list&quot;    </span><span style="color:#a626a4;">=&gt;
+</span><span>          </span><span style="color:#a626a4;">for </span><span>{
+</span><span>            </span><span style="color:#e45649;">specifiedFormat </span><span style="color:#a626a4;">&lt;-</span><span> optional {
+</span><span>                                namedParameter[</span><span style="color:#c18401;">Format</span><span>](
+</span><span>                                  </span><span style="color:#50a14f;">&quot;Output format&quot;</span><span>,
+</span><span>                                  </span><span style="color:#50a14f;">&quot;default|json|yaml&quot;</span><span>,
+</span><span>                                  </span><span style="color:#c18401;">&#39;o&#39;</span><span>,
+</span><span>                                  </span><span style="color:#50a14f;">&quot;output&quot;
+</span><span>                                )
+</span><span>                              }
+</span><span>            </span><span style="color:#e45649;">format           </span><span style="color:#a626a4;">=</span><span> specifiedFormat.getOrElse(Format.Default)
+</span><span>          } </span><span style="color:#a626a4;">yield </span><span>Command.ListPods(format)
+</span><span>      }
+</span><span>  } </span><span style="color:#a626a4;">yield </span><span>Parameters(verbose, command)
+</span></code></pre>
+<p>As we can see, it is possible to make decisions in the parser based on the previously parsed values, so each <em>command</em> can have a different set of arguments. In order to parse the possible <em>output formats</em>, we also implement the <code>ParameterParser</code> type class for <code>Format</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">parameterParser</span><span>: </span><span style="color:#c18401;">ParameterParser</span><span>[</span><span style="color:#c18401;">Format</span><span>] </span><span style="color:#a626a4;">= new </span><span style="color:#c18401;">ParameterParser</span><span>[</span><span style="color:#c18401;">Format</span><span>] {
+</span><span>    </span><span style="color:#a626a4;">override def </span><span style="color:#0184bc;">parse</span><span>(</span><span style="color:#e45649;">value</span><span>: </span><span style="color:#c18401;">String</span><span>): </span><span style="color:#c18401;">Either</span><span>[</span><span style="color:#c18401;">String</span><span>, </span><span style="color:#c18401;">Format</span><span>] </span><span style="color:#a626a4;">=
+</span><span>      value.toLowerCase </span><span style="color:#a626a4;">match </span><span>{
+</span><span>        </span><span style="color:#a626a4;">case </span><span style="color:#50a14f;">&quot;default&quot; </span><span style="color:#a626a4;">=&gt; </span><span>Right(Format.Default)
+</span><span>        </span><span style="color:#a626a4;">case </span><span style="color:#50a14f;">&quot;json&quot;    </span><span style="color:#a626a4;">=&gt; </span><span>Right(Format.Json)
+</span><span>        </span><span style="color:#a626a4;">case </span><span style="color:#50a14f;">&quot;yaml&quot;    </span><span style="color:#a626a4;">=&gt; </span><span>Right(Format.Yaml)
+</span><span>        </span><span style="color:#a626a4;">case </span><span style="color:#e45649;">_         </span><span style="color:#a626a4;">=&gt; </span><span>Left(</span><span style="color:#0184bc;">s</span><span style="color:#50a14f;">&quot;Invalid output format &#39;</span><span style="color:#e45649;">$value</span><span style="color:#50a14f;">&#39;, use &#39;default&#39;, &#39;json&#39; or &#39;yaml&#39;&quot;</span><span>)
+</span><span>      }
+</span><span>
+</span><span>    </span><span style="color:#a626a4;">override def </span><span style="color:#0184bc;">example</span><span>: </span><span style="color:#c18401;">Format </span><span style="color:#a626a4;">= </span><span>Format.Default
+</span><span>  }
+</span></code></pre>
+<p>This is all we need to bootstrap our command line application. The following main function parses the arguments and provides the parsed <code>Parameters</code> value to the <code>ZIO</code> program:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">run</span><span>(</span><span style="color:#e45649;">args</span><span>: </span><span style="color:#c18401;">List</span><span>[</span><span style="color:#c18401;">String</span><span>]): </span><span style="color:#c18401;">URIO</span><span>[zio.</span><span style="color:#c18401;">ZEnv</span><span>, </span><span style="color:#c18401;">ExitCode</span><span>] </span><span style="color:#a626a4;">= </span><span>{
+</span><span>  </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">clippConfig </span><span style="color:#a626a4;">=</span><span> config.fromArgsWithUsageInfo(args, Parameters.spec)
+</span><span>  runWithParameters()
+</span><span>    .provideCustomLayer(clippConfig)
+</span><span>    .catchAll { </span><span style="color:#e45649;">_</span><span>: </span><span style="color:#c18401;">ParserFailure </span><span style="color:#a626a4;">=&gt; </span><span>ZIO.succeed(ExitCode.failure) }
+</span><span>}
+</span><span>
+</span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">runWithParameters</span><span>(): </span><span style="color:#c18401;">ZIO</span><span>[</span><span style="color:#c18401;">ZEnv </span><span style="color:#a626a4;">with </span><span style="color:#c18401;">ClippConfig</span><span>[</span><span style="color:#c18401;">Parameters</span><span>], </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">ExitCode</span><span>] </span><span style="color:#a626a4;">= </span><span style="color:#a0a1a7;">// ...
+</span></code></pre>
+<h3 id="working-with-kubernetes">Working with Kubernetes</h3>
+<p>In <code>runWithParameters</code>, we have everything needed to initialize the logging and Kubernetes modules and perform the actual command. Before talking about the initialization though, let's take a look at how we can list the pods!</p>
+<p>We define a data type holding all the information we want to report about each pod:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">case class</span><span style="color:#c18401;"> PodInfo</span><span>(</span><span style="color:#e45649;">name</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">namespace</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">status</span><span>: </span><span style="color:#c18401;">String</span><span>, </span><span style="color:#e45649;">message</span><span>: </span><span style="color:#c18401;">String</span><span>)
+</span></code></pre>
+<p>The task now is to fetch <em>all pods</em> from Kubernetes and construct <code>PodInfo</code> values. In <code>zio-k8s</code> <em>getting a list of pods</em> is defined as a <strong>ZIO Stream</strong>, which under the hood sends multiple HTTP requests to Kubernetes taking advantage of its <em>pagination</em> capability. In this <em>stream</em> each element will be a <code>Pod</code> and we can start processing them one by one as soon they arrive over the wire. This way the implementation of the <code>list</code> command can be something like this:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">run</span><span>(</span><span style="color:#e45649;">format</span><span>: </span><span style="color:#c18401;">Format</span><span>) </span><span style="color:#a626a4;">= 
+</span><span>  </span><span style="color:#a626a4;">for </span><span>{
+</span><span>    </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">&lt;-</span><span> log.debug(</span><span style="color:#50a14f;">&quot;Executing the list command&quot;</span><span>)
+</span><span>    </span><span style="color:#e45649;">_ </span><span style="color:#a626a4;">&lt;-</span><span> pods
+</span><span>            .getAll(</span><span style="color:#e45649;">namespace</span><span> = None)
+</span><span>            .mapM(</span><span style="color:#e45649;">toModel</span><span>)
+</span><span>            .run(reports.sink(</span><span style="color:#e45649;">format</span><span>))
+</span><span>            .catchAll { </span><span style="color:#e45649;">k8sFailure </span><span style="color:#a626a4;">=&gt;
+</span><span>              console.putStrLnErr(</span><span style="color:#0184bc;">s</span><span style="color:#50a14f;">&quot;Failed to get the list of pods: </span><span style="color:#e45649;">$k8sFailure</span><span style="color:#50a14f;">&quot;</span><span>)
+</span><span>            }
+</span><span>  } </span><span style="color:#a626a4;">yield </span><span style="color:#c18401;">()
+</span></code></pre>
+<p>Let's take a look at each line!</p>
+<p>First, <code>log.debug</code> uses the <em>ZIO logging</em> library. We are going to initialize logging in a way that these messages only appear if the <code>--verbose</code> option was enabled.</p>
+<p>Then <code>pods.getAll</code> is the ZIO Stream provided by the <em>ZIO K8s</em> library. Not providing a specific namespace means that we are getting pods from <em>all</em> namespaces.</p>
+<p>With <code>mapM(toModel)</code> we transform each <code>Pod</code> in the stream to our <code>PodInfo</code> data structure.</p>
+<p>Finally we <code>run</code> the stream into a <em>sink</em> that is responsible for displaying the <code>PodInfo</code> structures with the specific <em>output format</em>.</p>
+<p>The <code>Pod</code> objects returned in the stream are simple <em>case classes</em> containing all the information available for the given resource. Most of the fields of these case classes are <em>optional</em> though, even though we can be sure that in our case each pod would have a name, a namespace and a status. To make working with these data structures easier within a set of expectations, they feature <em>getter methods</em> that are ZIO functions either returning the field's value, or failing if they are not specified. With these we can implement <code>toModel</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">toModel</span><span>(</span><span style="color:#e45649;">pod</span><span>: </span><span style="color:#c18401;">Pod</span><span>): </span><span style="color:#c18401;">IO</span><span>[</span><span style="color:#c18401;">K8sFailure</span><span>, </span><span style="color:#c18401;">PodInfo</span><span>] </span><span style="color:#a626a4;">=
+</span><span>    </span><span style="color:#a626a4;">for </span><span>{
+</span><span>      </span><span style="color:#e45649;">metadata  </span><span style="color:#a626a4;">&lt;-</span><span> pod.getMetadata
+</span><span>      </span><span style="color:#e45649;">name      </span><span style="color:#a626a4;">&lt;-</span><span> metadata.getName
+</span><span>      </span><span style="color:#e45649;">namespace </span><span style="color:#a626a4;">&lt;-</span><span> metadata.getNamespace
+</span><span>      </span><span style="color:#e45649;">status    </span><span style="color:#a626a4;">&lt;-</span><span> pod.getStatus
+</span><span>      </span><span style="color:#e45649;">phase     </span><span style="color:#a626a4;">&lt;-</span><span> status.getPhase
+</span><span>      </span><span style="color:#e45649;">message    </span><span style="color:#a626a4;">=</span><span> status.message.getOrElse(</span><span style="color:#50a14f;">&quot;&quot;</span><span>)
+</span><span>    } </span><span style="color:#a626a4;">yield </span><span>PodInfo(name, namespace, phase, message)
+</span></code></pre>
+<p>An alternative would be to just store the optional values in <code>PodInfo</code> and handle their absence in the <em>report sink</em>.</p>
+<p>Let's talk about the <em>type</em> of the above defined <code>run</code> function:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>ZIO[</span><span style="color:#c18401;">Pods </span><span style="color:#a626a4;">with </span><span style="color:#c18401;">Console </span><span style="color:#a626a4;">with </span><span style="color:#c18401;">Logging</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#a626a4;">Unit</span><span>]
+</span></code></pre>
+<p>The ZIO <em>environment</em> precisely specifies the modules used by our <code>run</code> function:</p>
+<table><thead><tr><th>Module</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>Pods</code></td><td>for accessing K8s pods</td></tr>
+<tr><td><code>Console</code></td><td>for printing <em>errors</em> on the standard error channel with <code>putStrLnErr</code></td></tr>
+<tr><td><code>Logging</code></td><td>for emitting some debug logs</td></tr>
+</tbody></table>
+<p>The error type is <code>Nothing</code> because it can never fail - all errors are catched and displayed for the user within the run function.</p>
+<h3 id="initialization">Initialization</h3>
+<p>Now we can see that in order to run the <code>list</code> command in <code>runWithParameters</code>, we must <em>provide</em> <code>Pods</code> and <code>Logging</code> modules to our implementation (<code>Console</code> is part of the default environment and does not need to be provided).</p>
+<p>These modules are described by <em>ZIO Layers</em> which can be composed together to provide the <em>environment</em> for running our ZIO program. In this case we need to define a <em>logging layer</em> and a <em>kubernetes pods client</em> layer and then compose the two for our <code>list</code> implementation.</p>
+<p>Let's start with logging:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">configuredLogging</span><span>(</span><span style="color:#e45649;">verbose</span><span>: </span><span style="color:#a626a4;">Boolean</span><span>): </span><span style="color:#c18401;">ZLayer</span><span>[</span><span style="color:#c18401;">Console </span><span style="color:#a626a4;">with </span><span style="color:#c18401;">Clock</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">Logging</span><span>] </span><span style="color:#a626a4;">= </span><span>{
+</span><span>    </span><span style="color:#a626a4;">val </span><span style="color:#e45649;">logLevel </span><span style="color:#a626a4;">= if </span><span>(verbose) LogLevel.Trace </span><span style="color:#a626a4;">else </span><span>LogLevel.Info
+</span><span>    Logging.consoleErr(logLevel) &gt;&gt;&gt; initializeSlf4jBridge
+</span><span>  }
+</span></code></pre>
+<p>We create a simple ZIO console logger that will print lines to the standard error channel; the enabled log level is determined by the <code>verbose</code> command line argument. As this logger writes to the console and also prints timestamps, our logging layer <em>requires</em> <code>Console with Clock</code> to be able to build a <code>Logging</code> module. Enabling the <em>SLF4j bridge</em> guarantees that logs coming from third party libraries will also get logged through ZIO logging. In our example this means that when we enable verbose logging, our <code>kubectl</code> plugin will log the HTTP requests made by the Kubernetes library!</p>
+<p>The second layer we must define constructs a <code>Pods</code> module:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">val </span><span style="color:#e45649;">pods </span><span style="color:#a626a4;">=</span><span> k8sDefault &gt;&gt;&gt; Pods.live)
+</span></code></pre>
+<p>By using <code>k8sDefault</code> we ask <code>zio-k8s</code> to use the <em>default configuration chain</em>, which first tries to load the <code>kubeconfig</code> and use the active <em>context</em> stored in it. This is exactly what <code>kubectl</code> does, so it is the perfect choice when writing a <code>kubectl</code> plugin. Other variants provide more flexibility such as loading custom configuration with the <a href="https://zio.github.io/zio-config/">ZIO Config</a> library. Once we have a <em>k8s configuration</em> we just feed it to the set of resource modules we need. In this example we only need to access pods. In more complex applications this would be something like <code>k8sDefault &gt;&gt;&gt; (Pods.live ++ Deployments.live ++ ...)</code>.</p>
+<p>With both layers defined, we can now provide them to our command implementation:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span>runCommand(parameters.command)
+</span><span>  .provideCustomLayer(logging ++ pods)
+</span></code></pre>
+<h3 id="output">Output</h3>
+<p>The last thing missing is the <em>report sink</em> that we are running the stream of pods into. We are going to define three different sinks for the three output types.</p>
+<p>Let's start with JSON!</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">sink</span><span>[</span><span style="color:#c18401;">T</span><span style="color:#a626a4;">: </span><span style="color:#c18401;">Encoder</span><span>]: </span><span style="color:#c18401;">ZSink</span><span>[</span><span style="color:#c18401;">Console</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  ZSink.foreach { (</span><span style="color:#e45649;">item</span><span>: </span><span style="color:#c18401;">T</span><span>) </span><span style="color:#a626a4;">=&gt;
+</span><span>    console.putStrLn(item.asJson.printWith(Printer.spaces2SortKeys))
+</span><span>  }
+</span></code></pre>
+<p>The JSON sink requires <code>Console</code> and then for each element <code>T</code> it converts it to JSON and pretty prints it to console. Note that this is going to be a JSON document per each line. We could easily define a different sink that collects each element and produces a single valid JSON array of them:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">arraySink</span><span>[</span><span style="color:#c18401;">T</span><span style="color:#a626a4;">: </span><span style="color:#c18401;">Encoder</span><span>]: </span><span style="color:#c18401;">ZSink</span><span>[</span><span style="color:#c18401;">Console</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>    ZSink.collectAll.flatMap { (</span><span style="color:#e45649;">items</span><span>: </span><span style="color:#c18401;">Chunk</span><span>[</span><span style="color:#c18401;">T</span><span>]) </span><span style="color:#a626a4;">=&gt;
+</span><span>      ZSink.fromEffect {
+</span><span>        console.putStrLn(Json.arr(items.map(</span><span style="color:#e45649;">_</span><span>.asJson): </span><span style="color:#a626a4;">_*</span><span>).printWith(Printer.spaces2SortKeys))
+</span><span>      }
+</span><span>    }
+</span></code></pre>
+<p>The <code>T</code> type paramter in our example will always be <code>PodInfo</code>. By requiring it to have an implementation of circe's <code>Encoder</code> type class we can call <code>.asJson</code> on instances of <code>T</code>, encoding it into a JSON object. We can <em>derive</em> these encoders automatically:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">implicit val </span><span style="color:#e45649;">encoder</span><span>: </span><span style="color:#c18401;">Encoder</span><span>[</span><span style="color:#c18401;">PodInfo</span><span>] </span><span style="color:#a626a4;">=</span><span> deriveEncoder
+</span></code></pre>
+<p>Producing YAML output is exactly the same except of first converting the JSON model to YAML with <code>asJson.asYaml</code>.</p>
+<p>The third output format option is to generate ASCII tables. We implement that with the same Java library as the original post, called <a href="https://github.com/vdmeer/asciitable"><code>asciitable</code></a>. In order to separate the specification of how to convert a <code>PodInfo</code> to a table from the sink implementation, we can define our own type class similar to the JSON <code>Encoder</code>:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">trait</span><span style="color:#c18401;"> Tabular</span><span>[</span><span style="color:#c18401;">T</span><span>] </span><span style="color:#c18401;">{
+</span><span style="color:#c18401;">    </span><span style="color:#a0a1a7;">/** Initializes a table by setting properties and adding header rows
+</span><span style="color:#a0a1a7;">      */
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">createTableRenderer</span><span style="color:#c18401;">(): ZManaged[</span><span style="color:#a626a4;">Any</span><span style="color:#c18401;">, </span><span style="color:#a626a4;">Nothing</span><span style="color:#c18401;">, AsciiTable]
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a0a1a7;">/** Adds a single item of type T to the table created with [[createTableRenderer()]]
+</span><span style="color:#a0a1a7;">      */
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">addRow</span><span style="color:#c18401;">(</span><span style="color:#e45649;">table</span><span style="color:#c18401;">: AsciiTable)(</span><span style="color:#e45649;">item</span><span style="color:#c18401;">: T): UIO[</span><span style="color:#a626a4;">Unit</span><span style="color:#c18401;">]
+</span><span style="color:#c18401;">
+</span><span style="color:#c18401;">    </span><span style="color:#a0a1a7;">/** Adds the table&#39;s footer and renders it to a string
+</span><span style="color:#a0a1a7;">      */
+</span><span style="color:#c18401;">    </span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">renderTable</span><span style="color:#c18401;">(</span><span style="color:#e45649;">table</span><span style="color:#c18401;">: AsciiTable): UIO[String]
+</span><span style="color:#c18401;">  }
+</span></code></pre>
+<p>We can implement this for <code>PodInfo</code> and then use a generic sink for printing the result table, similar to the previous examples:</p>
+<pre data-lang="scala" style="background-color:#fafafa;color:#383a42;" class="language-scala "><code class="language-scala" data-lang="scala"><span style="color:#a626a4;">def </span><span style="color:#0184bc;">sink</span><span>[</span><span style="color:#c18401;">T</span><span>](</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">tabular</span><span>: </span><span style="color:#c18401;">Tabular</span><span>[</span><span style="color:#c18401;">T</span><span>]): </span><span style="color:#c18401;">ZSink</span><span>[</span><span style="color:#c18401;">Console</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  ZSink.managed[</span><span style="color:#c18401;">Console</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#c18401;">AsciiTable</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#a626a4;">Unit</span><span>](tabular.createTableRenderer()) {
+</span><span>    </span><span style="color:#e45649;">table </span><span style="color:#a626a4;">=&gt; </span><span style="color:#a0a1a7;">// initialize the table
+</span><span>      ZSink.foreach(tabular.addRow(table)) &lt;* </span><span style="color:#a0a1a7;">// add each row
+</span><span>      printResultTable[</span><span style="color:#c18401;">T</span><span>](table) </span><span style="color:#a0a1a7;">// print the result
+</span><span>    }
+</span><span>
+</span><span style="color:#a626a4;">def </span><span style="color:#0184bc;">printResultTable</span><span>[</span><span style="color:#c18401;">T</span><span>](
+</span><span>  </span><span style="color:#e45649;">table</span><span>: </span><span style="color:#c18401;">AsciiTable
+</span><span>)(</span><span style="color:#a626a4;">implicit </span><span style="color:#e45649;">tabular</span><span>: </span><span style="color:#c18401;">Tabular</span><span>[</span><span style="color:#c18401;">T</span><span>]): </span><span style="color:#c18401;">ZSink</span><span>[</span><span style="color:#c18401;">Console</span><span>, </span><span style="color:#a626a4;">Nothing</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#c18401;">T</span><span>, </span><span style="color:#a626a4;">Unit</span><span>] </span><span style="color:#a626a4;">=
+</span><span>  ZSink.fromEffect {
+</span><span>    tabular
+</span><span>      .renderTable(table)
+</span><span>      .flatMap(</span><span style="color:#e45649;">str </span><span style="color:#a626a4;">=&gt;</span><span> console.putStrLn(str))
+</span><span>  }
+</span></code></pre>
+<h3 id="trying-it-out">Trying it out</h3>
+<p>With the report sinks implemenented we have everything ready to try out our new <code>kubectl</code> plugin!</p>
+<p>We can compile the example to <em>native image</em> and copy the resulting image to a location on the <code>PATH</code>:</p>
+<pre style="background-color:#fafafa;color:#383a42;"><code><span>sbt nativeImage
+</span><span>cp target/native-image/kubectl-lp ~/bin
+</span></code></pre>
+<p>Then use <code>kubectl lp</code> to access our custom functions:</p>
+<p><img src="/images/blog-ziok8s-kubectlplugin.png" alt="kubectl-example" /></p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+</body>

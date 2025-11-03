@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - zig</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/zig/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-05-09T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/zig/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Zig and the WASM Component Model</title>
+        <published>2024-05-09T00:00:00+00:00</published>
+        <updated>2024-05-09T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/zig-wasm-component-model/"/>
+        <id>https://blog.vigoo.dev/posts/zig-wasm-component-model/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/zig-wasm-component-model/">&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;golem.cloud&quot;&gt;Golem&lt;&#x2F;a&gt; always considered &lt;a href=&quot;https:&#x2F;&#x2F;ziglang.org&quot;&gt;Zig&lt;&#x2F;a&gt; a supported language, but until now the only documented way to use it was to compile a program with a single &lt;code&gt;main&lt;&#x2F;code&gt; function into a &lt;em&gt;core WebAssembly module&lt;&#x2F;em&gt; and then wrap that as a component that can be uploaded to Golem for execution. This is very limiting, as in order to take full advantage of Golem (and any other part of the evolving &lt;em&gt;WASM Component Model ecosystem&lt;&#x2F;em&gt;) a Zig program must have definitions for both &lt;em&gt;importing&lt;&#x2F;em&gt; and &lt;em&gt;exporting&lt;&#x2F;em&gt; functions and data types in order to be a usable component.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;binding-generators&quot;&gt;Binding generators&lt;&#x2F;h2&gt;
+&lt;p&gt;For many supported languages the workflow is to write a &lt;strong&gt;WIT&lt;&#x2F;strong&gt; file, which is the Component Model&#x27;s &lt;a href=&quot;https:&#x2F;&#x2F;component-model.bytecodealliance.org&#x2F;design&#x2F;wit.html&quot;&gt;interface definition language&lt;&#x2F;a&gt; and then use a &lt;em&gt;binding generator&lt;&#x2F;em&gt;, such as &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;bytecodealliance&#x2F;wit-bindgen&#x2F;&quot;&gt;wit-bindgen&lt;&#x2F;a&gt; to create statically typed representation of the component&#x27;s imports and exports in the targeted language.&lt;&#x2F;p&gt;
+&lt;p&gt;The binding generator does not support Zig, but it does support C. So the best we can do with existing tooling is to use the C binding generator and Zig&#x27;s excellent C interoperability together to be able to create WASM components with Zig.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;the-steps&quot;&gt;The steps&lt;&#x2F;h2&gt;
+&lt;p&gt;The primary steps are the following:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Define&lt;&#x2F;strong&gt; the component&#x27;s interface using WIT&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Generate&lt;&#x2F;strong&gt; C bindings from this definition&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Implement&lt;&#x2F;strong&gt; the exported functions in Zig, potentially using other imported interfaces and data types available through the generated binding&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Compile&lt;&#x2F;strong&gt; the whole project into WASM&lt;&#x2F;li&gt;
+&lt;li&gt;As Zig&#x27;s standard library still uses &lt;em&gt;WASI Preview 1&lt;&#x2F;em&gt;, and outputs a single WASM module, we also have to &lt;strong&gt;compose&lt;&#x2F;strong&gt; our resulting module with an &lt;em&gt;adapter component&lt;&#x2F;em&gt; in order to get a WASM component depending on &lt;em&gt;WASI Preview 2&lt;&#x2F;em&gt;.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;The first step is manual work - although we may eventually get code-first approaches in some languages where the WIT interface is generated as part as the build flow, it is not the case for Zig at the moment.&lt;&#x2F;p&gt;
+&lt;p&gt;For generating the bindings we use &lt;code&gt;wit-bindgen&lt;&#x2F;code&gt;, and once the implementation is done we compile the Zig source code, together with the generated C bindings into a WASM module using zig&#x27;s build system (&lt;code&gt;zig build&lt;&#x2F;code&gt;).&lt;&#x2F;p&gt;
+&lt;p&gt;Finally we can use &lt;code&gt;wasm-tools compose&lt;&#x2F;code&gt; to take this WASM module and an appropriate version of a Preview1 adapter such as &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-wit&#x2F;blob&#x2F;main&#x2F;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&quot;&gt;the one we provide for Golem&lt;&#x2F;a&gt; to get the final component that&#x27;s ready to be used with Golem.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;zig-s-build-system&quot;&gt;Zig&#x27;s build system&lt;&#x2F;h2&gt;
+&lt;p&gt;Executing all these steps manually is not convenient but fortunately we can integrate all the steps within Zig&#x27;s &lt;em&gt;build system&lt;&#x2F;em&gt;. Let&#x27;s see how!&lt;&#x2F;p&gt;
+&lt;p&gt;We need to write a custom &lt;code&gt;build.zig&lt;&#x2F;code&gt; in the following way. First, let&#x27;s do some imports and start defining our build flow:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; std &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= @import&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;std&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; Builder &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.build.Builder;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; CrossTarget &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.zig.CrossTarget;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;build&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;b&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*Builder&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!void &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The first non-manual thing on our list of steps is &lt;strong&gt;generating&lt;&#x2F;strong&gt; the C bindings. Let&#x27;s define a build step that just runs &lt;code&gt;wit-bindgen&lt;&#x2F;code&gt; for us:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; bindgen &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addSystemCommand&lt;&#x2F;span&gt;&lt;span&gt;(&amp;amp;.{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;wit-bindgen&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;c&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;--autodrop-borrows&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;yes&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;.&#x2F;wit&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;--out-dir&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;src&#x2F;bindings&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;});
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This is just a description of running the binding generator, not integrated within the build flow yet. The next step is &lt;strong&gt;compiling&lt;&#x2F;strong&gt; our Zig and C files into WASM.&lt;&#x2F;p&gt;
+&lt;p&gt;First we define it as an &lt;em&gt;executable target&lt;&#x2F;em&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; optimize &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;standardOptimizeOption&lt;&#x2F;span&gt;&lt;span&gt;(.{
+&lt;&#x2F;span&gt;&lt;span&gt;        .preferred_optimize_mode &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; .ReleaseSmall&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    });
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; wasm &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addExecutable&lt;&#x2F;span&gt;&lt;span&gt;(.{ 
+&lt;&#x2F;span&gt;&lt;span&gt;    	.name &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;main&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;      .root_source_file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; .{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;src&#x2F;main.zig&amp;quot; &lt;&#x2F;span&gt;&lt;span&gt;}, 
+&lt;&#x2F;span&gt;&lt;span&gt;      .target &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; .{
+&lt;&#x2F;span&gt;&lt;span&gt;        .cpu_arch &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; .wasm32&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        .os_tag &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt; .wasi&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    	}, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	.optimize &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; optimize 
+&lt;&#x2F;span&gt;&lt;span&gt;    });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This already defines we want to use WASM and target WASI and points to our root source file. We are not done yet though, as if we run the binding generator step defined above, we will end up having a couple of files generated in our &lt;code&gt;src&#x2F;bindings&lt;&#x2F;code&gt; directory:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ l src&#x2F;bindings
+&lt;&#x2F;span&gt;&lt;span&gt;.rw-r--r-- 909 vigoo  9 May 09:34 zig3.c
+&lt;&#x2F;span&gt;&lt;span&gt;.rw-r--r-- 371 vigoo  9 May 09:34 zig3.h
+&lt;&#x2F;span&gt;&lt;span&gt;.rw-r--r-- 299 vigoo  9 May 09:34 zig3_component_type.o
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The &lt;code&gt;.c&lt;&#x2F;code&gt;&#x2F;&lt;code&gt;.h&lt;&#x2F;code&gt; pair contains the generated binding, while the object file holds the binary representation of the WIT interface it was generated from.&lt;&#x2F;p&gt;
+&lt;p&gt;We need to add the C source and the object file into our build, and the header file to the include file paths. As the name of the generated files depend on the WIT file&#x27;s contents, we need to list all files in this &lt;code&gt;bindings&lt;&#x2F;code&gt; directory and mutate our &lt;code&gt;wasm&lt;&#x2F;code&gt; build target according to what we find:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; binding_root &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;pathFromRoot&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;src&#x2F;bindings&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; binding_root_dir &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; std.fs.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;cwd&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;openIterableDir&lt;&#x2F;span&gt;&lt;span&gt;(binding_root, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; binding_root_dir.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;close&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; it &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; binding_root_dir.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;walk&lt;&#x2F;span&gt;&lt;span&gt;(b.allocator);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;while &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; it.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;()) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;|&lt;&#x2F;span&gt;&lt;span&gt;entry&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;| &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;switch &lt;&#x2F;span&gt;&lt;span&gt;(entry.kind) {
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;            .file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;pathJoin&lt;&#x2F;span&gt;&lt;span&gt;(&amp;amp;.{ binding_root, entry.path });
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(std.mem.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;endsWith&lt;&#x2F;span&gt;&lt;span&gt;(u8, entry.basename, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;.c&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)) {
+&lt;&#x2F;span&gt;&lt;span&gt;                    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addCSourceFile&lt;&#x2F;span&gt;&lt;span&gt;(.{ .file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; .{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; path }, .flags &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; &amp;amp;.{} });
+&lt;&#x2F;span&gt;&lt;span&gt;                } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else if &lt;&#x2F;span&gt;&lt;span&gt;(std.mem.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;endsWith&lt;&#x2F;span&gt;&lt;span&gt;(u8, entry.basename, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;.o&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)) {
+&lt;&#x2F;span&gt;&lt;span&gt;                    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addObjectFile&lt;&#x2F;span&gt;&lt;span&gt;(.{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; path });
+&lt;&#x2F;span&gt;&lt;span&gt;                }
+&lt;&#x2F;span&gt;&lt;span&gt;            },
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else =&amp;gt; continue&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;        }
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This registers all the &lt;code&gt;.c&lt;&#x2F;code&gt; and &lt;code&gt;.o&lt;&#x2F;code&gt; files from the generated bindings, but we still need to add the whole directory as an include path:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addIncludePath&lt;&#x2F;span&gt;&lt;span&gt;(.{ .path &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; binding_root });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and enable linking with &lt;code&gt;libc&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    wasm.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;linkLibC&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now that we defined two build steps - the generating the bindings and compiling to a WASM module - we define the third step which is &lt;strong&gt;composing&lt;&#x2F;strong&gt; the generated module and the preview1 adapter into a WASM component:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; adapter &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;option&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    	[]&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; u8, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;adapter&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Path to the Golem Tier1 WASI adapter&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;orelse &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; out &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; std.fmt.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allocPrint&lt;&#x2F;span&gt;&lt;span&gt;(b.allocator, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;zig-out&#x2F;bin&#x2F;{s}&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{wasm.out_filename});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; component &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;addSystemCommand&lt;&#x2F;span&gt;&lt;span&gt;(&amp;amp;.{ &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;wasm-tools&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;component&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;new&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, out, 
+&lt;&#x2F;span&gt;&lt;span&gt;    	&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;-o&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;zig-out&#x2F;bin&#x2F;component.wasm&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;--adapt&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, adapter });
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Here we provide a way to override the path to the adapter WASM using &lt;code&gt;zig build -Dadapter=xxx&lt;&#x2F;code&gt; but default to &lt;code&gt;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&lt;&#x2F;code&gt; in case it is not specified.&lt;&#x2F;p&gt;
+&lt;p&gt;The final step is to set up dependencies between these build steps and wire them to the main build flow:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    wasm.step.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependOn&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bindgen.step);
+&lt;&#x2F;span&gt;&lt;span&gt;    component.step.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependOn&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;wasm.step);
+&lt;&#x2F;span&gt;&lt;span&gt;    b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;installArtifact&lt;&#x2F;span&gt;&lt;span&gt;(wasm);
+&lt;&#x2F;span&gt;&lt;span&gt;    b.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;getInstallStep&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;dependOn&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;component.step);
+&lt;&#x2F;span&gt;&lt;span&gt;  }
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h2 id=&quot;trying-it-out&quot;&gt;Trying it out&lt;&#x2F;h2&gt;
+&lt;p&gt;Let&#x27;s try this out by implementing a simple counter component. We start with the first step - defining our WIT file, putting it into &lt;code&gt;wit&#x2F;counter.wit&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;package &lt;&#x2F;span&gt;&lt;span&gt;golem:example;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;interface &lt;&#x2F;span&gt;&lt;span&gt;api {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;value&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; u64&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;world &lt;&#x2F;span&gt;&lt;span&gt;counter {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export &lt;&#x2F;span&gt;&lt;span&gt;api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We also save the above defined build script as &lt;code&gt;build.zig&lt;&#x2F;code&gt; (full version &lt;a href=&quot;https:&#x2F;&#x2F;gist.github.com&#x2F;vigoo&#x2F;19ed4b5d3e47ca2f5f1258d1ae8b28a4&quot;&gt;available here&lt;&#x2F;a&gt;) and then write an initial  &lt;code&gt;src&#x2F;main.zig&lt;&#x2F;code&gt; file:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; std &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= @import&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;std&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;main&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;anyerror!void &lt;&#x2F;span&gt;&lt;span&gt;{}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Let&#x27;s place the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-wit&#x2F;raw&#x2F;main&#x2F;adapters&#x2F;tier1&#x2F;wasi_snapshot_preview1.wasm&quot;&gt;adapter WASM&lt;&#x2F;a&gt; as well in the &lt;code&gt;adapters&#x2F;tier1&lt;&#x2F;code&gt; directory, and then try to compile this:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ zig build --summary all                                                                                 ...
+&lt;&#x2F;span&gt;&lt;span&gt;zig build-exe main Debug wasm32-wasi: error: the following command failed with 2 compilation errors:
+&lt;&#x2F;span&gt;&lt;span&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;error: wasm-ld: &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;counter&#x2F;zig-cache&#x2F;o&#x2F;a212123ad3dcf4839747c2bd77f7ef4e&#x2F;counter.o:
+&lt;&#x2F;span&gt;&lt;span&gt;undefined symbol: exports_golem_example_api_add
+&lt;&#x2F;span&gt;&lt;span&gt;error: wasm-ld: &#x2F;Users&#x2F;vigoo&#x2F;projects&#x2F;demo&#x2F;counter&#x2F;zig-cache&#x2F;o&#x2F;a212123ad3dcf4839747c2bd77f7ef4e&#x2F;counter.o:
+&lt;&#x2F;span&gt;&lt;span&gt;undefined symbol: exports_golem_example_api_get
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;It fails because we defined two exported functions: &lt;code&gt;api&#x2F;add&lt;&#x2F;code&gt; and &lt;code&gt;api&#x2F;get&lt;&#x2F;code&gt; in our WIT file but haven&#x27;t implemented them yet. Let&#x27;s do that:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;state&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64 = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;exports_golem_example_api_add&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;value&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;void &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; stdout &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.io.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;getStdOut&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;writer&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Adding {} to state&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{value}) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;catch unreachable&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    state &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;+=&lt;&#x2F;span&gt;&lt;span&gt; value;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;exports_golem_example_api_get&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64 &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; state;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then compile it:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ zig build --summary all
+&lt;&#x2F;span&gt;&lt;span&gt;Generating &amp;quot;src&#x2F;bindings&#x2F;counter.c&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;Generating &amp;quot;src&#x2F;bindings&#x2F;counter.h&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;Generating &amp;quot;src&#x2F;bindings&#x2F;counter_component_type.o&amp;quot;
+&lt;&#x2F;span&gt;&lt;span&gt;Build Summary: 5&#x2F;5 steps succeeded
+&lt;&#x2F;span&gt;&lt;span&gt;install success
+&lt;&#x2F;span&gt;&lt;span&gt;├─ install main cached
+&lt;&#x2F;span&gt;&lt;span&gt;│  └─ zig build-exe main Debug wasm32-wasi cached 9ms MaxRSS:29M
+&lt;&#x2F;span&gt;&lt;span&gt;│     └─ run wit-bindgen success 3ms MaxRSS:3M
+&lt;&#x2F;span&gt;&lt;span&gt;└─ run wasm-tools success 11ms MaxRSS:8M
+&lt;&#x2F;span&gt;&lt;span&gt;   └─ zig build-exe main Debug wasm32-wasi (+1 more reused dependencies)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and we can verify our resulting &lt;code&gt;zig-out&#x2F;component.wasm&lt;&#x2F;code&gt; using &lt;code&gt;wasm-tools&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ wasm-tools print --skeleton zig-out&#x2F;bin&#x2F;component.wasm 
+&lt;&#x2F;span&gt;&lt;span&gt;(component
+&lt;&#x2F;span&gt;&lt;span&gt;  ...
+&lt;&#x2F;span&gt;&lt;span&gt;  (instance (;11;) (instantiate 0
+&lt;&#x2F;span&gt;&lt;span&gt;      (with &amp;quot;import-func-add&amp;quot; (func 16))
+&lt;&#x2F;span&gt;&lt;span&gt;      (with &amp;quot;import-func-get&amp;quot; (func 17))
+&lt;&#x2F;span&gt;&lt;span&gt;    )
+&lt;&#x2F;span&gt;&lt;span&gt;  )
+&lt;&#x2F;span&gt;&lt;span&gt;  (export (;12;) &amp;quot;golem:example&#x2F;api&amp;quot; (instance 11))
+&lt;&#x2F;span&gt;&lt;span&gt;  (@producers
+&lt;&#x2F;span&gt;&lt;span&gt;    (processed-by &amp;quot;wit-component&amp;quot; &amp;quot;0.20.1&amp;quot;)
+&lt;&#x2F;span&gt;&lt;span&gt;  )
+&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h2 id=&quot;using-imports&quot;&gt;Using imports&lt;&#x2F;h2&gt;
+&lt;p&gt;After this simple example let&#x27;s try &lt;em&gt;importing&lt;&#x2F;em&gt; some interface and using that from our Zig code. What we are going to do is every time our counter changes, we are going to also save that value to an external key-value store. This is usually not something you need to do when writing a Golem application, because your program will be durable anyway - you can just keep the counter in memory. But it is a simple enough example to demonstrate how to use imported interfaces from Zig.&lt;&#x2F;p&gt;
+&lt;p&gt;First let&#x27;s add some additional WIT files into &lt;code&gt;wit&#x2F;deps&lt;&#x2F;code&gt; from the &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;golemcloud&#x2F;golem-wit&quot;&gt;golem-wit repository&lt;&#x2F;a&gt; (Note that the WASI Key-Value interface is defined &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;WebAssembly&#x2F;wasi-keyvalue&quot;&gt;here&lt;&#x2F;a&gt;, the &lt;code&gt;golem-wit&lt;&#x2F;code&gt; repo just stores the exact version of its definitions which is currently implemented by Golem ).&lt;&#x2F;p&gt;
+&lt;p&gt;We need the following directory tree:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#fafafa;color:#383a42;&quot;&gt;&lt;code&gt;&lt;span&gt;λ tree wit
+&lt;&#x2F;span&gt;&lt;span&gt;wit
+&lt;&#x2F;span&gt;&lt;span&gt;├── counter.wit
+&lt;&#x2F;span&gt;&lt;span&gt;└── deps
+&lt;&#x2F;span&gt;&lt;span&gt;    ├── io
+&lt;&#x2F;span&gt;&lt;span&gt;    │   ├── error.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    │   ├── poll.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    │   ├── streams.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    │   └── world.wit
+&lt;&#x2F;span&gt;&lt;span&gt;    └── keyvalue
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── atomic.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── caching.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── error.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── eventual-batch.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── eventual.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── handle-watch.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        ├── types.wit
+&lt;&#x2F;span&gt;&lt;span&gt;        └── world.wit
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;4 directories, 13 files
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we can import the key-value interface to &lt;code&gt;counter.wit&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;package &lt;&#x2F;span&gt;&lt;span&gt;golem:example;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;interface &lt;&#x2F;span&gt;&lt;span&gt;api {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;add&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;value&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;u64&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;get&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; u64&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;world &lt;&#x2F;span&gt;&lt;span&gt;counter {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;import &lt;&#x2F;span&gt;&lt;span&gt;wasi:keyvalue&#x2F;eventual@&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;0.1.0&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;export &lt;&#x2F;span&gt;&lt;span&gt;api;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;By recompiling the project we can verify everything still works, and we will also get our new bindings generated in the C source.&lt;&#x2F;p&gt;
+&lt;p&gt;Before implementing writing to the key-value store in Zig, let&#x27;s just take a look at the WIT interface of &lt;code&gt;wasi:keyvalue&#x2F;eventual@0.1.0&lt;&#x2F;code&gt; to understand what we will have to do:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;interface &lt;&#x2F;span&gt;&lt;span&gt;eventual {
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; ...
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;set&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;func&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;borrow&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;bucket&amp;gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;key&lt;&#x2F;span&gt;&lt;span&gt;: key, 
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;outgoing-value&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;borrow&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;outgoing-value&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;  ) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;_&lt;&#x2F;span&gt;&lt;span&gt;, error&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We will need to pass a &lt;code&gt;bucket&lt;&#x2F;code&gt; and an &lt;code&gt;outgoing-value&lt;&#x2F;code&gt;, both being &lt;em&gt;WIT resources&lt;&#x2F;em&gt; so we first need to create them, then borrow references of them for the &lt;code&gt;set&lt;&#x2F;code&gt; call, and finally drop them.&lt;&#x2F;p&gt;
+&lt;p&gt;The bucket resource can be constructed with a static function called &lt;code&gt;open-bucket&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;wit&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-wit &quot;&gt;&lt;code class=&quot;language-wit&quot; data-lang=&quot;wit&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;resource &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;bucket &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;open-bucket&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;static func&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;string&lt;&#x2F;span&gt;&lt;span&gt;) &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;-&amp;gt; result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;bucket, error&amp;gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Searching for this in the generated C bindings reveals the following:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extern bool &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;wasi_keyvalue_types_static_bucket_open_bucket&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  counter_string_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;name&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_types_own_bucket_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;ret&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_types_own_error_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;err
+&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We will have to drop the created bucket with&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extern void &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;wasi_keyvalue_types_bucket_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_types_own_bucket_t handle
+&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With all this information let&#x27;s try to open a bucket in Zig by directly using the generated C bindings. First we need to import the C headers:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; c &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= @cImport&lt;&#x2F;span&gt;&lt;span&gt;({
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;@cDefine&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;_NO_CRT_STDIO_INLINE&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;1&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;@cInclude&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;counter.h&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;});
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We also define an initial error type for our function for using later:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const &lt;&#x2F;span&gt;&lt;span&gt;KVError &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= error &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    FailedToOpenBucket,
+&lt;&#x2F;span&gt;&lt;span&gt;};
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then start implementing the store function by first storing the bucket&#x27;s name in &lt;code&gt;counter_string_t&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;record_state&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;anyerror!void &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span&gt; stdout &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; std.io.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;getStdOut&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;writer&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket_name&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.counter_string_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_dup&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_name, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;state&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_free&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_name);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and then invoking the &lt;code&gt;wasi_keyvalue_types_static_bucket_open_bucket&lt;&#x2F;code&gt; function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_types_own_bucket_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket_err&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_wasi_keyvalue_error_own_error_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_static_bucket_open_bucket&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_name, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_err)) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_bucket_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(bucket);
+&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a0a1a7;&quot;&gt;&#x2F;&#x2F; TODO
+&lt;&#x2F;span&gt;&lt;span&gt;    } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;else &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_wasi_keyvalue_error_error_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(bucket_err);
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Failed to open bucket&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; KVError.FailedToOpenBucket;
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now that we have an open bucket we want to call the &lt;code&gt;set&lt;&#x2F;code&gt; function to update a key&#x27;s value:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;extern bool &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;wasi_keyvalue_eventual_set&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_borrow_bucket_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;bucket&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_key_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;key&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_borrow_outgoing_value_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;outgoing_value&lt;&#x2F;span&gt;&lt;span&gt;, 
+&lt;&#x2F;span&gt;&lt;span&gt;  wasi_keyvalue_eventual_own_error_t &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;*&lt;&#x2F;span&gt;&lt;span&gt;err
+&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We already have our bucket, but we &lt;em&gt;own&lt;&#x2F;em&gt; it and we need to pass a &lt;em&gt;borrowed&lt;&#x2F;em&gt; bucket to this function. What&#x27;s the difference? There is no difference in the actual value - both just store a &lt;em&gt;handle&lt;&#x2F;em&gt; to a resource that exists in the runtime engine, but we still have to borrow the owned value using the &lt;code&gt;wasi_keyvalue_types_borrow_bucket&lt;&#x2F;code&gt; function. The &lt;code&gt;wasi_keyvalue_eventual_key_t&lt;&#x2F;code&gt; type is just an alias for &lt;code&gt;counter_string_t&lt;&#x2F;code&gt; and &lt;code&gt;wasi_keyvalue_eventual_borrow_outgoing_value_t&lt;&#x2F;code&gt; is another resource we need to construct first. Let&#x27;s put this together!&lt;&#x2F;p&gt;
+&lt;p&gt;First we borrow the owned bucket:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; borrowed_bucket &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_borrow_bucket&lt;&#x2F;span&gt;&lt;span&gt;(bucket);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_bucket_drop_borrow&lt;&#x2F;span&gt;&lt;span&gt;(borrowed_bucket);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Then we create an &lt;em&gt;outgoing value&lt;&#x2F;em&gt; that&#x27;s going to be stored in the key-value store:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; outgoing_value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_static_outgoing_value_new_outgoing_value&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_outgoing_value_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(outgoing_value);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; borrowed_outgoing_value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_borrow_outgoing_value&lt;&#x2F;span&gt;&lt;span&gt;(outgoing_value);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_outgoing_value_drop_borrow&lt;&#x2F;span&gt;&lt;span&gt;(borrowed_outgoing_value);
+&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;body&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.counter_string_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var&lt;&#x2F;span&gt;&lt;span&gt; value &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;= try&lt;&#x2F;span&gt;&lt;span&gt; std.fmt.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allocPrint&lt;&#x2F;span&gt;&lt;span&gt;(gpa.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;allocator&lt;&#x2F;span&gt;&lt;span&gt;(), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;{d}&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{state});
+&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_set&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;body, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;@ptrCast&lt;&#x2F;span&gt;&lt;span&gt;(value));
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_free&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;body);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;write_err&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_types_own_error_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_types_method_outgoing_value_outgoing_value_write_body_sync&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;    borrowed_outgoing_value, 
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#0184bc;&quot;&gt;@ptrCast&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;body),
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;bucket_err)) {
+&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_wasi_keyvalue_error_error_drop_own&lt;&#x2F;span&gt;&lt;span&gt;(write_err);
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Failed to set outgoing value&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; KVError.FailedToSetKey;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Also we need to create a string for holding the &lt;em&gt;key&lt;&#x2F;em&gt;:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;key&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.counter_string_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_dup&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;key, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;latest&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;defer&lt;&#x2F;span&gt;&lt;span&gt; c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;counter_string_free&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;key);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And finally call the &lt;code&gt;set&lt;&#x2F;code&gt; function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;zig&quot; style=&quot;background-color:#fafafa;color:#383a42;&quot; class=&quot;language-zig &quot;&gt;&lt;code class=&quot;language-zig&quot; data-lang=&quot;zig&quot;&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;var &lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;set_err&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;c.wasi_keyvalue_eventual_own_error_t = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c18401;&quot;&gt;undefined&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;if &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;wasi_keyvalue_eventual_set&lt;&#x2F;span&gt;&lt;span&gt;(borrowed_bucket, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;key, borrowed_outgoing_value, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;set_err)) {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;try&lt;&#x2F;span&gt;&lt;span&gt; stdout.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#e45649;&quot;&gt;print&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;Failed to set key&lt;&#x2F;span&gt;&lt;span style=&quot;color:#0997b3;&quot;&gt;\n&lt;&#x2F;span&gt;&lt;span style=&quot;color:#50a14f;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, .{});
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#a626a4;&quot;&gt;return&lt;&#x2F;span&gt;&lt;span&gt; KVError.FailedToSetKey;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;With this implementation we can compile our new version of our WASM component which now also depends on &lt;code&gt;wasi:keyvalue&lt;&#x2F;code&gt; and stores the latest value in a remote storage every time it gets updated.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;what-s-next&quot;&gt;What&#x27;s next?&lt;&#x2F;h2&gt;
+&lt;p&gt;With the above technique we have a way to impelment WASM components in Zig, but working with the generated C bindings is a bit inconvenient. It would be nice to have a more idiomatic Zig interface to the component model, and maybe it can be achieved just by using Zig&#x27;s metaprogramming features without having to create a Zig specific binding generator in addition to the existing ones.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
