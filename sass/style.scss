@@ -1,14 +1,17 @@
-@import url('https://fonts.googleapis.com/css?family=Poppins:400,700,900');
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code&display=swap');
+@import url("https://fonts.googleapis.com/css?family=Poppins:400,700,900");
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code&display=swap");
 
-$iosevka: "Iosevka Term Web","Victor Mono","Spline Sans Mono","Fira Mono","Fira Sans","JetBrains Mono","Helvetica Neue","Lexend Deca",sans-serif;
+$iosevka:
+    "Iosevka Term Web", "Victor Mono", "Spline Sans Mono", "Fira Mono",
+    "Fira Sans", "JetBrains Mono", "Helvetica Neue", "Lexend Deca", sans-serif;
 $poppins: "Poppins", "Poppins", "helvetica neue", helvetica, arial, sans-serif;
 $main-link-color: rgb(30, 108, 185);
 
 body {
-   //font-family: "Iosevka Term Web","Victor Mono","Spline Sans Mono","Fira Mono","Fira Sans","JetBrains Mono","Helvetica Neue","Lexend Deca",sans-serif;
-   font-family: $poppins;
-   margin: 0px;
+    //font-family: "Iosevka Term Web","Victor Mono","Spline Sans Mono","Fira Mono","Fira Sans","JetBrains Mono","Helvetica Neue","Lexend Deca",sans-serif;
+    font-family: $poppins;
+    font-display: block;
+    margin: 0px;
 }
 
 h1 {
@@ -18,26 +21,31 @@ h1 {
 .post {
     h1 {
         font-family: $iosevka;
+        font-display: block;
         font-size: xx-large;
         margin-bottom: 1rem;
     }
 
     h2 {
         font-family: $iosevka;
+        font-display: block;
         font-size: x-large;
     }
 
     h3 {
         font-family: $iosevka;
+        font-display: block;
         font-size: large;
     }
 
     h4 {
         font-family: $iosevka;
+        font-display: block;
     }
 
     h5 {
         font-family: $iosevka;
+        font-display: block;
     }
 }
 
@@ -67,7 +75,7 @@ menu {
             color: black;
             font-weight: bold;
             font-variant-caps: titling-caps;
-            text-decoration: none; 
+            text-decoration: none;
             text-transform: uppercase;
 
             &:hover {
@@ -77,14 +85,13 @@ menu {
     }
 }
 
-
 .post-tag {
     display: inline;
     padding-left: 0.5rem;
     padding-right: 0.5rem;
     padding-bottom: 0.2rem;
     padding-top: 0.2rem;
-    
+
     font-weight: bold;
     font-size: small;
 
@@ -94,14 +101,13 @@ menu {
 
     a {
         color: #ffffff;
-        text-decoration: none;        
+        text-decoration: none;
     }
 
     &:hover {
         background-color: rgb(202, 143, 72);
     }
 }
-
 
 .post-list {
     a {
@@ -113,9 +119,9 @@ menu {
         }
     }
 
-
     h2 {
         font-family: $iosevka;
+        font-display: block;
     }
 
     li {
@@ -123,17 +129,17 @@ menu {
         margin-top: 0.5rem;
         margin-bottom: 0.5rem;
 
-
         h3 {
             display: inline;
             font-family: $iosevka;
+            font-display: block;
             font-weight: normal;
         }
 
         .post-date {
             display: inline;
             font-style: italic;
-            padding-left: 1rem;            
+            padding-left: 1rem;
         }
 
         .post-word-count {
@@ -162,7 +168,7 @@ menu {
 
         .post-tag {
             padding: 8px;
-            font-size: medium;        
+            font-size: medium;
             background-color: white;
 
             a {
@@ -195,7 +201,7 @@ main {
     margin-right: auto;
 
     article {
-        text-align: justify;        
+        text-align: justify;
     }
 
     .all-posts-link {
@@ -214,7 +220,8 @@ main {
 
 pre {
     font-size: medium;
-    font-family: 'Fira Code', monospace;
+    font-family: "Fira Code", monospace;
+    font-display: block;
     padding-left: 1rem;
     overflow: auto;
 
@@ -248,7 +255,8 @@ pre {
 }
 
 code {
-    font-family: 'Fira Code', monospace;
+    font-family: "Fira Code", monospace;
+    font-display: block;
 }
 
 .zola-anchor {
