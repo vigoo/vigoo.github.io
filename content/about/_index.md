@@ -17,15 +17,17 @@ I'm senior staff software engineer at [Ziverge](https://ziverge.com), working on
 
 - [clipp](https://github.com/vigoo/clipp) is a functional command line argument parser and usage information generator for Scala
 - [desert](https://github.com/vigoo/desert) is a binary serialization library for Scala, focusing on supporting data type evolution
-- [golem-services](https://github.com/golemcloud/golem-services) the Golem platform
-- [golem-wasm-ast](https://github.com/golemcloud/golem-wasm-ast) is a Rust crate for working with WASM components on a higher level
+- [desert-rust](https://github.com/vigoo/desert-rust) is a binary serialization library for Rust, focusing on supporting data type evolution
+- [golem](https://github.com/golemcloud/golem) the Golem platform
 - [prox](https://github.com/vigoo/prox) is a Scala library for working with system processes
 - [test-r](https://github.com/vigoo/test-r) is a testing framework for Rust
-- [wasm-rpc](https://github.com/golemcloud/wasm-rpc) WASM RPC for Golem
+- [wasm-rquickjs](https://github.com/golemcloud/wasm-rquickjs/) a QuickJS based JS runtime for WASM
 - [zio-aws](https://github.com/zio/zio-aws/) is a low level ZIO interface for the full Amazon Web Services
-- [zio-flow](https://github.com/zio/zio-flow/) is an engine for executing persistent, distributed, fault-tolerant applications, providing an easy and powerful way to build stateful serverless applications in Scala.
 - [zio-k8s](https://github.com/coralogix/zio-k8s) is an idiomatic ZIO client for the Kubernetes API.
 - [zio-parser](https://github.com/zio/zio-parser) is a library for constructing parsers and pretty printers based on invertible syntax descriptions
+
+### Archived:
+- [zio-flow](https://github.com/zio/zio-flow/) is an engine for executing persistent, distributed, fault-tolerant applications, providing an easy and powerful way to build stateful serverless applications in Scala.
 - [zio-openai](https://github.com/zio/zio-openai) is a ZIO wrapper of the OpenAI API
 - [zio-wasm](https://github.com/zio/zio-wasm) is a zio-parser based syntax for WASM and the Component Model
 
