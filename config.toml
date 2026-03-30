@@ -9,8 +9,8 @@ generate_feeds = true
 taxonomies = [{ name = "tags", feed = true }]
 
 [markdown]
-highlight_code = true
-highlight_theme = "OneHalfLight"
-extra_syntaxes_and_themes = ["syntaxes"]
+
+[markdown.highlighting]
+theme = "one-light"
 
 [extra]
