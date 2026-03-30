@@ -7,7 +7,7 @@ tags = ["golem", "durable-execution", "agents", "coding-agents", "ai", "typescri
 
 ## Introduction
 
-**Coding agents** became the new way of writing software for many of us; even though I was skeptical about this for a long time, in the past few months all my code was written by agents, with productivity I never experienced before. The whole ecosystem is changing extremely fast, and people are trying to [figure out](https://x.com/jdegoes/status/2036931874057314390?s=20) what the best set of tools and workflows are to work efficiently in this new era. I cannot answer what set of coding agents, terminals, IDEs or post-IDE user interfaces fit best to the agentic development era. What I want to do is explore how [Golem](https://golem.cloud), the agent-native durable execution platform I'm working on could be a useful component of implementing reliable coding agents.
+**Coding agents** became the new way of writing software for many of us; even though I was skeptical about this for a long time, in the past few months all my code was written by agents, with productivity I had never experienced before. The whole ecosystem is changing extremely fast, and people are trying to [figure out](https://x.com/jdegoes/status/2036931874057314390?s=20) what the best set of tools and workflows are to work efficiently in this new era. I cannot answer what set of coding agents, terminals, IDEs or post-IDE user interfaces fit best to the agentic development era. What I want to do is explore how [Golem](https://golem.cloud), the agent-native durable execution platform I'm working on could be a useful component of implementing reliable coding agents.
 
 ### What is a coding agent?
 
@@ -18,23 +18,23 @@ There are other aspects of course - finding and loading skill files, spawning su
 All of this is not really super complicated, but it gets worse if you start to think about what can go wrong:
 
 - LLM calls can fail. There can be temporary outages, timeouts, etc. You don't want your expensive, long running agent session to be lost in this case
-- We said above we have to give the agent _write access_ and ability to execute arbitrary(?) commands on our computer. How is it not going to do something malicious?
-- What my computer crashed, or just accidentally closed the terminal where the agent was operating - do I have to start from scratch?
+- We said above we have to give the agent _write access_ and ability to execute arbitrary(?) commands on our computer. How do we prevent it from doing something malicious?
+- What if my computer crashed, or just accidentally closed the terminal where the agent was operating - do I have to start from scratch?
 - Can we guarantee that all the parallel running agents together are not exceeding some kind of AI API quota?
 
 ### Golem
 
 Golem is an **agent-native** cloud platform that provides **durable execution**, exactly-once remote calls and many more features. The core entity in Golem is an **agent** - a stateful, potentially long running entity that can process external **invocations**, can spawn and communicate with other Golem agents, access external APIs and databases, and most importantly, can never die.
 
-This what makes Golem (and other durable execution platforms) special - even if the server process crashes, or just need to restart for reasons like rebalancing, updates, etc, the running agents are guaranteed to survive this without any assistance from the programmer. You can store your state in memory, and stop worrying about loosing it for any external reasons.
+This what makes Golem (and other durable execution platforms) special - even if the server process crashes, or just need to restart for reasons like rebalancing, updates, etc, the running agents are guaranteed to survive this without any assistance from the programmer. You can store your state in memory, and stop worrying about losing it for any external reasons.
 
-Another important property of Golem agents is that they are **completely sandboxed**. They are [WASM components](https://component-model.bytecodealliance.org), each having their own linear memory and their own file system. There is no way an agent can interfere with any other agent, only through the trusted agent-to-agent communication channels. There is no way an agent can access any files that is not in its sandboxed file system.
+Another important property of Golem agents is that they are **completely sandboxed**. They are [WASM components](https://component-model.bytecodealliance.org), each having their own linear memory and their own file system. There is no way an agent can interfere with any other agent, only through the trusted agent-to-agent communication channels. There is no way an agent can access any files that are not in its sandboxed file system.
 
 ## Golem as a Coding Agent platform
 
 Let's start thinking about how we could take advantage of Golem's durability and sandboxing properties to implement our own coding agent! 
 
-This is going to be a little unusual way to use Golem. Golem is a cloud platform - we provide our hosted infrastructure you can use, or you can bring up your own infrastructure as it is fully open source. We provide a local, single-executable version of it, which is primarily intended to be use for local development and testing.
+This is going to be a little unusual way to use Golem. Golem is a cloud platform - we provide our hosted infrastructure you can use, or you can bring up your own infrastructure as it is fully open source. We provide a local, single-executable version of it, which is primarily intended to be used for local development and testing.
 
 In this experiment, we are going to fully build on this local Golem build. This will be an important detail when we figure out how to combine the fully sandboxed Golem environment with the need to build and run the developed applications.
 
@@ -42,7 +42,7 @@ In this experiment, we are going to fully build on this local Golem build. This 
 
 In this experimental Golem based coding agent, I'm going to mix in a little the question of managing parallel workspaces as well. The idea we are going to explore is that there is exactly one **read/write coding agent** for a specific repository's specific **branch**. There can be an arbitrary number of **read-only coding agents** on the same branches, with no rights to do any changes. These can be used for exploratory work.
 
-In Golem every _golem agent_ is identified by their constructor parameters. There can be only one instance for a concrete value of these parameters, and invocations and every other command work by using _upsert_ semantics - if the agent identified by your provided constructor parameters (that we call the **agent identity**) does not exist yet, it's going to be transparently created for you. There is extra feature that is going to be very useful for us: **phantom agents**. Phantom agents are "secondary" instances of an agent, distinguished from the primary one with an extra random uuid. This maps perfectly to our plan of representing read/write and read-only coding agents:
+In Golem every _golem agent_ is identified by their constructor parameters. There can be only one instance for a concrete value of these parameters, and invocations and every other command work by using _upsert_ semantics - if the agent identified by your provided constructor parameters (that we call the **agent identity**) does not exist yet, it's going to be transparently created for you. There is an extra feature that is going to be very useful for us: **phantom agents**. Phantom agents are "secondary" instances of an agent, distinguished from the primary one with an extra random uuid. This maps perfectly to our plan of representing read/write and read-only coding agents:
 
 - `CodingAgent(repository, branch)` is the ID of a read/write coding agent
 - `CodingAgent(repository, branch)[uuid]` is the ID of a read-only coding agent
@@ -82,7 +82,7 @@ Let's see a comparison:
 | AI client  | https://github.com/golemcloud/golem-ai   | Several options, such as [@effect/ai](https://effect.website/blog/effect-ai/) |
 | Unix tools | https://crates.io/crates/brush           | https://github.com/shelljs/shelljs                           |
 
-Golem provides an increasing level of Node.js compatibility so many existing libraries can be used as-is. Also, the browser `fetch` API and `node:http` are both working so any library built on top of these will able to call external services from a Golem agent. 
+Golem provides an increasing level of Node.js compatibility so many existing libraries can be used as-is. Also, the browser `fetch` API and `node:http` are both working so any library built on top of these will be able to call external services from a Golem agent. 
 
 Unfortunately the Rust ecosystem makes this much harder. Golem does not provide low-level socket capabilities at the moment, the only way to make HTTP requests is through the [WASI HTTP interface](https://github.com/WebAssembly/WASI/tree/main/proposals/http/). There are [existing Rust crates](https://crates.io/crates/wstd) wrapping this interface but most of the Rust ecosystem is built on other ones such as `reqwest`, which are _not_ working in Golem out of the box. This is why we provide our own set of AI connector libraries ([golem-ai](https://github.com/golemcloud/golem-ai)) for Rust projects. But we also need a git client. So, if we'd choose Rust, we would need to either:
 
@@ -217,7 +217,7 @@ async dump(): Promise<string> {
 }
 ```
 
-The `initRepo` and `buildTree` functions are not very exciting - just effect-ts functions wrapping the git and node:fs modules, and using 
+The `initRepo` and `buildTree` functions are not very exciting - just effect-ts functions wrapping the git and node:fs modules.
 
 We can try it out by calling `dump()` on `CodingAgent("https://github.com/vigoo/test-r.git", "test1")`:
 
@@ -293,7 +293,7 @@ export class Thread {
 }
 ```
 
-Note: in `@effect/ai` the `Chat` object itself remembers the session so there is no need to store it outside for ourselves. We still do it in the `messages` field, but it's not fed back to the chat session. It's just our history that will be easy to tweak and made queryable for our text user interface.
+Note: in `@effect/ai` the `Chat` object itself remembers the session so there is no need to store it outside for ourselves. We still store all messages  in the `messages` field, but it's not fed back to the chat session. It's just our history that will be easy to tweak and made queryable for our text user interface.
 
 In our `CodingAgent` class we add a map of threads, and expose a new agent method:
 
@@ -682,7 +682,7 @@ Trying this out, we can see that the agent is trying to use the new tool, but ru
 [2026-03-29T17:02:49.958Z] [DEBUG   ] [] [Tool:RunPipeline] exitCode=2, stdout=0 chars, truncated=false
 ```
 
-What I did next: asked our coding agent about what he thinks about our `RunPipeline` tool:
+What I did next: asked our coding agent about what it thinks about our `RunPipeline` tool:
 
 ```shell
 golem-ts-repl[gca-agents][local]> testr.sendPrompt("Can you analyse all your RunPipeline tool calls so far, and tell me what did you expect and did not work, etc? I'm a developer of this tool and looking for feedback")
@@ -715,7 +715,7 @@ Let's leave the agents figuring this out and move to our next topic - we can see
 
 ### Read-only mode
 
-In our design we said we want to be able to have multiple **read-only** sessions of the same repository/branch combination. Why have multiple agents for this, instead of just having multiple `Thread`s within the same agent? Because Golem agents are single-threaded and they are not allowing overlapping async invocations. This means that we cannot run two parallel threads within the same agents.
+In our design we said we want to be able to have multiple **read-only** sessions of the same repository/branch combination. Why have multiple agents for this, instead of just having multiple `Thread`s within the same agent? Because Golem agents are single-threaded and they do not allow overlapping async invocations. This means that we cannot run two parallel threads within the same agents.
 
 We already determined that we are going to use the phantom agent feature for this. It's actually not requiring any further work - but we should explicitly disallow making changes in the phantom agents, to make sure the LLMs will not get confused. This means reducing the available tools presented to the AI based on our agent's phantom ID.
 
@@ -871,7 +871,7 @@ bridge:
     agents: "*"
 ```
 
-Next run of `golem build` will generate our client create:
+Next run of `golem build` will generate our client crate:
 
 ```shell
 $ golem build
@@ -1020,7 +1020,7 @@ It can be useful for the agent to observe git history, see its own diffs, etc. W
 
 #### Committing a branch
 
-We have not added any support yet to actually finish a branch and commit and push the changes before the agent get closed. 
+We have not added any support yet to actually finish a branch and commit and push the changes before the agent gets closed. 
 
 #### Automatic tracking of context size and managing threads
 
@@ -1028,7 +1028,7 @@ We could automatically track the context size in the agent for each thread, and 
 
 #### Agents.md / skill support
 
-Supporting `AGENTS.md` and skill files is also straightforward. We can include the contents of all discovered agents files in the system prompt, and we can add new **tools** for skill discovery and loading.
+Supporting `AGENTS.md` and skill files is also straightforward. We can include the contents of all discovered agent files in the system prompt, and we can add new **tools** for skill discovery and loading.
 
 #### Execution rules per repository
 
@@ -1042,7 +1042,7 @@ This is something that is not supported by the current Golem release, but we pla
 
 The host execution feature is convenient and maybe necessary for some projects, but it breaks the sandboxing and basically lets the coding agent to run arbitrary code on our machine. We could evolve this to use virtual machines instead - the concept is the same, we mirror the agent's file-system into the virtual machine, set up the toolchain there and then run the commands the agent is asking for through its tool call. The split would remain the same - all the editing and exploration is done locally in the agent, it only calls out to run something that cannot be done in its sandboxed WASM environment.
 
-With either virtual machines, or live web socket connections, or a combination of both, this can be turned into a real hosted service no longer required to run locally.
+With either virtual machines, or live web socket connections, or a combination of both, this can be turned into a real hosted service that no longer needs to run locally.
 
 #### Seeing the agent's changes
 
@@ -1054,7 +1054,7 @@ We could also evolve our user interface to a text (or graphical) post-IDE agenti
 
 The most important take-away from this experiment is, in my opinion, that writing this whole initial working proof-of-concept implementation took less than a day, and that includes several Golem fixes I had to make (we are in the bug fixing / testing phase for our new release) and includes writing this post.
 
-With Golem providing the durable agent infrastructure, the generated client libraries, configuration system etc, we (and our coding agent writing the actual TypeScript and Rust code) could focus on the important parts of defining our interface, our tools and our user interface. The hard parts are just working out of the box. Our final Golem release will even make this faster, because we are going to include a **skill catalog** for coding agents so they don't have to figure out how to use Golem on their own. I haven't written a single line of code during this experiment.
+With Golem providing the durable agent infrastructure, the generated client libraries, configuration system etc, we (and our coding agent writing the actual TypeScript and Rust code) could focus on the important parts of defining our interface, our tools and our user interface. The hard parts are just working out of the box. Our final Golem release will even make this faster, because we are going to include a **skill catalog** for coding agents so they don't have to figure out how to use Golem on their own. Even without those, I haven had to write a single line of code during this experiment.
 
 I am publishing the code for this [on GitHub](https://github.com/vigoo/gca) but today it's not that easy to try it out - as I said I had to make some Golem fixes to make everything work, and some of those fixes have not even merged to `main` yet. But **Golem 1.5** is going to be released soon, in April, 2026. Within a few weeks you can do the same by just downloading the official Golem binaries!
 
