@@ -3,7 +3,6 @@ title = "Golem as a Coding Agent engine"
 
 [taxonomies]
 tags = ["golem", "durable-execution", "agents", "coding-agents", "ai", "typescript", "rust"]
-
 +++
 
 ## Introduction
@@ -222,7 +221,7 @@ The `initRepo` and `buildTree` functions are not very exciting - just effect-ts 
 
 We can try it out by calling `dump()` on `CodingAgent("https://github.com/vigoo/test-r.git", "test1")`:
 
-```she
+```log
 [2026-03-29T12:42:33.985Z] [INVOKE  ] STARTED  golem:agent/guest@1.5.0.{invoke} (06e40a0f-ccfd-4571-8614-f86ef22787eb)
 [2026-03-29T12:42:33.985Z] [INFO    ] [CodingAgent.dump] Starting dump
 [2026-03-29T12:42:33.986Z] [INFO    ] [initRepo] Cloning repository https://github.com/vigoo/test-r.git into /
@@ -423,6 +422,7 @@ const ReadFile = Tool.make("ReadFile", {
 // ...
 
 export const CodingToolkit = Toolkit.make(ListFiles, ReadFile, WriteFile, ReplaceInFile);
+
 export const CodingToolkitLayer = CodingToolkit.toLayer({
   // ...
   ReadFile: (params) =>
@@ -454,44 +454,44 @@ We inject these tools for our LLM using the `toolkit` parameter:
 
 ```typescript
 const response = yield* this.chat!.generateText({
-        prompt,
-        toolkit: CodingToolkit,
-      });
+    prompt,
+    toolkit: CodingToolkit,
+});
 ```
 
 But this is not enough. When the LLM returns with tool call requests, it is our responsibility to execute the tools and loop:
 
 ```typescript
-      const MAX_STEPS = 15;
-      let currentPrompt: string | readonly any[] = prompt;
+const MAX_STEPS = 15;
+let currentPrompt: string | readonly any[] = prompt;
 
-      for (let step = 0; step < MAX_STEPS; step++) {
-        const response = yield* this.chat!.generateText({
-          prompt: currentPrompt,
-          toolkit: CodingToolkit,
-        });
+for (let step = 0; step < MAX_STEPS; step++) {
+  const response = yield* this.chat!.generateText({
+    prompt: currentPrompt,
+    toolkit: CodingToolkit,
+  });
 
-        if (response.text.length > 0) {
-          this.messages.push({ role: "assistant", content: response.text });
-          return response.text;
-        }
+  if (response.text.length > 0) {
+    this.messages.push({ role: "assistant", content: response.text });
+    return response.text;
+  }
 
-        if (response.toolCalls.length === 0) {
-          this.messages.push({ role: "assistant", content: "" });
-          return "";
-        }
+  if (response.toolCalls.length === 0) {
+    this.messages.push({ role: "assistant", content: "" });
+    return "";
+  }
 
-        const toolResults = response.content.filter(
-          (p) => p.type === "tool-result",
-        );
+  const toolResults = response.content.filter(
+    (p) => p.type === "tool-result",
+  );
 
-        yield* logDebug(
-          `[Thread:${this.id}] Tool calls executed: ${response.toolCalls.map((tc) => tc.name).join(", ")}; looping back to model`,
-        );
-        // History is accumulated by Chat — send empty prompt to let the model
-        // see the tool results and continue.
-        currentPrompt = [];
-      }
+  yield* logDebug(
+    `[Thread:${this.id}] Tool calls executed: ${response.toolCalls.map((tc) => tc.name).join(", ")}; looping back to model`,
+  );
+  // History is accumulated by Chat — send empty prompt to let the model
+  // see the tool results and continue.
+  currentPrompt = [];
+}
 ```
 
 Let's see if we can actually ask our agent to work on our branch now!
@@ -539,32 +539,7 @@ golem-ts-repl[gca-agents][local]> testr.sendPrompt("What dependencies are in the
   '- **quote**: "1"\n' +
   '- **rand**: "0.10"\n' +
   '- **syn**: "2" (with "full" features)\n' +
-  '\n' +
-  '### `test-r-core`\n' +
-  '- **anyhow**: "1" (optional)\n' +
-  '- **anstream**: "0.6"\n' +
-  '- **anstyle**: "1"\n' +
-  '- **anstyle-query**: "1.1.1"\n' +
-  '- **anstyle-wincon**: "3.0.4"\n' +
-  '- **desert_rust**: "0.1.7"\n' +
-  '- **clap**: "4.5" (with "derive" features)\n' +
-  '- **ctrf-rs**: "0.1.0"\n' +
-  '- **escape8259**: "0.5"\n' +
-  '- **futures**: "0.3"\n' +
-  '- **interprocess**: "2.4"\n' +
-  '- **parking_lot**: "0.12" (with "arc_lock", "send_guard" features)\n' +
-  '- **quick-xml**: "0.38"\n' +
-  '- **rand**: "0.10"\n' +
-  '- **serde_json**: "1.0.149"\n' +
-  '- **tokio**: "1" (with "rt-multi-thread", "process", "io-std" features, optional)\n' +
-  '- **topological-sort**: "0.2"\n' +
-  '- **uuid**: "1.21" (with "v4" features)\n' +
-  '\n' +
-  '### `test-r`\n' +
-  '- **test-r-core**: Local path dependency (with default-features = false)\n' +
-  '- **test-r-macro**: Local path dependency\n' +
-  '- **ctor**: "0.4"\n' +
-  '- **tokio**: "1" (with "rt-multi-thread" features, optional)\n' +
+  ...
   '\n' +
   'These packages form the core of the test framework, providing various utilities and functionality for creating and running tests in Rust.'
 ```
@@ -616,22 +591,8 @@ const WebSearch = Tool.make("WebSearch", {
 
 WebSearch: (params) =>
     Effect.gen(function* () {
-      yield* logDebug(
-        `[Tool:WebSearch] query=${params.query}, numResults=${params.numResults}`,
-      );
-      const body: Record<string, unknown> = {
-        query: params.query,
-        numResults: params.numResults ?? 5,
-        type: "auto",
-        contents: {
-          text: { maxCharacters: 3000 },
-        },
-      };
-      if (params.includeDomains) body.includeDomains = params.includeDomains;
-      if (params.excludeDomains) body.excludeDomains = params.excludeDomains;
-      if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate;
-      if (params.category) body.category = params.category;
-
+      // ...
+      
       const res = yield* Effect.tryPromise({
         try: () =>
           fetch("https://api.exa.ai/search", {
@@ -645,33 +606,7 @@ WebSearch: (params) =>
         catch: (e) => ({ message: String(e) }),
       });
 
-      if (!res.ok) {
-        const text = yield* Effect.tryPromise({
-          try: () => res.text(),
-          catch: (e) => ({ message: String(e) }),
-        });
-        return yield* Effect.fail({ message: `Exa API error ${res.status}: ${text}` });
-      }
-
-      const data = yield* Effect.tryPromise({
-        try: () =>
-          res.json() as Promise<{
-            results: Array<{
-              title?: string;
-              url: string;
-              publishedDate?: string;
-              text?: string;
-            }>;
-          }>,
-        catch: (e) => ({ message: String(e) }),
-      });
-
-      const result = data.results
-        .map(
-          (r) =>
-            `### ${r.title ?? "(no title)"}\nURL: ${r.url}${r.publishedDate ? `\nPublished: ${r.publishedDate}` : ""}${r.text ? `\n\n${r.text}` : ""}`,
-        )
-        .join("\n\n---\n\n");
+      // ...
 
       yield* logDebug(
         `[Tool:WebSearch] returned ${result.length} chars`,
@@ -686,7 +621,7 @@ Note: the official `exa-js` package had some trouble on Golem (to be investigate
 
 Let's see if the agent uses the new tool:
 
-```shell
+```log
 [2026-03-29T15:53:26.861Z] [INFO    ] [] [Thread:f7550e6c-d8d0-46aa-ac1a-1b1771d814b3] Sending prompt: Does any of the dependencies of this project (based on any Cargo.toml in the repo) have a newer vers...
 ...
 [2026-03-29T15:53:38.483Z] [DEBUG   ] [] [Tool:WebSearch] query=darling latest version, numResults=1
@@ -742,7 +677,7 @@ The implementation itself is not that interesting to show here in details, so le
 
 Trying this out, we can see that the agent is trying to use the new tool, but runs into lot of failures, for example:
 
-```shell
+```log
 [2026-03-29T17:02:49.957Z] [DEBUG   ] [] [Tool:RunPipeline] command=find / -type f | grep -v '^/proc' | grep -v '^/sys' | grep -v '^/dev' | grep -v '^/node_modules' | grep -v '^/target' | grep -E '\.(rs|toml|md|lock)$' | xargs grep -Rni "desert[-_]rust\|desert_rust\|desert rust", cwd=/
 [2026-03-29T17:02:49.958Z] [DEBUG   ] [] [Tool:RunPipeline] exitCode=2, stdout=0 chars, truncated=false
 ```
@@ -1040,6 +975,33 @@ We can easily start a HTTP server in our Rust application providing endpoints fo
 
 Let's see what we need to do in our Golem agent to make use of it!
 
+We extend our agent configuration with a new field, which is **not** a secret:
+
+```typescript
+type CodingAgentConfig = {
+  openaiApiKey: Secret<string>;
+  exaApiKey: Secret<string>;
+  hostHttpPort: number;
+};
+```
+
+By having a non-secret configuration, we get a new `_with_config` variant of the client constructor in our generated bridge SDK, where we can specify values for the non-secret fields:
+
+```rust
+let client = if cli.readonly {
+    CodingAgent::new_phantom_with_config(repo.clone(), branch.clone(), host_http_port).await?
+} else {
+    CodingAgent::get_with_config(repo.clone(), branch.clone(), host_http_port).await?
+};
+```
+
+With the port known in the agent, wiring the HTTP endpoints as tools is straightforward.
+
+#### Final demo
+
+Let's see how our final version works. We are going to open a rust repository, update a dependency and verify it compiles in one thread, and ask some questions in another thread:
+<div id="tui-demo3"></div>
+
 ## Final words
 
 ### Durability
@@ -1092,13 +1054,14 @@ We could also evolve our user interface to a text (or graphical) post-IDE agenti
 
 The most important take-away from this experiment is, in my opinion, that writing this whole initial working proof-of-concept implementation took less than a day, and that includes several Golem fixes I had to make (we are in the bug fixing / testing phase for our new release) and includes writing this post.
 
-With Golem providing the durable agent infrastructure, the generated client libraries, configuration system etc, we (and our coding agent writing the actual TypeScript and Rust code) could focus on the important parts of defining our interface, our tools and our user interface. The hard parts are just working out of the box. Our final Golem release will even make this faster, because we are going to include a **skill catalog** for coding agents so they don't have to figure out how to use Golem on their own.
+With Golem providing the durable agent infrastructure, the generated client libraries, configuration system etc, we (and our coding agent writing the actual TypeScript and Rust code) could focus on the important parts of defining our interface, our tools and our user interface. The hard parts are just working out of the box. Our final Golem release will even make this faster, because we are going to include a **skill catalog** for coding agents so they don't have to figure out how to use Golem on their own. I haven't written a single line of code during this experiment.
 
 I am publishing the code for this [on GitHub](https://github.com/vigoo/gca) but today it's not that easy to try it out - as I said I had to make some Golem fixes to make everything work, and some of those fixes have not even merged to `main` yet. But **Golem 1.5** is going to be released soon, in April, 2026. Within a few weeks you can do the same by just downloading the official Golem binaries!
 
-
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
+
 <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
 <script>AsciinemaPlayer.create('/images/tui1.cast', document.getElementById('tui-demo1'), { theme: 'monokai', fit: 'width' });</script>
 <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
 <script>AsciinemaPlayer.create('/images/tui2.cast', document.getElementById('tui-demo2'), { theme: 'monokai', fit: 'width' });</script>
+<script>AsciinemaPlayer.create('/images/tui3.cast', document.getElementById('tui-demo3'), { theme: 'monokai', fit: 'width' });</script>
