@@ -267,3 +267,44 @@ code {
     font-style: italic;
     font-size: medium;
 }
+
+.code-tabs {
+    margin: 1rem 0;
+
+    .code-tabs-nav {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid #e0e0e0;
+    }
+
+    .code-tab-btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-family: $iosevka;
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #666;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: color 0.2s, border-color 0.2s;
+
+        &:hover {
+            color: $main-link-color;
+        }
+
+        &.active {
+            color: $main-link-color;
+            border-bottom-color: $main-link-color;
+        }
+    }
+
+    .code-tab-content {
+        display: none;
+
+        &.active {
+            display: block;
+        }
+    }
+}
