@@ -1,0 +1,651 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Agent patterns in Golem</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem-agent-patterns&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Agent patterns in Golem</h1>
+            
+            <p class="posted-on">Posted on December 19, 2025</p>
+        </header>
+
+        <p><a rel="external" href="https://golem.cloud">Golem</a> is an <em>agent-native</em> platform that provides high level of fault-tolerance and exactly-once (or in some cases, at-least once) semantics automatically without requiring to write any code for persisting and recovering state. We wrote several blog posts, demos and live coding sessions showing how this looks like. Yesterday I've <a rel="external" href="https://blog.vigoo.dev/posts/rust-agents-golem14/">posted about writing a Golem application in Rust</a>, and a week before John de Goes had a really nice <a rel="external" href="https://www.youtube.com/live/ovVn_fNIyJU">live coding session showing writing a NoSQL database using Golem in Type Script</a>.</p>
+<p>In all these examples we are defining one or more <strong>agents</strong> that interact with each other - it's the fundamental building block of a Golem application. But what are these agents? How should we structure our application, what are some common patterns?</p>
+<p>I'm trying to answer some of these questions in this article.</p>
+<h2 id="agents-as-workflows">Agents as workflows</h2>
+<p>When we first released Golem, we said you can run any application (with some restrictions, of course) on it without having to rewrite it to use anything Golem specific. With the new, agent centric approach this might seem to be no longer true - but to some extent it still is. The simplest way to map an application to agents is that every unique run of the program is an agent - we can create such a unique instance of our program, and run it - and it's going to do some <em>side-effects</em> such as calling remote HTTP endpoints or databases.</p>
+<p>In this setup the agent's identity is a unique identifier - for example a UUID, and the agent exposes a single callable entry point, similar how a traditional program's exposes it's single entry point in the form of a <code>main</code> function. Let's see how an agent like this looks like in Golem, using TypeScript:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">import</span><span> {</span><span style="color: #E45649;"> BaseAgent</span><span>,</span><span style="color: #E45649;"> agent</span><span>,}</span><span style="color: #A626A4;"> from</span><span style="color: #50A14F;"> &#39;@golemcloud/golem-ts-sdk&#39;</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">import</span><span> { validate as</span><span style="color: #E45649;"> uuidValidate</span><span> }</span><span style="color: #A626A4;"> from</span><span style="color: #50A14F;"> &#39;uuid&#39;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> BlackboxWorkflow</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> id</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        if</span><span> (</span><span style="color: #0184BC;">!</span><span style="color: #4078F2;">uuidValidate</span><span>(id)) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">            throw new</span><span style="color: #4078F2;"> Error</span><span>(</span><span style="color: #50A14F;">`Invalid id, must be a UUID: </span><span style="color: #CA1243;">${</span><span>id</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">`</span><span>);</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">id</span><span style="color: #0184BC;"> =</span><span> id;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // Potentially long running workflow doing a series of steps</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>run</code> function can do a a series of steps - call <code>fetch</code> multiple times, sleep, use third party libraries to connect to external systems, and so on, without having any Golem specific detail in it. Even an agent like this is completely <strong>durable</strong> in Golem. For example, if it's execution gets interrupted by a scaling event the running agent can be "moved" (interrupted in one node, and restored in another) to another node and it can continue executing without any noticable effect, except for some latency.</p>
+<h3 id="observing-a-workflow-s-state">Observing a workflow's state</h3>
+<p>The above example is a <strong>black box</strong> - once you started a workflow like this, by creating the agent and invoking it's <code>run</code> method, you cannot really observe the workflow's inner state. You can observe its side effects - it may call external systems, write logs, etc, but there is no real way to query or control what's happening until <code>run</code> finishes.</p>
+<p>The primary reason for this is that Golem agents are <strong>single-threaded</strong> and <strong>invocations cannot overlap</strong>. Although <code>run</code> can contain overlapping asynchronous network calls, for example, even if we would export more methods than just <code>run</code> from our agent, we would not be able to call them <em>during</em> <code>run</code> is executing. The other calls would end up in a message queue, waiting to be processed one by one.</p>
+<p>One very important property of <strong>agents</strong> is that an agent can <strong>call</strong> another agent; this call can be synchronous (the caller awaits a response) or just a trigger (the caller puts an invocation request in the other agent's message queue). Both of these are persistent and by that, Golem can guarantee <strong>exactly-once semantics</strong>. If the code to call an agent from another agent runs, you can be sure that is going to happen, and only once, no matter what happens to the execution environment.</p>
+<p>We can use this feature to introduce simple observability to a long-running workflow like the one we defined above by defining a second agent representing the running workflow's state:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> State</span><span style="color: #0184BC;"> =</span><span> {</span></span>
+<span class="giallo-l"><span>    tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;not-started&quot;</span></span>
+<span class="giallo-l"><span>    id</span><span style="color: #0184BC;">: string</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #0184BC;"> |</span><span> {</span></span>
+<span class="giallo-l"><span>    tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;in-progress&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>    id</span><span style="color: #0184BC;">: string</span><span>,</span></span>
+<span class="giallo-l"><span>    currentStep</span><span style="color: #0184BC;">: string</span><span>,</span></span>
+<span class="giallo-l"><span>    startedAt</span><span style="color: #0184BC;">: string</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #0184BC;"> |</span><span> {</span></span>
+<span class="giallo-l"><span>    tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;completed&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>    id</span><span style="color: #0184BC;">: string</span><span>,</span></span>
+<span class="giallo-l"><span>    startedAt</span><span style="color: #0184BC;">?: string</span><span>,</span></span>
+<span class="giallo-l"><span>    finishedAt</span><span style="color: #0184BC;">: string</span><span>,</span></span>
+<span class="giallo-l"><span>    results</span><span style="color: #0184BC;">: number</span><span>[]</span><span style="color: #A0A1A7;font-style: italic;"> // some domain-specific result</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> WorkflowState</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private</span><span> state</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> State</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">state</span><span style="color: #0184BC;"> =</span><span> {</span><span style="color: #E45649;">tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;not-started&quot;</span><span>, id};</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    get</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> State</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      return</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">state</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    update</span><span>(currentStep</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        if</span><span> (</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">tag</span><span style="color: #0184BC;"> ===</span><span style="color: #50A14F;"> &quot;not-started&quot;</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">            this</span><span>.</span><span style="color: #E45649;">state</span><span style="color: #0184BC;"> =</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">              tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;in-progress&quot;</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">              id</span><span style="color: #0184BC;">:</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">id</span><span>, currentStep, </span></span>
+<span class="giallo-l"><span style="color: #E45649;">              startedAt</span><span style="color: #0184BC;">:</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> Date</span><span>().</span><span style="color: #4078F2;">toISOString</span><span>()</span></span>
+<span class="giallo-l"><span>            };</span></span>
+<span class="giallo-l"><span>        }</span><span style="color: #A626A4;"> else if</span><span> (</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">tag</span><span style="color: #0184BC;"> ===</span><span style="color: #50A14F;"> &quot;in-progress&quot;</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">            this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">currentStep</span><span style="color: #0184BC;"> =</span><span> currentStep;</span></span>
+<span class="giallo-l"><span>        }</span><span style="color: #A626A4;"> else if</span><span> (</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">tag</span><span style="color: #0184BC;"> ==</span><span style="color: #50A14F;"> &quot;completed&quot;</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">            throw new</span><span style="color: #4078F2;"> Error</span><span>(</span><span style="color: #50A14F;">&quot;Cannot update completed workflow state&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    finished</span><span>(results</span><span style="color: #0184BC;">: number</span><span>[]) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        if</span><span> (</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">tag</span><span style="color: #0184BC;"> ==</span><span style="color: #50A14F;"> &quot;completed&quot;</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">            throw new</span><span style="color: #4078F2;"> Error</span><span>(</span><span style="color: #50A14F;">&quot;Cannot finish completed workflow state&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>        }</span><span style="color: #A626A4;"> else</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">            this</span><span>.</span><span style="color: #E45649;">state</span><span style="color: #0184BC;"> =</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">                tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;completed&quot;</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">                id</span><span style="color: #0184BC;">:</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">id</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">                startedAt</span><span style="color: #0184BC;">:</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">tag</span><span style="color: #0184BC;"> ===</span><span style="color: #50A14F;"> &quot;in-progress&quot;</span><span> </span></span>
+<span class="giallo-l"><span style="color: #0184BC;">              		?</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">state</span><span>.</span><span style="color: #E45649;">startedAt</span><span style="color: #0184BC;"> :</span><span style="color: #986801;"> undefined</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">                finishedAt</span><span style="color: #0184BC;">:</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> Date</span><span>().</span><span style="color: #4078F2;">toISOString</span><span>(),</span></span>
+<span class="giallo-l"><span>                results</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>With this, we can modify our black box agent's <code>run</code> method to report progress and completion to this other agent:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>async</span><span style="color: #4078F2;"> run</span><span>(): </span><span style="color: #C18401;">Promise</span><span style="color: #0184BC;">&lt;void&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    const state</span><span style="color: #0184BC;"> =</span><span> WorkflowState.</span><span style="color: #4078F2;">get</span><span>(</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">id</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">   	// ...</span></span>
+<span class="giallo-l"><span>    state.update.trigger(</span><span style="color: #50A14F;">&quot;step 1&quot;</span><span style="color: #E45649;">);</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    state.update.trigger(</span><span style="color: #50A14F;">&quot;step 2&quot;</span><span style="color: #E45649;">);</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    state.finished.trigger([1, 2, 3]);</span></span>
+<span class="giallo-l"><span style="color: #E45649;">}</span></span></code></pre>
+<p>The <code>trigger</code> in the agent calls means we don't want to block on these calls - we just trigger the update on the other agent, so it's very fast.</p>
+<p>Our <code>WorkflowState</code> agent is very different from our first one, as it is reactive. Its methods are not long running, they are just updating the agent's inner state. We can call <code>get</code> any time on it while the workflow is running, these <code>get</code> calls are going to be interleaved between the status update calls.</p>
+<h3 id="multi-step-workflows">Multi-step workflows</h3>
+<p>As we've seen on <code>WorkflowState</code> agents can export <strong>multiple methods</strong>. This suggests that instead of writing a workflow like in the first example - a single method performing all the steps sequentially, we could also expose these steps as agent methods.</p>
+<p>This is not always what we want, and it has pros and cons:</p>
+<ul>
+<li>We may already have our code structured like this - extracting sub-steps into functions. Exposing them as agent methods is just a matter of making them public methods on the agent class</li>
+<li>However once we do that, we no longer have a single entry point for our workflow. We need something that orchestrates the workflow execution! This can be both an advantage and a disadvantage:
+<ul>
+<li>The external orchestrator may customize the execution flow by deciding which steps to call, etc</li>
+<li>But we need to write this orchestrator (potentially an another agent) that complicates our architecture</li>
+</ul>
+</li>
+</ul>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> InnerWorkflow</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> id</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private</span><span> value</span><span style="color: #0184BC;">: number =</span><span style="color: #986801;"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">id</span><span style="color: #0184BC;"> =</span><span> id;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> step1</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // ..</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> step2</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // ..</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> step3</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // ..</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> OuterWorkflow</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> id</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private</span><span> value</span><span style="color: #0184BC;">: number =</span><span style="color: #986801;"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">id</span><span style="color: #0184BC;"> =</span><span> id;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> inner</span><span style="color: #0184BC;">  =</span><span> InnerWorkflow.</span><span style="color: #4078F2;">get</span><span>(</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">id</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        await</span><span> inner.</span><span style="color: #4078F2;">step1</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        await</span><span> inner.</span><span style="color: #4078F2;">step2</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        await</span><span> inner.</span><span style="color: #4078F2;">step3</span><span>();</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can introduce these hierarchies of agents in as many layers as we want, but the reason why would want to do so is controlling <strong>concurrency</strong>.</p>
+<h3 id="concurrency">Concurrency</h3>
+<p>Even though agent methods can be <code>async</code> and do some operations in parallel - HTTP requests, remote agent calls and so on - agents are single threaded and their exported methods cannot overlap.</p>
+<p>We can implement fully parallel execution with two techniques:</p>
+<ul>
+<li>Spawning child agents</li>
+<li>Forking agents</li>
+</ul>
+<p>We have already seen a simple example of spawning child agents to achieve concurrency when we created a <code>WorkflowState</code> agent as a child of our <code>Workflow</code> agent.</p>
+<p>In general the pattern looks like the following:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> ConcurrentAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> id</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">id</span><span style="color: #0184BC;"> =</span><span> id;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> inputs</span><span style="color: #0184BC;"> =</span><span> [</span><span style="color: #50A14F;">&quot;a&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;b&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;c&quot;</span><span>];</span><span style="color: #A0A1A7;font-style: italic;"> // example chunks we want to process in parallel</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> stepPromises</span><span style="color: #0184BC;"> =</span><span> inputs.</span><span style="color: #4078F2;">map</span><span>((input, idx)</span><span style="color: #A626A4;"> =&gt;</span></span>
+<span class="giallo-l"><span>            Substep.</span><span style="color: #4078F2;">get</span><span>(</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">id</span><span>, idx).</span><span style="color: #4078F2;">run</span><span>(input));</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> results</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span style="color: #C18401;"> Promise</span><span>.</span><span style="color: #4078F2;">all</span><span>(stepPromises);</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // ...</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> Substep</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> id</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> substepId</span><span style="color: #0184BC;">: number</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>, substepId</span><span style="color: #0184BC;">: number</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">id</span><span style="color: #0184BC;"> =</span><span> id;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">substepId</span><span style="color: #0184BC;"> =</span><span> substepId;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>(input</span><span style="color: #0184BC;">: string</span><span>)</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;string&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // Some operation on input producing an output</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        return</span><span> input;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This example takes every element of <code>inputs</code> and spawns a separate <strong>child agent</strong> to process that chunk. The <code>Substep</code> agent is responsible for performing work on one chunk - its <em>identity</em> is no longer just the main workflow's ID, but it also contains an index. This can be useful if this number (<code>substepId</code> in the example) holds some important meaning in our problem domain (imagine it's not just an index, but a domain-specific identifier of the chunk of data it works on).</p>
+<p>In case the identity of the substeps does not matter, just that we get a separate instance for each substep that can run in parallel, we can use the <strong>phantom agent</strong> feature of Golem to make it even simpler:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> PhantomSubstep</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>(input</span><span style="color: #0184BC;">: string</span><span>)</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;string&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">      // ...</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> stepPromises</span><span style="color: #0184BC;"> =</span><span> inputs.</span><span style="color: #4078F2;">map</span><span>(input</span><span style="color: #A626A4;"> =&gt;</span><span> PhantomSubstep.</span><span style="color: #4078F2;">newPhantom</span><span>().</span><span style="color: #4078F2;">run</span><span>(input));</span></span></code></pre>
+<p><code>newPhantom</code> always creates a new instance of the agent, even if there is no user-defined unique identity to distinguish them.</p>
+<h4 id="results">Results</h4>
+<p>The above example was <strong>awaiting all results</strong> before moving forward. This is just one of the possibilities. When using <code>Promise.all</code> to await all the agent invocations, we were using the divide and conquer strategy to delegate work to other agents running in parallel, to speed up execution. We need all the results to move forward to the next step (or completion) of our main agent.</p>
+<p>It's also possible do a <strong>race</strong> instead - we wait for the first child agent to complete, and use its results, ignoring the others. This is problematic in Golem 1.4 though, because <code>Promise.race</code> does not cancel the losing promises, and Golem's current JS runtime <strong>ensures that all promises complete</strong> before an invocation stops. So even though we would get the winner promise as soon as possible, our method would only return when every other sub-agents finished as well. This is a temporary limitation and future Golem TypeScript SDK versions will provide a way to pass an <a rel="external" href="https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal"><code>AbortSignal</code></a> to the invocations.</p>
+<p>Until then, let's see how racing looks like in a Rust agent!</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[agent_definition]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub trait</span><span style="color: #C18401;"> RustRaceSubAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> new</span><span>() -&gt;</span><span style="color: #E45649;"> Self</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> run</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>,</span><span style="color: #E45649;"> millis</span><span>:</span><span style="color: #C18401;"> u64</span><span>) -&gt;</span><span style="color: #0184BC;"> String</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> RustRaceSubAgentImpl</span><span> {}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_implementation]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span style="color: #0184BC;"> RustRaceSubAgent</span><span style="color: #A626A4;"> for</span><span style="color: #0184BC;"> RustRaceSubAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> new</span><span>() -&gt;</span><span style="color: #E45649;"> Self</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        Self</span><span> {}</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> run</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>,</span><span style="color: #E45649;"> millis</span><span>:</span><span style="color: #C18401;"> u64</span><span>) -&gt;</span><span style="color: #0184BC;"> String</span><span> {</span></span>
+<span class="giallo-l"><span>        std::thread::</span><span style="color: #4078F2;">sleep</span><span>(std::time::Duration::</span><span style="color: #4078F2;">from_millis</span><span>(</span><span style="color: #E45649;">millis</span><span>));</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">        format!</span><span>(</span><span style="color: #50A14F;">&quot;slept {} millis&quot;</span><span>,</span><span style="color: #E45649;"> millis</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_definition]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub trait</span><span style="color: #C18401;"> RustRaceAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> new</span><span>(</span><span style="color: #E45649;">name</span><span>:</span><span style="color: #0184BC;"> String</span><span>) -&gt;</span><span style="color: #E45649;"> Self</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async fn</span><span style="color: #4078F2;"> run</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>);</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> RustRaceAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    _name</span><span>:</span><span style="color: #0184BC;"> String</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_implementation]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span style="color: #0184BC;"> RustRaceAgent</span><span style="color: #A626A4;"> for</span><span style="color: #0184BC;"> RustRaceAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> new</span><span>(</span><span style="color: #E45649;">name</span><span>:</span><span style="color: #0184BC;"> String</span><span>) -&gt;</span><span style="color: #E45649;"> Self</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        Self</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">            _name</span><span>:</span><span style="color: #E45649;"> name</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async fn</span><span style="color: #4078F2;"> run</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let mut</span><span style="color: #E45649;"> a</span><span> =</span><span style="color: #0184BC;"> RustRaceSubAgentClient</span><span>::</span><span style="color: #4078F2;">new_phantom</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let mut</span><span style="color: #E45649;"> b</span><span> =</span><span style="color: #0184BC;"> RustRaceSubAgentClient</span><span>::</span><span style="color: #4078F2;">new_phantom</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let mut</span><span style="color: #E45649;"> c</span><span> =</span><span style="color: #0184BC;"> RustRaceSubAgentClient</span><span>::</span><span style="color: #4078F2;">new_phantom</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span style="color: #E45649;"> f1</span><span> =</span><span style="color: #E45649;"> a</span><span>.</span><span style="color: #4078F2;">run</span><span>(</span><span style="color: #986801;">1000</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span style="color: #E45649;"> f2</span><span> =</span><span style="color: #E45649;"> b</span><span>.</span><span style="color: #4078F2;">run</span><span>(</span><span style="color: #986801;">2000</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span style="color: #E45649;"> f3</span><span> =</span><span style="color: #E45649;"> c</span><span>.</span><span style="color: #4078F2;">run</span><span>(</span><span style="color: #986801;">10000</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span style="color: #E45649;"> result</span><span> = (</span><span style="color: #E45649;">f1</span><span>,</span><span style="color: #E45649;"> f2</span><span>,</span><span style="color: #E45649;"> f3</span><span>).</span><span style="color: #4078F2;">race</span><span>().</span><span style="color: #A626A4;">await</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">        println!</span><span>(</span><span style="color: #50A14F;">&quot;{result}&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This works as expected - the main agent finishes in 1 second.</p>
+<p>What can we do in TypeScript until invocations became abortable? There is a workaround - we can use <strong>Golem Promises</strong> to signal completion, instead of blocking asynchronous method invocations.</p>
+<h4 id="golem-promises">Golem Promises</h4>
+<p>A <strong>Golem Promise</strong> is a cluster-level entity that can be <strong>completed</strong> either from an agent, or even from the outside. Completing it from the outside is our basic building block for introducing <strong>human-in-the-loop</strong> for agentic workflows.</p>
+<p>Let's see how we can use promises as a workaround for the race issue in TypeScript!</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">import</span><span> {</span><span style="color: #E45649;">awaitPromise</span><span>,</span><span style="color: #E45649;"> completePromise</span><span>,</span><span style="color: #E45649;"> createPromise</span><span>,</span><span style="color: #E45649;"> PromiseId</span><span>}</span><span style="color: #A626A4;"> from</span><span style="color: #50A14F;"> &#39;@golemcloud/golem-ts-sdk&#39;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> RaceAgentWithPromise</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> id</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(id</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">id</span><span style="color: #0184BC;"> =</span><span> id;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> promise</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> createPromise</span><span>();</span></span>
+<span class="giallo-l"><span>        RaceSubstepWithPromise.</span><span style="color: #4078F2;">newPhantom</span><span>(promise).</span><span style="color: #E45649;">run</span><span>.</span><span style="color: #4078F2;">trigger</span><span>(</span><span style="color: #986801;">1000</span><span>);</span></span>
+<span class="giallo-l"><span>        RaceSubstepWithPromise.</span><span style="color: #4078F2;">newPhantom</span><span>(promise).</span><span style="color: #E45649;">run</span><span>.</span><span style="color: #4078F2;">trigger</span><span>(</span><span style="color: #986801;">2000</span><span>);</span></span>
+<span class="giallo-l"><span>        RaceSubstepWithPromise.</span><span style="color: #4078F2;">newPhantom</span><span>(promise).</span><span style="color: #E45649;">run</span><span>.</span><span style="color: #4078F2;">trigger</span><span>(</span><span style="color: #986801;">10000</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> result</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span style="color: #4078F2;"> awaitPromise</span><span>(promise);</span></span>
+<span class="giallo-l"><span>        console.</span><span style="color: #4078F2;">log</span><span>(</span><span style="color: #A626A4;">new</span><span style="color: #4078F2;"> TextDecoder</span><span>().</span><span style="color: #4078F2;">decode</span><span>(result));</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> RaceSubstepWithPromise</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> promiseId</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> PromiseId</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(promiseId</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> PromiseId</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">promiseId</span><span style="color: #0184BC;"> =</span><span> promiseId;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> run</span><span>(millis</span><span style="color: #0184BC;">: number</span><span>)</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> sleep</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;string&gt;</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> new</span><span style="color: #C18401;"> Promise</span><span>(resolve</span><span style="color: #A626A4;"> =&gt;</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">            setTimeout</span><span>(()</span><span style="color: #A626A4;"> =&gt;</span><span style="color: #4078F2;"> resolve</span><span>(</span><span style="color: #50A14F;">`Slept </span><span style="color: #CA1243;">${</span><span>millis</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">`</span><span>), millis)</span></span>
+<span class="giallo-l"><span>        );</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> result</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span> sleep;</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">        completePromise</span><span>(</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">promiseId</span><span>,</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> TextEncoder</span><span>().</span><span style="color: #4078F2;">encode</span><span>(result));</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Instead of returning the result as a return value from our method, we are completing a <strong>Golem promise</strong> with it. This way we don't need await the invocation itself on the caller side, instead we await the promise - and the first sub-agent that completes it will unblock that await.</p>
+<h4 id="forking">Forking</h4>
+<p>Forking is another way to do work in parallel from Golem agents. It is a special way to spawn a new agent - instead of explicitly creating a new agent with an initial state, <code>fork()</code> creates a <strong>copy</strong> of the agent it is called in, and both agents continue running from the fork point. The new copy inherits the state of the original agent, including all the values of all the variables etc. The only distinction between the two copies is the <strong>return value</strong> of <code>fork()</code> - it can be used to decide what to do next.</p>
+<p><strong>Golem promises</strong> are an important part of working with forking, as in this case there is no invoked method to return values from.</p>
+<p>Forking can be a convenient way to parallize some work in cases where the context necessary for the child agent is big and would be hard to pass down as parameters.</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>async</span><span style="color: #4078F2;"> run</span><span>(): </span><span style="color: #C18401;">Promise</span><span style="color: #0184BC;">&lt;void&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    const inputs</span><span style="color: #0184BC;"> =</span><span> [</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">        &quot;a&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;b&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;c&quot;</span></span>
+<span class="giallo-l"><span>    ];</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    const promises</span><span style="color: #0184BC;"> =</span><span> [];</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    for</span><span> (const input of inputs) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> promise</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> createPromise</span><span>();</span></span>
+<span class="giallo-l"><span>        promises.</span><span style="color: #4078F2;">push</span><span>(</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #4078F2;">processInput</span><span>(promise, input));</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        if</span><span> (</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">forked</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">            break</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">		if</span><span> (!this.forked) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      const</span><span style="color: #986801;"> results</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span style="color: #C18401;"> Promise</span><span>.</span><span style="color: #4078F2;">all</span><span>(promises);</span></span>
+<span class="giallo-l"><span>      console.</span><span style="color: #4078F2;">log</span><span>(results);</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>async</span><span style="color: #4078F2;"> processInput</span><span>(promise: PromiseId, input: string): </span><span style="color: #C18401;">Promise</span><span style="color: #0184BC;">&lt;</span><span>string</span><span style="color: #0184BC;">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    switch</span><span> (fork().tag) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span style="color: #50A14F;"> &quot;original&quot;</span><span>: {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">            // awaiting the promise in the original copy</span></span>
+<span class="giallo-l"><span>            const bytes</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span style="color: #4078F2;"> awaitPromise</span><span>(promise);</span></span>
+<span class="giallo-l"><span>            return new </span><span style="color: #4078F2;">TextDecoder</span><span>().</span><span style="color: #4078F2;">decode</span><span>(bytes);</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span style="color: #50A14F;"> &quot;forked&quot;</span><span>: {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">            // do the actual work in the forked copy</span></span>
+<span class="giallo-l"><span>            const processed</span><span style="color: #0184BC;"> =</span><span> input</span><span style="color: #0184BC;"> +</span><span style="color: #50A14F;"> &quot;!&quot;</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">            completePromise</span><span>(promise, new TextEncoder().</span><span style="color: #4078F2;">encode</span><span>(processed));</span></span>
+<span class="giallo-l"><span>	          this.forked</span><span style="color: #0184BC;"> =</span><span style="color: #986801;"> true</span><span>;</span></span>
+<span class="giallo-l"><span>            return processed;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Note that we need to remember that we got into a forked copy to avoid forking again from the fork - as all copies are (almost) identical. This makes things easy as the forked copy has the same state as the original at the fork point, but also makes things hard by having to remember to not get back to the same code path in both instances.</p>
+<h2 id="agents-as-domain-entities">Agents as domain entities</h2>
+<p>So far we represented workflows and their subtasks as agents. We can also <strong>model our domain using agents</strong>!</p>
+<p><strong>Domain-driven design</strong> as an approach is with us since more than 20 years, and many books and articles discuss how to model our application based on the domains its applied to. The entities identified can be directly mapped to Golem agents and the interaction between these entities can be done with our <strong>agent-to-agent</strong> communication.</p>
+<p>It is important that agents are <strong>durable</strong> by default, which can significantly simplify the implementation of these entities, so we end up with something that closely maps to our domain model.</p>
+<p>To demonstrate this, consider a simple e-commerce example where we identify three entities: <strong>Customer</strong>, <strong>Order</strong> and <strong>OrderItem</strong>. Customers and orders are top-level entities directly accessible by their unique identifier: the customer e-mail address and the order ID. Each order is associated with a customer, and can have one or more items.</p>
+<p>We said that both Customer and Order are top-level entities with unique identifiers. This maps directly to Golem agents:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> OrderId</span><span style="color: #0184BC;"> = string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> Customer</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> email</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(email</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">email</span><span style="color: #0184BC;"> =</span><span> email;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> Order</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> orderId</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(orderId</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">orderId</span><span style="color: #0184BC;"> =</span><span> orderId;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can refer to a customer directly by its domain-specific unique identifier, for example in Golem REPL:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="plain"><span class="giallo-l"><span>&gt;&gt;&gt; let vigoo = customer(&quot;vigoo@email.address&quot;)</span></span></code></pre>
+<p>The third entity, an item associated with an Order is important from a data modelling perspective but probably not something we would  map to an individual Golem agent. It is small enough that we can just model it as a record type and associate the list of items directly with our Order by just adding a new field to it:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> OrderItem</span><span style="color: #0184BC;"> =</span><span> {</span></span>
+<span class="giallo-l"><span>    productId</span><span style="color: #0184BC;">: string</span><span>,</span></span>
+<span class="giallo-l"><span>    quantity</span><span style="color: #0184BC;">: number</span><span>,</span></span>
+<span class="giallo-l"><span>    price</span><span style="color: #0184BC;">: number</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> Order</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> orderId</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> items</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderItem</span><span>[];</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span></code></pre>
+<p>Operations on these entities are going to be <strong>agent methods</strong>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #4078F2;">add</span><span>(item: OrderItem) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    this</span><span>.</span><span style="color: #E45649;">items</span><span>.</span><span style="color: #4078F2;">push</span><span>(item)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">getItems</span><span>(): OrderItem[] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    return</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">items</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The agents can simply call each other when needed using <strong>agent-to-agent calls</strong>. For example, assuming we also added a way to attach the customer's email address to an order, we could have a method in <code>Customer</code> like the following:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>async</span><span style="color: #4078F2;"> newOrder</span><span>(): </span><span style="color: #C18401;">Promise</span><span style="color: #0184BC;">&lt;</span><span>OrderId</span><span style="color: #0184BC;">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    const newId</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> uuidv4</span><span>();</span></span>
+<span class="giallo-l"><span>    const order</span><span style="color: #0184BC;"> =</span><span> Order.</span><span style="color: #4078F2;">get</span><span>(newId);</span></span>
+<span class="giallo-l"><span>    await order.setCustomer(this.email);</span></span>
+<span class="giallo-l"><span>    return newId;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The facts that agents are <strong>durable</strong> and that calls between agents are guaranteed to be <strong>exactly-once</strong> make these trivial implementations very powerful.</p>
+<h2 id="patterns">Patterns</h2>
+<p>We can identify some useful patterns that can help a lot in developing agent based applications on Golem. As people will write more and more applications on this platform, we are going to identify more of these patterns.</p>
+<h3 id="cluster-level-singletons">Cluster level singletons</h3>
+<p>The first pattern we discuss is <strong>cluster level singletons</strong>. A cluster level singleton agent has exactly one instance in the whole application. In Golem an agent's identity is its constructor parameters - so if our agent does not have any constructor parameter, it can only have a single instance, and any other agent or external call referring to it will refer to the same instance.</p>
+<p>As an example, let's assume that our <code>OrderId</code> type from the previous section is not a UUID but need to be a unique, sequential number. It's quite easy to achieve this of course if we have some kind of database in our application. But in Golem we don't need a third party database for this - we can just create a singleton agent responsible for generating new unique order IDs:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> OrderId</span><span style="color: #0184BC;"> = number</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> OrderIds</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private</span><span> next</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span style="color: #0184BC;"> =</span><span style="color: #986801;"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>();</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    nextId</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        return</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">next</span><span style="color: #0184BC;">++</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> Customer</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> newOrder</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> newId</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span> OrderIds.</span><span style="color: #4078F2;">get</span><span>().</span><span style="color: #4078F2;">nextId</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // ...</span></span></code></pre><h3 id="shard-singletons">Shard singletons</h3>
+<p>Having a single shared global state using <strong>cluster singletons</strong> can be very useful, however it can very soon become a bottleneck. One possible way to reduce this bottleneck is to not only have a single instance in the whole cluster, but define somehow a set of distinct <strong>shards</strong>, and have a single instance <strong>per shard</strong>. It is very much depending on the actual domain whether this technique can be applied or not, but in general the idea is that if every agent can calculate the <strong>shard</strong> it belongs to, and there is no need to share information among the shards, they can simply access the shard instance they need to.</p>
+<p>To demonstrate this, let's assume we want to maintain a <strong>list of all customers</strong> with a count of how many orders they have. As this map will have to be updated every time an order is created, we don't want to maintain it in a cluster level singleton. Instead, we associate the customers into N (=100) shards, and have a separate <code>Customer-&gt;OrderCount</code> map in each shard:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> Shard</span><span style="color: #0184BC;"> = number</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> ShardedCustomers</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> shard</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Shard</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> customerWithOrderCount</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Map</span><span>&lt;string, number&gt;</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> Map</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>(shard</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Shard</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">shard</span><span style="color: #0184BC;"> =</span><span> shard;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    registerCustomer</span><span>(customer</span><span style="color: #0184BC;">: string</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">customerWithOrderCount</span><span>.</span><span style="color: #4078F2;">set</span><span>(customer,</span><span style="color: #986801;"> 0</span><span>);</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    registerOrder</span><span>(customer</span><span style="color: #0184BC;">: string</span><span>, orderId</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> OrderId</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> count</span><span style="color: #0184BC;"> =</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">customerWithOrderCount</span><span>.</span><span style="color: #4078F2;">get</span><span>(customer)</span><span style="color: #0184BC;"> ??</span><span style="color: #986801;"> 0</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">customerWithOrderCount</span><span>.</span><span style="color: #4078F2;">set</span><span>(customer, count</span><span style="color: #0184BC;"> +</span><span style="color: #986801;"> 1</span><span>);</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can then write a function that determines the <code>Shard</code> from a customer's identifier (an email address string):</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">import</span><span style="color: #E45649;"> md5</span><span style="color: #A626A4;"> from</span><span style="color: #50A14F;"> &quot;md5-ts&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">function</span><span style="color: #4078F2;"> shardOfCustomer</span><span>(email</span><span style="color: #0184BC;">: string</span><span>)</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Shard</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    const</span><span style="color: #986801;"> SHARDS</span><span style="color: #0184BC;"> =</span><span style="color: #986801;"> 100</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    const</span><span style="color: #986801;"> hash</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> md5</span><span>(email);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    const</span><span style="color: #986801;"> hashPefixAsNumber</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> parseInt</span><span>(hash.</span><span style="color: #4078F2;">substring</span><span>(</span><span style="color: #986801;">0</span><span>,</span><span style="color: #986801;"> 8</span><span>),</span><span style="color: #986801;"> 16</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    return</span><span> hashPefixAsNumber</span><span style="color: #0184BC;"> %</span><span style="color: #986801;"> SHARDS</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Using this function we can call <code>registerCustomer</code> and <code>registerOrder</code> in an asynchronous way using <code>trigger</code> on the remote agent interface:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// in class Order:</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">setCustomer</span><span>(customer: string) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    this</span><span>.</span><span style="color: #E45649;">customer</span><span style="color: #0184BC;"> =</span><span> customer;</span></span>
+<span class="giallo-l"><span>    ShardedCustomers</span></span>
+<span class="giallo-l"><span>      .</span><span style="color: #4078F2;">get</span><span>(</span><span style="color: #4078F2;">shardOfCustomer</span><span>(customer))</span></span>
+<span class="giallo-l"><span>      .</span><span style="color: #E45649;">registerOrder</span></span>
+<span class="giallo-l"><span>      .</span><span style="color: #4078F2;">trigger</span><span>(customer,</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">orderId</span><span>);</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// in class Customer:</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">constructor</span><span>(email: string) {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    super</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    this</span><span>.</span><span style="color: #E45649;">email</span><span style="color: #0184BC;"> =</span><span> email;</span></span>
+<span class="giallo-l"><span>    ShardedCustomers</span></span>
+<span class="giallo-l"><span>      .</span><span style="color: #4078F2;">get</span><span>(</span><span style="color: #4078F2;">shardOfCustomer</span><span>(email))</span></span>
+<span class="giallo-l"><span>      .</span><span style="color: #E45649;">registerCustomer</span></span>
+<span class="giallo-l"><span>      .</span><span style="color: #4078F2;">trigger</span><span>(email);</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>By using <code>trigger</code> we guarantee that even if the shard-level singleton gets overloaded with registration messages, this does not block our Order or Customer agents.</p>
+<h3 id="agents-as-message-queues">Agents as message queues</h3>
+<p>It's not really a pattern but this last statement also tells an important feature of Golem - every agent <strong>has its own persistent message queue</strong>. If every agent invocation is done using <code>trigger</code> (or <code>schedule</code> to trigger an invocation in a future point in time), an agent actually works as a persistent message queue from the senders point of view.</p>
+<p>The example above demonstrated this - <code>Order</code> and <code>Customer</code> were just sending <em>registration messages</em> to a message queue, without blocking on anything. The consumer of the message queue was the <code>ShardedCustomers</code> agent itself.</p>
+<p>These message queues are just as durable as everything else in Golem. Once the <code>trigger</code> call returned we can be sure that the invocation is in the target agent's pending invocations queue, and even if the agent gets restarted, or relocated to another node, it will always have it in its invocation queue.</p>
+<p>A different example could be a cluster-level singleton for aggregating important domain-level events from various agents:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> Event</span><span style="color: #0184BC;"> =</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> EventLog</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>();</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">    log</span><span>(event</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Event</span><span>) {</span></span>
+<span class="giallo-l"><span>        console.</span><span style="color: #4078F2;">log</span><span>(event);</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">/// Log an event from anywhere</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">function</span><span style="color: #4078F2;"> log</span><span>(event</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Event</span><span>) {</span></span>
+<span class="giallo-l"><span>    EventLog.</span><span style="color: #4078F2;">get</span><span>().</span><span style="color: #E45649;">log</span><span>.</span><span style="color: #4078F2;">trigger</span><span>(event);</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Our <code>log</code> processor could do anything - just log the event in the singleton agent's log stream, or store it in memory, extract and aggregate some information, etc. Even just logging it can help with debugging distributed systems, as it is a developer-defined aggregated view of the logs important for the application's logic itself, unlike the lower level server logs of the Golem platform itself.</p>
+<h3 id="ephemeral-agents">Ephemeral agents</h3>
+<p>Finally let's talk about <strong>ephemeral agents</strong> which are so important that Golem has built-in support for them and make the use of them very convenient. Ephemeral agents are agents - they can have constructor parameters and exported methods, but they are <strong>not durable</strong>. For each invocation a fresh instance is created, and although Golem allows you to observe past ephemeral agent instances for debugging purposes, you cannot invoke them again.</p>
+<p>Calling an ephemeral agent's method is Golem's equivalent of <strong>serverless functions</strong>. As each invocation gets a fresh instance, we don't have to worry about the message queueing property of agents - all the invoations are going to run in parallel. This is a very good fit for writing <strong>request handlers</strong> at the edge of a Golem application.</p>
+<p>As an example we are going to write an ephemeral agent with a single function that enumerates <strong>all customers</strong> in the system. In a real application where we have so many customers that we are managing the list of them in sharded singletons, we would not want a single function returning all of them at once, of course; but for simplicity, let's implement it anyway.</p>
+<p>First we add a new agent method to <code>ShardedCustomers</code> to get the list of customers in that particular shard:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #4078F2;">getCustomers</span><span>(): string[] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    return</span><span> Array.</span><span style="color: #4078F2;">from</span><span>(</span><span style="color: #E45649;">this</span><span>.</span><span style="color: #E45649;">customerWithOrderCount</span><span>.</span><span style="color: #4078F2;">keys</span><span>());</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>And then we create an <strong>ephemeral</strong> <code>RequestHandler</code> agent:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>({</span><span style="color: #E45649;">mode</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &quot;ephemeral&quot;</span><span>})</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> RequestHandler</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    constructor</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        super</span><span>();</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async</span><span style="color: #4078F2;"> getAllConsumers</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;string[]&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> SHARDS</span><span style="color: #0184BC;"> =</span><span style="color: #986801;"> 100</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> allCustomers</span><span style="color: #0184BC;">: string</span><span>[]</span><span style="color: #0184BC;"> =</span><span> [];</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        for</span><span> (</span><span style="color: #A626A4;">let</span><span> shard</span><span style="color: #0184BC;"> =</span><span style="color: #986801;"> 0</span><span>; shard</span><span style="color: #0184BC;"> &lt;</span><span style="color: #986801;"> SHARDS</span><span>; shard</span><span style="color: #0184BC;">++</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">            const</span><span style="color: #986801;"> customers</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span> ShardedCustomers.</span><span style="color: #4078F2;">get</span><span>(shard).</span><span style="color: #4078F2;">getCustomers</span><span>();</span></span>
+<span class="giallo-l"><span>            allCustomers.</span><span style="color: #4078F2;">push</span><span>(</span><span style="color: #0184BC;">...</span><span>customers);</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        return</span><span> allCustomers;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This is a long running call that makes 100 remote agent calls in sequence. But it is done every time on a fresh ephemeral agent instance without affecting any potentially already running request handlers.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>As I demonstrated the basic building blocks of Golem - <strong>agents</strong> - can be used in many different ways to write applications that can run in a safe way, surviving external failure conditions, automatically providing observability and many other features with almost zero boilerplate. Some of these benefits apply even if the application is not really designed with a distributed net of agents in mind, but to use the full potential of Golem we should think about how our application can be modelled like that.</p>
+<p>It is nothing fundamentally new - there are many publications discussing domain driven design, distributed actor systems, reactive messaging patterns and so on. These existing materials can be useful inspiration, but keep in mind that in Golem each agent is durable (persistent) by default - this provides a lot of guarantees out of the box, which would have been solved by explicit architecture in other systems.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

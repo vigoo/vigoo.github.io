@@ -1,0 +1,574 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>ZIO-AWS with ZIO Query</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;zioaws-zioquery&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>ZIO-AWS with ZIO Query</h1>
+            
+            <p class="posted-on">Posted on November 01, 2020</p>
+        </header>
+
+        <p>A few years ago I wrote a <a href="https://blog.vigoo.dev/posts/aws-rate-limits-prezidig/">post</a> about how I refactored one of our internal tools at <a rel="external" href="https://prezi.com">Prezi</a>. This command line tool was able to discover a set of AWS resources and present them in a nice human readable way. The primary motivation at that time was to introduce circuit breaking to survive AWS API rate limits.</p>
+<p>I have recently published a set of libraries, <a rel="external" href="https://github.com/vigoo/zio-aws"><strong>zio-aws</strong></a>, and thought it would be interesting to rewrite this tool on top of it, and use this opportunity to try out <a rel="external" href="https://zio.github.io/zio-query/"><strong>ZIO Query</strong></a> on a real-world example. In this post I'm going to show step by step how to build an efficient and easily extensible query tool with the help of <em>ZIO</em> libraries. The full source can be found <a rel="external" href="https://github.com/vigoo/aws-query">on GitHub</a>.</p>
+<h2 id="the-task">The task</h2>
+<p>The CLI tool we build will get an arbitrary string as an input, and search for it in various AWS resources. Once it has a match, it has to traverse a graph of these resources and finally pretty-print all the gathered information to the console.</p>
+<img src="/images/awsquery-1.png"/>
+<p>The provided input could mean any of the following:</p>
+<ul>
+<li>An <strong>EC2</strong> <em>instance ID</em></li>
+<li>An <strong>ELB</strong> (load balancer)'s <em>name</em></li>
+<li>An <strong>ElasticBeanstalk</strong> <em>environment name</em> or <em>ID</em></li>
+<li>An <strong>ElasticBeanstalk</strong> <em>application name</em></li>
+<li>An <strong>ASG</strong> (auto-scaling group) <em>ID</em></li>
+</ul>
+<p>For the level of detail to be reported I copied the original tool. This means finding all the related resources in the above sets (plus among <em>launch configurations</em>) but only include a single <em>EC2 instance</em> in the output if it was explicitly queried. So for example if the search term matches an <em>ELB</em> that belongs to an <em>ElasticBeanstalk environment</em>, the report will contain the <em>EB app</em> and all its other environments as well, but won't show individual instances. This choice does not affect the design and could be easily changed or extended with additional resource types.</p>
+<h2 id="aws-client">AWS client</h2>
+<p>For querying the above mentioned resources, we have to call four different AWS services. The <code>zio-aws</code> project adds a streaming ZIO wrapper for <em>all</em> the libraries in <a rel="external" href="https://docs.aws.amazon.com/sdk-for-java/v2/developer-guide/welcome.html">AWS Java SDK v2</a>, each published as separate artifact:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>libraryDependencies ++=</span><span style="color: #C18401;"> Seq</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  &quot;io.github.vigoo&quot;</span><span> %%</span><span style="color: #50A14F;"> &quot;zio-aws-autoscaling&quot;</span><span> % zioAwsVersion,</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  &quot;io.github.vigoo&quot;</span><span> %%</span><span style="color: #50A14F;"> &quot;zio-aws-ec2&quot;</span><span> % zioAwsVersion,</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  &quot;io.github.vigoo&quot;</span><span> %%</span><span style="color: #50A14F;"> &quot;zio-aws-elasticloadbalancing&quot;</span><span> % zioAwsVersion,</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  &quot;io.github.vigoo&quot;</span><span> %%</span><span style="color: #50A14F;"> &quot;zio-aws-elasticbeanstalk&quot;</span><span> % zioAwsVersion</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #50A14F;">  &quot;io.github.vigoo&quot;</span><span> %%</span><span style="color: #50A14F;"> &quot;zio-aws-netty&quot;</span><span> % zioAwsVersion,    </span></span>
+<span class="giallo-l"><span>)</span></span></code></pre>
+<p>In addition to loading the necessary client libraries, we also need one of the <em>http implementations</em>, in this case I chose the default <em>Netty</em>. Other possibilities are <em>akka-http</em> and <em>http4s</em>. If your application already uses one of these for other HTTP communications you may want to use them to share their configuration and pools.</p>
+<p>The client libraries have a <code>ZStream</code> API for all the operations that either support streaming (like for example S3 download/upload) or pagination, and <code>ZIO</code> wrapper for non-streaming simple operations. Instead of using the Java SDK's builders, the requests are described by <em>case classes</em>, and the <em>result</em> types have convenience accessors to handle the nullable results.</p>
+<p>Let's see some examples!</p>
+<p>We can get information about <em>EB applications</em> with the <em>ElasticBeanstalk</em> API's <a rel="external" href="https://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DescribeApplications.html"><code>DescribeApplications</code> operation</a>. This is defined like the following in <code>zio-aws-elasticbeanstalk</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> describeApplications</span><span>(request:</span><span style="color: #C18401;"> DescribeApplicationsRequest</span><span>):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">ElasticBeanstalk</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">DescribeApplicationsResponse</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> ApplicationName</span><span> =</span><span style="color: #C18401;"> String</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> DescribeApplicationsRequest</span><span>(applicationNames:</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">Iterable</span><span>[</span><span style="color: #C18401;">ApplicationName</span><span>]])</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> DescribeApplicationsResponse</span><span>(applications :</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">Iterable</span><span>[</span><span style="color: #C18401;">ApplicationDescription</span><span>]])</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> DescribeApplicationsResponse</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  trait</span><span style="color: #C18401;"> ReadOnly</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> editable</span><span>:</span><span style="color: #C18401;"> DescribeApplicationsResponse</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> applicationsValue</span><span>:</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">List</span><span>[</span><span style="color: #C18401;">ApplicationDescription</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> applications</span><span>:</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">List</span><span>[</span><span style="color: #C18401;">ApplicationDescription</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]]</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>A few things to notice here:</p>
+<ul>
+<li>The client function requires the <code>ElasticBeanstalk</code> module. We will see how to set up the dependencies in the <em>Putting all together</em> section.</li>
+<li>The primitive types defined by the AWS schema are currently simple type aliases. In the future they will be probably replaced by <a rel="external" href="https://github.com/zio/zio-prelude">zio-prelude</a>'s <em>newtypes</em>.</li>
+<li>Each wrapper type has a <code>ReadOnly</code> trait and a <em>case class</em>. The case classes are used as input, and the read-only interfaces as outputs. This way the result provided by the Java SDK can be accessed directly and it only has to be rewrapped in the case class if it is passed to another call as input.</li>
+<li>In many cases the AWS SDK describes fields as optional even if in normal circumstances it would never be <code>None</code>. To make it more convenient to work with these, the <code>ReadOnly</code> interface contains <em>accessor functions</em> which fail with <code>FieldIsNone</code> in case the field did not have any value. The pure optional values can be accessed with the <code>xxxValue</code> variants. See <code>applications</code> and <code>applicationsValue</code> in the above example.</li>
+</ul>
+<p>For operations support pagination, the wrapper functions return a stream. The actual first AWS call happens when the stream is first pulled. An example for this that we have to use in this application is the <em>EC2</em> API's <a rel="external" href="https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html"><code>DescribeInstances</code> operation</a>.</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> describeInstances</span><span>(request:</span><span style="color: #C18401;"> DescribeInstancesRequest</span><span>):</span><span style="color: #C18401;"> ZStream</span><span>[</span><span style="color: #C18401;">Ec2</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Reservation</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]</span></span></code></pre>
+<p>The pagination can be controlled by setting the <code>MaxResults</code> property in <code>DescribeInstancesRequest</code>. For the user of the <code>describeInstances</code> function this is completely transparent, the returned stream will gather all the results, possibly by performing multiple AWS requests.</p>
+<h2 id="queries">Queries</h2>
+<p>We could implement the resource discovery directly using the low level AWS wrappers described above, using ZIO's tools to achieve concurrency. There are several things to consider though:</p>
+<ul>
+<li>We don't know what resource we are looking for, so we should start multiple queries in parallel to find a match as soon as possible</li>
+<li>Some queries return additional data that could be reused later. For example it is not possible to search for an ELB by a instance ID contained by it; for that we have to query <em>all</em> load balancers and check the members on client side.</li>
+<li>There are AWS operations that support querying multiple entities, for example by providing a list of IDs to look for</li>
+<li>We should minimize the number of calls to AWS, both for performance reasons, and to avoid getting rate limited</li>
+</ul>
+<p>We can achieve all this by expressing our AWS queries with a higher level abstraction, delegating the execution to a library called <a rel="external" href="https://zio.github.io/zio-query/">ZIO Query</a>. This library let us define composable <em>queries</em> to arbitrary <em>data sources</em>, and it automatically provides <em>pipelining</em>, <em>batching</em> and <em>caching</em>. A perfect match for the problem we have to solve here.</p>
+<p>To be able to cache results that became available as a side effect of a query, we need a <a rel="external" href="https://github.com/zio/zio-query/pull/105">recent improvement</a> that is not published yet, so <code>aws-query</code> currently uses a snapshot release of <code>zio-query</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>libraryDependencies +=</span><span style="color: #50A14F;"> &quot;dev.zio&quot;</span><span> %%</span><span style="color: #50A14F;"> &quot;zio-query&quot;</span><span> %</span><span style="color: #50A14F;"> &quot;0.2.5+12-c41557f7-SNAPSHOT&quot;</span></span></code></pre>
+<p>The first step is to define custom <em>data sources</em>. Data sources must implement a function <code>runAll</code> with the following signature:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> runAll</span><span>(requests:</span><span style="color: #C18401;"> Chunk</span><span>[</span><span style="color: #C18401;">Chunk</span><span>[</span><span style="color: #C18401;">A</span><span>]]):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">Nothing</span><span>, </span><span style="color: #C18401;">CompletedRequestMap</span><span>]</span></span></code></pre>
+<p>Here <code>A</code> is the <em>request type</em> specific to a given data source (extending <code>Request[E, A]</code>, and the returned <code>CompletedRequestMap</code> will store an <code>Either[E, A]</code> result for each request. The two nested chunks model sequential and parallel execution: the requests in the inner chunks can be executed in parallel, while these batches contained by the outer chunk must be performed sequentially. In practice we won't implement this method but use <code>DataSource.Batched</code> that is a simplified version that can perform requests in parallel but does not make further optimizations on the requests to be performed sequentially.</p>
+<p>What should belong to one data source?  It could be a single data source for all the AWS queries, or one per service, or one per resource type. The best choice in this case is to have one for each resource type, for the following reasons:</p>
+<ul>
+<li>There are no opportunities to do any cross-resource-type caching. For example when we are querying EC2 instances, we won't fetch auto scaling groups as a side effect.</li>
+<li>If all requests are about the same data type, implementing the data source is much simpler</li>
+</ul>
+<p>Let's see a simple example. EC2 instances can be queried by <em>instance ID</em> with the <a rel="external" href="https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html"><code>DescribeInstances</code></a> operation, and it supports querying for multiple IDs in a single request. We first define a <em>request type</em>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> GetEc2Instance</span><span>(id:</span><span style="color: #C18401;"> InstanceId</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Request</span><span>[</span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Instance</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]</span></span></code></pre>
+<p>Then the data source:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> ec2InstancesDataSource</span><span>:</span><span style="color: #C18401;"> DataSource</span><span>[</span><span style="color: #C18401;">Logging</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Ec2</span><span>, </span><span style="color: #C18401;">GetEc2Instance</span><span>] = </span></span>
+<span class="giallo-l"><span style="color: #C18401;">  DataSource</span><span>.</span><span style="color: #C18401;">Batched</span><span>.make(</span><span style="color: #50A14F;">&quot;ec2&quot;</span><span>) { (requests:</span><span style="color: #C18401;"> Chunk</span><span>[</span><span style="color: #C18401;">GetEc2Instance</span><span>]) =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    import</span><span style="color: #C18401;"> AwsDataSource</span><span>._</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      result &lt;- ec2.describeInstances(</span><span style="color: #C18401;">DescribeInstancesRequest</span><span>(instanceIds =</span><span style="color: #C18401;"> Some</span><span>(requests.map(_.id))))</span></span>
+<span class="giallo-l"><span>        .mapM(_.instances)</span></span>
+<span class="giallo-l"><span>        .flatMap(instances =&gt;</span><span style="color: #C18401;"> ZStream</span><span>.fromIterable(instances))</span></span>
+<span class="giallo-l"><span>        .foldM(</span><span style="color: #C18401;">CompletedRequestMap</span><span>.empty) { (resultMap, item) =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">          for</span><span> {</span></span>
+<span class="giallo-l"><span>            instanceId &lt;- item.instanceId</span></span>
+<span class="giallo-l"><span>          }</span><span style="color: #A626A4;"> yield</span><span> resultMap.insert(</span><span style="color: #C18401;">GetEc2Instance</span><span>(instanceId))(</span><span style="color: #C18401;">Right</span><span>(item))</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>        .recordFailures(</span><span style="color: #50A14F;">&quot;DescribeInstances&quot;</span><span>, requests)</span></span>
+<span class="giallo-l"><span>    }</span><span style="color: #A626A4;"> yield</span><span> result</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Here <code>requests</code> holds a set of <code>GetEc2Instance</code> requests to be performed in parallel. We can simply do this by taking all the <em>instance IDs</em> from these requests and performing a single <code>describeInstances</code> AWS call. The result, as I explained before, is a <code>ZStream</code> of instances. We have to construct a <code>CompletedRequestMap</code> holding one entry for each request in <code>requests</code>. To do this we <code>foldM</code> the stream, using the <code>instanceId</code> accessor function to reconstruct the request value for each item in the result stream.</p>
+<p>The <code>.recordFailures</code> function is a helper extension method defined in <code>AwsDataSource</code>. It catches all errors and produces a <code>CompletedRequestMap</code> where all requested items are recorded as failures:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> recordFailures</span><span>[</span><span style="color: #C18401;">A</span><span>](description:</span><span style="color: #C18401;"> String</span><span>, </span></span>
+<span class="giallo-l"><span>                      requests:</span><span style="color: #C18401;"> Iterable</span><span>[</span><span style="color: #C18401;">Request</span><span>[</span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">A</span><span>]]):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">Nothing</span><span>, </span><span style="color: #C18401;">CompletedRequestMap</span><span>] =</span></span>
+<span class="giallo-l"><span>  f.catchAll { error =&gt;</span></span>
+<span class="giallo-l"><span>    log.error(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;</span><span>$description</span><span style="color: #50A14F;"> failed with</span><span> $error</span><span style="color: #50A14F;">&quot;</span><span>) *&gt;</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      ZIO</span><span>.succeed {</span></span>
+<span class="giallo-l"><span>        requests.foldLeft(</span><span style="color: #C18401;">CompletedRequestMap</span><span>.empty) {</span><span style="color: #A626A4;"> case</span><span> (resultMap, req) =&gt;</span></span>
+<span class="giallo-l"><span>          resultMap.insert(req)(</span><span style="color: #C18401;">Left</span><span>(error))</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>This is necessary because the data source requires a function of type <code>Chunk[A] =&gt; ZIO[R, Nothing, CompletedRequestMap]</code> that cannot fail.</p>
+<p>With the data source defined, we can define primitive <em>queries</em> on it:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> getEc2Instance</span><span>(id:</span><span style="color: #C18401;"> InstanceId</span><span>):</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">Logging</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Ec2</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Instance</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  ZQuery</span><span>.fromRequest(</span><span style="color: #C18401;">GetEc2Instance</span><span>(id))(ec2InstancesDataSource)</span></span></code></pre>
+<p>A more complex example is <code>ebEnvDataSource</code>, the data source of <em>ElasticBeanstalk environments</em>. For this resource, we have different request types:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> EbEnvRequest</span><span>[+</span><span style="color: #C18401;">A</span><span>]</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Request</span><span>[</span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> GetEnvironmentByName</span><span>(name:</span><span style="color: #C18401;"> EnvironmentName</span><span>) </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  extends</span><span style="color: #C18401;"> EbEnvRequest</span><span>[</span><span style="color: #C18401;">Option</span><span>[</span><span style="color: #C18401;">EnvironmentDescription</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> GetEnvironmentById</span><span>(id:</span><span style="color: #C18401;"> EnvironmentId</span><span>) </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  extends</span><span style="color: #C18401;"> EbEnvRequest</span><span>[</span><span style="color: #C18401;">Option</span><span>[</span><span style="color: #C18401;">EnvironmentDescription</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> GetEnvironmentByApplicationName</span><span>(name:</span><span style="color: #C18401;"> ApplicationName</span><span>) </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  extends</span><span style="color: #C18401;"> EbEnvRequest</span><span>[</span><span style="color: #C18401;">List</span><span>[</span><span style="color: #C18401;">EnvironmentDescription</span><span>.</span><span style="color: #C18401;">ReadOnly</span><span>]]</span></span></code></pre>
+<p>In the data source implementation we get a <code>Chunk</code> of <code>EbEnvRequest</code> to be performed in parallel. We start it by separating it per request type:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> byName</span><span> = requests.collect {</span><span style="color: #A626A4;"> case</span><span style="color: #C18401;"> GetEnvironmentByName</span><span>(name) =&gt; name }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> byId</span><span> = requests.collect {</span><span style="color: #A626A4;"> case</span><span style="color: #C18401;"> GetEnvironmentById</span><span>(id) =&gt; id }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> byAppName</span><span> = requests.collect {</span><span style="color: #A626A4;"> case</span><span style="color: #C18401;"> GetEnvironmentByApplicationName</span><span>(name) =&gt; name }</span></span></code></pre>
+<p>Then for each of these collections, if not empty, we can perform a <code>describeEnvironments</code> AWS call and then fold the result stream to create partial <code>CompletedRequestMap</code> values. What is interesting here is that if we already queried an environment by either name or id or it's application name, we already know both its identifier and name, so we can store additional items in <code>CompletedRequestMap</code> that will be cached and reused in future queries. For example this is how the query by-id gets processed:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>resultMap &lt;- elasticbeanstalk</span></span>
+<span class="giallo-l"><span>  .describeEnvironments(</span><span style="color: #C18401;">DescribeEnvironmentsRequest</span><span>(environmentIds =</span><span style="color: #C18401;"> Some</span><span>(byId)))</span></span>
+<span class="giallo-l"><span>  .foldM(initialResultMap) { (resultMap, item) =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      name &lt;- item.environmentName</span></span>
+<span class="giallo-l"><span>      id &lt;- item.environmentId</span></span>
+<span class="giallo-l"><span>    }</span><span style="color: #A626A4;"> yield</span><span> resultMap</span></span>
+<span class="giallo-l"><span>        .insert(</span><span style="color: #C18401;">GetEnvironmentById</span><span>(id))(</span><span style="color: #C18401;">Right</span><span>(</span><span style="color: #C18401;">Some</span><span>(item)))</span></span>
+<span class="giallo-l"><span>        .insert(</span><span style="color: #C18401;">GetEnvironmentByName</span><span>(name))(</span><span style="color: #C18401;">Right</span><span>(</span><span style="color: #C18401;">Some</span><span>(item)))</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>  .recordFailures(</span><span style="color: #50A14F;">&quot;DescribeEnvironmentRequest(id)&quot;</span><span>, byId.map(</span><span style="color: #C18401;">GetEnvironmentById</span><span>))</span></span></code></pre>
+<p>For all three request types we describe the computation to create a partial <code>CompletedRequestMap</code> for them. Then we can implement the data source by executing these (maximum) three queries in parallel and combining the results:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>byNameResultMap</span></span>
+<span class="giallo-l"><span>  .zipWithPar(byIdResultMap)(_ ++ _)</span></span>
+<span class="giallo-l"><span>  .zipWithPar(byAppNameResultMap)(_ ++ _)</span></span></code></pre>
+<p>There are some cases where being able to query <em>all</em> instances of a given resource is also a requirement. An example is <em>load balancers</em>, where the only way to find if an ELB contains a given <em>EC2 instance</em> is to query <em>all</em> ELBs and check their members. There are a few more cases that require a very similar implementation, so it makes sense extracting it to a common place. We define an <code>AllOrPerItem</code> trait that defines the specifics per use case:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> AllOrPerItem</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">Req</span><span>, </span><span style="color: #C18401;">Item</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  val</span><span style="color: #E45649;"> name</span><span>:</span><span style="color: #C18401;"> String</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> isGetAll</span><span>(request:</span><span style="color: #C18401;"> Req</span><span>):</span><span style="color: #C18401;"> Boolean</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> isPerItem</span><span>(request:</span><span style="color: #C18401;"> Req</span><span>):</span><span style="color: #C18401;"> Boolean</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  val</span><span style="color: #E45649;"> allReq</span><span>:</span><span style="color: #C18401;"> Req</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> itemToReq</span><span>(item:</span><span style="color: #C18401;"> Item</span><span>):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Req</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> getAll</span><span>():</span><span style="color: #C18401;"> ZStream</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Item</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> getSome</span><span>(reqs:</span><span style="color: #C18401;"> Set</span><span>[</span><span style="color: #C18401;">Req</span><span>]):</span><span style="color: #C18401;"> ZStream</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Item</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> processAdditionalRequests</span><span>(requests:</span><span style="color: #C18401;"> Chunk</span><span>[</span><span style="color: #C18401;">Req</span><span>], </span></span>
+<span class="giallo-l"><span>                                partialResult:</span><span style="color: #C18401;"> CompletedRequestMap</span><span>):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">Nothing</span><span>, </span><span style="color: #C18401;">CompletedRequestMap</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    ZIO</span><span>.succeed(partialResult)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>By implementing these one-liners the actual data source implementation can be a shared code defined in <code>AllOrPerItem.make</code>. It's very similar to the examples already seen. If any of the requests is the <em>get all request</em>, that's the only thing to be performed, and all the result items will be cached. Otherwise a single batched request is made.</p>
+<p>These primitive <code>ZQuery</code>s then can be composed to more complex queries. For example the following code:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">for</span><span> {</span></span>
+<span class="giallo-l"><span>  instance &lt;- ec2query.getEc2Instance(instanceId)</span></span>
+<span class="giallo-l"><span>  imageId &lt;-</span><span style="color: #C18401;"> ZQuery</span><span>.fromEffect(instance.imageId)</span></span>
+<span class="giallo-l"><span>  imgElb &lt;- (ec2query.getImage(imageId) &lt;&amp;&gt; elbquery.loadBalancerOf(instanceId))</span></span>
+<span class="giallo-l"><span>  (image, elb) = imgElb</span></span>
+<span class="giallo-l"><span>  elbReport &lt;- optionally(elb)(getElbReport)</span></span>
+<span class="giallo-l"><span>  result &lt;-</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #A626A4;"> yield</span><span> result    </span></span></code></pre>
+<p>This is part of the definition of a query of type <code>ZQuery[QueryEnv, AwsError, LinkedReport[Ec2InstanceKey, Ec2InstanceReport]]</code>. We will talk about <code>QueryEnv</code> and <code>LinkedReport</code> later, for now it's enough to understand that this is a more complex query that provides an <em>EC2 instance report</em>; the data type that will be used to render the human-readable output. The query first gets an EC2 instance by <em>instance ID</em>. Then with <code>ZQuery.fromEffect</code> we lift a <code>ZIO</code> effect to the query. In this case this is a <code>zio-aws</code> <em>accessor function</em> that fails if <code>imageId</code> is <code>None</code>.</p>
+<p>By this we express that we <em>expect</em> that <code>imageId</code> is always specified, and if not, we fail the <em>whole query</em>. Then we use <code>&lt;&amp;&gt;</code> (it's alias is <code>zipPar</code>) to perform two queries <strong>in parallel</strong>: getting an EC2 image and finding the load balancer containing the instance. Once both queries are finished, we optionally generate a <em>load balancer report</em> (if we have found an ELB link) and then we construct the result.</p>
+<p>Here <code>optionally</code> is a simple helper function that makes our query more readable. It could have been written as <code>elb.fold(ZQuery.none)(getElbReport)</code>.</p>
+<p>Another useful combinator on <code>ZQuery</code> is <code>collectAllPar</code> that runs a subquery on each item of a collection in parallel:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">for</span><span> {</span></span>
+<span class="giallo-l"><span>  elbNames &lt;-</span><span style="color: #C18401;"> ZQuery</span><span>.fromEffect(asg.loadBalancerNames)</span></span>
+<span class="giallo-l"><span>  result &lt;-</span><span style="color: #C18401;"> ZQuery</span><span>.collectAllPar(elbNames.map(name =&gt; elbquery.getLoadBalancer(name) &gt;&gt;= getElbReport))</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #A626A4;"> yield</span><span> result</span></span></code></pre>
+<p>As I mentioned earlier, we have no way to know what resource we are looking for (in fact we could for example detect EC2 <em>instance IDs</em> by a pattern but let's ignore that for now). So on top level we simply start _all the possible queries <strong>at once</strong> and let print all the non-failing ones:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">for</span><span> {</span></span>
+<span class="giallo-l"><span>  renderers &lt;-</span><span style="color: #C18401;"> ZQuery</span><span>.collectAllPar(possibleQueries).run</span></span>
+<span class="giallo-l"><span>  _ &lt;-</span><span style="color: #C18401;"> ZIO</span><span>.foreach_(renderers.flatten)(identity)</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #A626A4;"> yield</span><span> ()</span></span></code></pre>
+<p>Where <code>possibleQueries</code> is a where we list all the queries we want to support, tied to the <em>renderer</em> to show it on the console.</p>
+<h2 id="report-cache">Report cache</h2>
+<p><em>ZIO Query</em> solves caching and optimizes the requests on the AWS resource level, but we still have a problem. The queries form a cyclic graph. For example an <em>EC2 instance</em> holds a link to its <em>load balancer</em>, that holds a link to the <em>EB environment</em> it is defined in. The environment refers back to the ELB, and it also links to the <em>EB app</em> and the application has again links to all the <em>environments</em> it contains.</p>
+<p>We want to collect all these resources exactly once, and there is a chance that parallel queries reach to the same resource. To solve this we can add an extra <em>caching layer</em> on top of <em>ZIO Query</em>. Let's define this caching layer as a ZIO <em>module</em>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> ReportCache</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  trait</span><span style="color: #C18401;"> Service</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> storeIfNew</span><span>[</span><span style="color: #C18401;">A</span><span> &lt;:</span><span style="color: #C18401;"> Report</span><span>](reportKey:</span><span style="color: #C18401;"> ReportKey</span><span>, </span></span>
+<span class="giallo-l"><span>                                query:</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">A</span><span>]):</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Boolean</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> retrieve</span><span>[</span><span style="color: #C18401;">A</span><span> &lt;:</span><span style="color: #C18401;"> Report</span><span>](key:</span><span style="color: #C18401;"> ReportKey</span><span>):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Option</span><span>[</span><span style="color: #C18401;">A</span><span>]]</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>storeIfNew</code> function is a <em>query</em>, to be used in high level queries to shortcut cycles in case a given report is already stored in the cache. We can define a helper function <code>cached</code> like the following:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">protected def</span><span style="color: #4078F2;"> cached</span><span>[</span><span style="color: #C18401;">R</span><span> &lt;:</span><span style="color: #C18401;"> ReportCache</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Logging</span><span>, </span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">B</span><span> &lt;:</span><span style="color: #C18401;"> Report</span><span>, </span><span style="color: #C18401;">K</span><span> &lt;:</span><span style="color: #C18401;"> ReportKey</span><span>]</span></span>
+<span class="giallo-l"><span>  (input:</span><span style="color: #C18401;"> A</span><span>)</span></span>
+<span class="giallo-l"><span>  (keyFn:</span><span style="color: #C18401;"> A</span><span> =&gt;</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">K</span><span>])</span></span>
+<span class="giallo-l"><span>  (query:</span><span style="color: #C18401;"> K</span><span> =&gt;</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">B</span><span>]):</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">R</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">LinkedReport</span><span>[</span><span style="color: #C18401;">K</span><span>, </span><span style="color: #C18401;">B</span><span>]] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  for</span><span> {</span></span>
+<span class="giallo-l"><span>    key &lt;-</span><span style="color: #C18401;"> ZQuery</span><span>.fromEffect(keyFn(input))</span></span>
+<span class="giallo-l"><span>    env &lt;-</span><span style="color: #C18401;"> ZQuery</span><span>.environment[</span><span style="color: #C18401;">R</span><span>]</span></span>
+<span class="giallo-l"><span>    _ &lt;- storeIfNew(</span></span>
+<span class="giallo-l"><span>      key,</span></span>
+<span class="giallo-l"><span>      query(key).provide(env ?</span><span style="color: #50A14F;"> &quot;provided environment&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"><span>  }</span><span style="color: #A626A4;"> yield</span><span style="color: #C18401;"> LinkedReport</span><span>[</span><span style="color: #C18401;">K</span><span>, </span><span style="color: #C18401;">B</span><span>](key)</span></span></code></pre>
+<p>Then we can use it in queries like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> getEbAppReport</span><span>(name:</span><span style="color: #C18401;"> ApplicationName</span><span>):</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">QueryEnv</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">LinkedReport</span><span>[</span><span style="color: #C18401;">EbAppKey</span><span>, </span><span style="color: #C18401;">EbAppReport</span><span>]] =</span></span>
+<span class="giallo-l"><span>  cached(name)(name =&gt;</span><span style="color: #C18401;"> ZIO</span><span>.succeed(</span><span style="color: #C18401;">EbAppKey</span><span>(name))) { (key:</span><span style="color: #C18401;"> EbAppKey</span><span>) =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">     // ...</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Let's see in detail how this works!</p>
+<p>First of all, we define the following types:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> LinkedReport</span><span>[+</span><span style="color: #C18401;">K</span><span> &lt;:</span><span style="color: #C18401;"> ReportKey</span><span>, +</span><span style="color: #C18401;">R</span><span> &lt;:</span><span style="color: #C18401;"> Report</span><span>](key:</span><span style="color: #C18401;"> K</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> ReportKey</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> Ec2InstanceKey</span><span>(instanceId:</span><span style="color: #C18401;"> InstanceId</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> ReportKey</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> Report</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> Ec2InstanceReport</span><span>(instanceId: ec2.model.primitives.</span><span style="color: #C18401;">InstanceId</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">                                   // ...</span></span>
+<span class="giallo-l"><span>                                   elb:</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">LinkedReport</span><span>[</span><span style="color: #C18401;">ElbKey</span><span>, </span><span style="color: #C18401;">ElbReport</span><span>]]</span></span>
+<span class="giallo-l"><span>                                  )</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Report</span></span></code></pre>
+<p>In <code>cached</code>, we provide a <code>keyFn</code> that is an effectful function to extract the <code>ReportKey</code> from the arbitrary input that can be the key itself, or an already fetched resource. Then we call the <code>ReportCache</code> module's <code>storeIfNew</code> query and return a <code>LinkedReport</code>. A <em>linked report</em> is just a wrapper around a report key, it is the type to be used in <code>Report</code> types to refer to each other. We store the cyclic resource graph by using these report keys and the cache's <code>retrieve</code> function to resolve the references on demand.</p>
+<p>One thing to notice is the <code>.provide</code> in the code of <code>cached</code>. The report cache does not know about the environments needed for the queries it caches the results of; the <code>query</code> parameter of <code>storeIfNew</code> has the type <code>ZQuery[Any, AwsError, A]</code>. For this reason <code>cached</code> eliminates the environment of its inner query by getting it and calling <code>.provide(env)</code> before passing it to the cache.</p>
+<p>The report cache itself can be implemented with <a rel="external" href="https://zio.dev/docs/datatypes/datatypes_stm"><em>STM</em></a>. First we create a <a rel="external" href="https://zio.dev/docs/datatypes/datatypes_tmap"><code>TMap</code></a>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>cache &lt;-</span><span style="color: #C18401;"> TMap</span><span>.empty[</span><span style="color: #C18401;">ReportKey</span><span>, </span><span style="color: #C18401;">Promise</span><span>[</span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Report</span><span>]].commit</span></span></code></pre>
+<p>We want to store the fact that a query <em>has been started</em> for a given report key. This can be modelled with a <code>Promise</code> that eventually gets a <code>Report</code> value. With this <code>TMap</code> structure, the <code>storeIfNew</code> function can be defined as:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">override def</span><span style="color: #4078F2;"> storeIfNew</span><span>[</span><span style="color: #C18401;">A</span><span> &lt;:</span><span style="color: #C18401;"> Report</span><span>](reportKey:</span><span style="color: #C18401;"> ReportKey</span><span>, </span></span>
+<span class="giallo-l"><span>                                     query:</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">A</span><span>]):</span><span style="color: #C18401;"> ZQuery</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Boolean</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  ZQuery</span><span>.fromEffect {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      promise &lt;-</span><span style="color: #C18401;"> Promise</span><span>.make[</span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Report</span><span>]</span></span>
+<span class="giallo-l"><span>      finalQuery &lt;- cache.get(reportKey).flatMap {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span style="color: #C18401;"> Some</span><span>(report) =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">          // replacing the query with the cached value</span></span>
+<span class="giallo-l"><span style="color: #C18401;">          ZSTM</span><span>.succeed(</span><span style="color: #C18401;">ZQuery</span><span>.succeed(</span><span style="color: #986801;">false</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span style="color: #C18401;"> None</span><span> =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">          // replacing the query with the cached value</span></span>
+<span class="giallo-l"><span>          cache.put(reportKey, promise).map { _ =&gt;</span></span>
+<span class="giallo-l"><span>            query.foldM(</span></span>
+<span class="giallo-l"><span>              failure =&gt;</span><span style="color: #C18401;"> ZQuery</span><span>.fromEffect(promise.fail(failure)) *&gt;</span><span style="color: #C18401;"> ZQuery</span><span>.fail(failure),</span></span>
+<span class="giallo-l"><span>              success =&gt;</span><span style="color: #C18401;"> ZQuery</span><span>.fromEffect(promise.succeed(success))</span></span>
+<span class="giallo-l"><span>            )</span></span>
+<span class="giallo-l"><span>          }</span></span>
+<span class="giallo-l"><span>      }.commit</span></span>
+<span class="giallo-l"><span>    }</span><span style="color: #A626A4;"> yield</span><span> finalQuery</span></span>
+<span class="giallo-l"><span>  }.flatMap(identity)</span></span></code></pre>
+<p>This may seem simple but actually we are combining three different layers of abstraction here!</p>
+<ul>
+<li>The whole thing is a <em>query</em>. But we first run a <em>ZIO effect</em> that <strong>produces</strong> a query, and then execute that result query (in <code>.flatMap(identity)</code>)</li>
+<li>In the effect we create a promise that might be used or not, depending on the outcome of the transaction. Then we do <code>cache.get</code> which is an <em>STM transaction</em>.</li>
+<li>In the transaction we produce a <code>ZQuery</code> value that is either returning a simple <code>false</code> value if the report was already cached, or we store the already created promise in the map and return the query that constructs the report as the <em>result</em> of the transaction.</li>
+<li>As it is an <em>STM transaction</em> it may be retried multiple times but eventually it returns with a query that is either a NOP or calculates the <em>report</em> <strong>and</strong> sets the promise in the end.</li>
+</ul>
+<p>The other function of <code>ReportCache</code>, <code>retrieve</code> will be used when traversing the gathered <em>reports</em> to follow the <code>LinkedReport</code> links. It is simply a combination of getting an item from the <code>TMap</code> and then waiting for the stored promise.</p>
+<h2 id="throttling">Throttling</h2>
+<p>The original implementation of this tool did not control the amount and rate of AWS requests in any way, and a few years ago API rate limits made it somewhat unusable. As I explained <a href="https://blog.vigoo.dev/posts/aws-rate-limits-prezidig/">in a previous post</a>, I solved it by centralizing the calls to AWS then adding <em>circuit breaking and retry</em> to handle the <em>throttling errors</em>.</p>
+<p>In this new implementation <em>ZIO Query</em> 's batching feature already reduces the load but AWS has a global rate limit that can be reached any time, regardless of the actual request rate provided by this application. So how could we handle this with <code>zio-aws</code> and ZIO Query?</p>
+<p>There is useful ZIO library called <a rel="external" href="https://www.vroste.nl/rezilience/">rezilience</a> that defines utilities to express circuit breaking, retries, rate limiting and other similar policies. With this library we can create a policy that detects <code>AwsError</code>s representing throttling failures:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">private def</span><span style="color: #4078F2;"> throttlingPolicy</span><span>:</span><span style="color: #C18401;"> ZManaged</span><span>[</span><span style="color: #C18401;">Random</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Clock</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Logging</span><span>, </span><span style="color: #C18401;">Nothing</span><span>, </span><span style="color: #C18401;">Policy</span><span>[</span><span style="color: #C18401;">AwsError</span><span>]] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  for</span><span> {</span></span>
+<span class="giallo-l"><span>    cb &lt;-</span><span style="color: #C18401;"> CircuitBreaker</span><span>.make[</span><span style="color: #C18401;">AwsError</span><span>](</span></span>
+<span class="giallo-l"><span>      trippingStrategy =</span><span style="color: #C18401;"> TrippingStrategy</span><span>.failureCount(</span><span style="color: #986801;">1</span><span>),</span></span>
+<span class="giallo-l"><span>      resetPolicy =</span><span style="color: #C18401;"> Retry</span><span>.</span><span style="color: #C18401;">Schedules</span><span>.exponentialBackoff(min =</span><span style="color: #986801;"> 1</span><span>.second, max =</span><span style="color: #986801;"> 1</span><span>.minute),</span></span>
+<span class="giallo-l"><span>      isFailure = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span style="color: #C18401;"> GenericAwsError</span><span>(error:</span><span style="color: #C18401;"> AwsServiceException</span><span>)</span><span style="color: #A626A4;"> if</span><span> error.isThrottlingException =&gt;</span><span style="color: #986801;"> true</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"><span>    retry &lt;-</span><span style="color: #C18401;"> Retry</span><span>.make(min =</span><span style="color: #986801;"> 1</span><span>.second, max =</span><span style="color: #986801;"> 1</span><span>.minute)</span></span>
+<span class="giallo-l"><span>    retryComposable = retry.widen[</span><span style="color: #C18401;">PolicyError</span><span>[</span><span style="color: #C18401;">AwsError</span><span>]] {</span><span style="color: #A626A4;"> case</span><span style="color: #C18401;"> Policy</span><span>.</span><span style="color: #C18401;">WrappedError</span><span>(e) =&gt; e }</span></span>
+<span class="giallo-l"><span>  }</span><span style="color: #A626A4;"> yield</span><span> cb.toPolicy compose retryComposable.toPolicy</span></span></code></pre>
+<p>This will open a circuit breaker in case of throttling errors, and retry the operation with exponential back-off.</p>
+<p>These policies can be applied to <code>ZIO</code> effects. What we really need is to apply a policy like this to <em>all</em> AWS call. It should be the actual call to the underlying <em>AWS Java SDK</em>, not on the <code>zio-aws</code> wrapper level, because for example a streaming API function may produce multiple AWS requests.</p>
+<p>The <code>zio-aws</code> library supports applying <code>AwsCallAspect</code>s on the <em>AWS service client layers</em> to modify the underlying SDK calls. This is exactly what we need to apply the throttling policy to all calls! What's even better, by creating a single <code>throttlingPolicy</code> and applying it to all the service layers (<code>ec2</code>, <code>elasticloadbalancing</code>, <code>elasticbeanstalk</code> and <code>autoscaling</code>) they will share a common circuit breaker that matches the situation perfectly as the AWS API rate limiting is applied to globally to all services.</p>
+<p>An AWS call aspect has the following form:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> throttling</span><span> =</span><span style="color: #A626A4;"> new</span><span style="color: #C18401;"> AwsCallAspect</span><span>[</span><span style="color: #C18401;">Any</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> apply</span><span>[</span><span style="color: #C18401;">R1</span><span>, </span><span style="color: #C18401;">A</span><span>](f:</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R1</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Described</span><span>[</span><span style="color: #C18401;">A</span><span>]]):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R1</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, aspects.</span><span style="color: #C18401;">Described</span><span>[</span><span style="color: #C18401;">A</span><span>]] =</span></span>
+<span class="giallo-l"><span>    policy(f).mapError {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> Policy</span><span>.</span><span style="color: #C18401;">WrappedError</span><span>(e) =&gt; e</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> Policy</span><span>.</span><span style="color: #C18401;">BulkheadRejection</span><span> =&gt;</span><span style="color: #C18401;"> AwsError</span><span>.fromThrowable(</span><span style="color: #A626A4;">new</span><span style="color: #C18401;"> RuntimeException</span><span>(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;Bulkhead rejection&quot;</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> Policy</span><span>.</span><span style="color: #C18401;">CircuitBreakerOpen</span><span> =&gt;</span><span style="color: #C18401;"> AwsError</span><span>.fromThrowable(</span><span style="color: #A626A4;">new</span><span style="color: #C18401;"> RuntimeException</span><span>(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;AWS rate limit exceeded&quot;</span><span>))</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Another simple example could be logging all AWS requests:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> callLogging</span><span>:</span><span style="color: #C18401;"> AwsCallAspect</span><span>[</span><span style="color: #C18401;">Logging</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  new</span><span style="color: #C18401;"> AwsCallAspect</span><span>[</span><span style="color: #C18401;">Logging</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">   override final def</span><span style="color: #4078F2;"> apply</span><span>[</span><span style="color: #C18401;">R1</span><span> &lt;:</span><span style="color: #C18401;"> Logging</span><span>, </span><span style="color: #C18401;">A</span><span>](f:</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R1</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Described</span><span>[</span><span style="color: #C18401;">A</span><span>]]):</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">R1</span><span>, </span><span style="color: #C18401;">AwsError</span><span>, </span><span style="color: #C18401;">Described</span><span>[</span><span style="color: #C18401;">A</span><span>]] =</span></span>
+<span class="giallo-l"><span>     f.flatMap {</span><span style="color: #A626A4;"> case</span><span> r@</span><span style="color: #C18401;">Described</span><span>(_, description) =&gt;</span></span>
+<span class="giallo-l"><span>       log.info(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;[</span><span>${description.service}</span><span style="color: #50A14F;">/</span><span>${description.operation}</span><span style="color: #50A14F;">]&quot;</span><span>).as(r)</span></span>
+<span class="giallo-l"><span>     }</span></span>
+<span class="giallo-l"><span> }</span></span></code></pre>
+<p>These aspects can be applied to a <code>zio-aws</code> <code>ZLayer</code> directly, such as:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>ec2.live @@ (throttling &gt;&gt;&gt; callLogging)</span></span></code></pre><h2 id="rendering">Rendering</h2>
+<p>With the queries and report cache ready the last missing building block is <em>rendering</em> the gathered reports. We implement it in its own ZIO module with the following interface:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> Rendering</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  trait</span><span style="color: #C18401;"> Service</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> renderEc2Instance</span><span>(report:</span><span style="color: #C18401;"> LinkedReport</span><span>[</span><span style="color: #C18401;">Ec2InstanceKey</span><span>, </span><span style="color: #C18401;">Ec2InstanceReport</span><span>]):</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> renderElb</span><span>(report:</span><span style="color: #C18401;"> LinkedReport</span><span>[</span><span style="color: #C18401;">ElbKey</span><span>, </span><span style="color: #C18401;">ElbReport</span><span>], context:</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">String</span><span>]):</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> renderAsg</span><span>(report:</span><span style="color: #C18401;"> LinkedReport</span><span>[</span><span style="color: #C18401;">AsgKey</span><span>, </span><span style="color: #C18401;">AsgReport</span><span>]):</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> renderEbEnv</span><span>(report:</span><span style="color: #C18401;"> LinkedReport</span><span>[</span><span style="color: #C18401;">EbEnvKey</span><span>, </span><span style="color: #C18401;">EbEnvReport</span><span>]):</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> renderEbApp</span><span>(report:</span><span style="color: #C18401;"> LinkedReport</span><span>[</span><span style="color: #C18401;">EbAppKey</span><span>, </span><span style="color: #C18401;">EbAppReport</span><span>]):</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The live implementation of course needs access to <code>ReportCache</code> and writes the report out to <code>Console</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> live</span><span>:</span><span style="color: #C18401;"> ZLayer</span><span>[</span><span style="color: #C18401;">Console</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> ReportCache</span><span>, </span><span style="color: #C18401;">Nothing</span><span>, </span><span style="color: #C18401;">Rendering</span><span>] =</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span></code></pre>
+<p>We need two main things to implement report rendering:</p>
+<ul>
+<li>A way to pretty-print reports to the console</li>
+<li>We have to track which report was already rendered to be able to traverse the cyclic result graph</li>
+</ul>
+<p>To track the already printed reports we can simply create a <code>Ref</code> holding a set of visited <code>ReportKey</code>s:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">private case class</span><span style="color: #C18401;"> State</span><span>(alreadyVisited:</span><span style="color: #C18401;"> Set</span><span>[</span><span style="color: #C18401;">ReportKey</span><span>])</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span>
+<span class="giallo-l"><span>alreadyVisited &lt;-</span><span style="color: #C18401;"> Ref</span><span>.make(</span><span style="color: #C18401;">State</span><span>(</span><span style="color: #C18401;">Set</span><span>.empty))</span></span></code></pre>
+<p>For pretty printing the reports there are several possibilities. Eventually we want to call <code>console.putStr</code> to write to the console. The original implementation of this tool used a string templating engine to define the output. Instead of doing that we can write a pretty-printing DSL to define our output in Scala. Take a look at the following example:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>ifNotVisitedYet(report) { env =&gt;</span></span>
+<span class="giallo-l"><span>  sectionHeader(</span><span style="color: #50A14F;">&quot;Beanstalk/Env&quot;</span><span>) &lt;-&gt; highlighted(env.name) &lt;-&gt; </span></span>
+<span class="giallo-l"><span>    details(env.id) &lt;-&gt; </span></span>
+<span class="giallo-l"><span>    normal(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;is a Beanstalk environment of the application</span><span> ${env.appName}</span><span style="color: #50A14F;">&quot;</span><span>) \\</span></span>
+<span class="giallo-l"><span>  indented {</span></span>
+<span class="giallo-l"><span>    keyword(</span><span style="color: #50A14F;">&quot;AWS Console&quot;</span><span>) &lt;:&gt; </span></span>
+<span class="giallo-l"><span>      link(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;https://console.aws.amazon.com/elasticbeanstalk/home?region=</span><span>${env.region}</span><span style="color: #50A14F;">#/environment/dashboard?applicationName=</span><span>${env.appName}</span><span style="color: #50A14F;">&amp;environmentId=</span><span>${env.id}</span><span style="color: #50A14F;">&quot;</span><span>) \\</span></span>
+<span class="giallo-l"><span>    keyword(</span><span style="color: #50A14F;">&quot;Health&quot;</span><span>) &lt;:&gt; highlighted(env.health.toString) \\</span></span>
+<span class="giallo-l"><span>    keyword(</span><span style="color: #50A14F;">&quot;Currently running version&quot;</span><span>) &lt;:&gt; normal(env.version) \\</span></span>
+<span class="giallo-l"><span>    normal(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;</span><span>${env.asgs.size}</span><span style="color: #50A14F;"> ASGs,</span><span> ${env.instanceCount}</span><span style="color: #50A14F;"> instances,</span><span> ${env.elbs.size}</span><span style="color: #50A14F;"> ELBs&quot;</span><span>) \\</span></span>
+<span class="giallo-l"><span>    env.elbs.foreach_(elb(_, </span><span style="color: #C18401;">None</span><span>)) \\</span></span>
+<span class="giallo-l"><span>    env.asgs.foreach_(asg) \\</span></span>
+<span class="giallo-l"><span>    ebApp(env.app)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can see here a couple of functions and operators, all created to the specific task of printing <em>AWS resource reports</em>:</p>
+<ul>
+<li><code>ifNotYetVisitedYet</code> must somehow interact with the <code>Ref</code> we defined above</li>
+<li><code>&lt;-&gt;</code> concatenates two texts with a space</li>
+<li><code>&lt;:&gt;</code> concatenates two texts with a colon and a space</li>
+<li><code>\\</code> concatenates two texts with a newline</li>
+<li><code>keyword</code>, <code>link</code>, <code>normal</code>, <code>highlighted</code> etc. add styling to the given text</li>
+<li><code>foreach_</code> is coming from <code>zio-prelude</code>-s <code>Traversable</code>. We will see why is it used soon.</li>
+</ul>
+<p>We could define these styling functions as <code>ZIO</code> effects and the helper operators as general extension methods on <code>ZIO</code>. Then we could store required state (for example for indentation) in a <code>Ref</code> for example. This works but we can do better. By defining our own monadic data type <code>Print[A]</code> we get the following advantages:</p>
+<ul>
+<li>It is more type safe. The pretty printing operators will be only applicable to pretty printing functions, not to arbitrary ZIO effects</li>
+<li>Pretty printing state gets completely hidden from the pretty printing definitions</li>
+<li>We can easily do some optimizations such as collapsing multiple newlines into one, which makes rendering optional lines more convenient</li>
+</ul>
+<p>So let's define a data type to represent pretty printing:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> Print</span><span>[+</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> PrintPure</span><span>[</span><span style="color: #C18401;">A</span><span>](a:</span><span style="color: #C18401;"> A</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> PrintS</span><span>(s:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> PrintModified</span><span>(s:</span><span style="color: #C18401;"> String</span><span>, modifiers:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case object</span><span style="color: #C18401;"> PrintNL</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Unit</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> PrintIndented</span><span>[</span><span style="color: #C18401;">A</span><span>](p:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>])</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> PrintFlatMap</span><span>[</span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">B</span><span>](a:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>], f:</span><span style="color: #C18401;"> A</span><span> =&gt;</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>])</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> PrintEffect</span><span>[</span><span style="color: #C18401;">A</span><span>](f:</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">A</span><span>])</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>]</span></span></code></pre>
+<p><code>PrintPure</code> and <code>PrintFlatMap</code> can be used to implement <code>zio-prelude</code>s type classes:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">implicit val</span><span style="color: #E45649;"> print</span><span> =</span><span style="color: #A626A4;"> new</span><span style="color: #C18401;"> Covariant</span><span>[</span><span style="color: #C18401;">Print</span><span>]</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> IdentityFlatten</span><span>[</span><span style="color: #C18401;">Print</span><span>]</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> IdentityBoth</span><span>[</span><span style="color: #C18401;">Print</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> map</span><span>[</span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">B</span><span>](f:</span><span style="color: #C18401;"> A</span><span> =&gt;</span><span style="color: #C18401;"> B</span><span>):</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>] =&gt;</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>] = </span></span>
+<span class="giallo-l"><span>    fa =&gt;</span><span style="color: #C18401;"> PrintFlatMap</span><span>(fa, (a:</span><span style="color: #C18401;"> A</span><span>) =&gt;</span><span style="color: #C18401;"> PrintPure</span><span>(f(a)))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> any</span><span>:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Any</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    PrintPure</span><span>(())</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> flatten</span><span>[</span><span style="color: #C18401;">A</span><span>](ffa:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Print</span><span>[</span><span style="color: #C18401;">A</span><span>]]):</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>] = </span></span>
+<span class="giallo-l"><span style="color: #C18401;">    PrintFlatMap</span><span>(ffa, (fa:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>]) =&gt; fa)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> both</span><span>[</span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">B</span><span>](fa: =&gt;</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>], fb: =&gt;</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>]):</span><span style="color: #C18401;"> Print</span><span>[(</span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">B</span><span>)] = </span></span>
+<span class="giallo-l"><span style="color: #C18401;">    PrintFlatMap</span><span>(fa, (a:</span><span style="color: #C18401;"> A</span><span>) =&gt; map((b:</span><span style="color: #C18401;"> B</span><span>) =&gt; (a, b))(fb))</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>What are these type classes providing to us?</p>
+<ul>
+<li><code>Covariant</code> basically gives us <code>map</code></li>
+<li><code>IdentityFlatten</code> means that the data type can be "flattened" associatively and has an identity element. This gives us <code>flatten</code> and <code>flatMap</code>.</li>
+<li><code>IdentityBoth</code> means we have an associative binary operator to combine two values. This enables syntax like <code>&lt;*&gt;</code>.</li>
+</ul>
+<p>Having this we can define primitive pretty printing operators like:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> normal</span><span>(text:</span><span style="color: #C18401;"> String</span><span>):</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Unit</span><span>] =</span><span style="color: #C18401;"> PrintS</span><span>(text)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> space</span><span>:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">Unit</span><span>] =</span><span style="color: #C18401;"> PrintS</span><span>(</span><span style="color: #50A14F;">&quot; &quot;</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">implicit class</span><span style="color: #C18401;"> PrintOps</span><span>[</span><span style="color: #C18401;">A</span><span>](self:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>]) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> &lt;-&gt;</span><span>[</span><span style="color: #C18401;">B</span><span>](next: =&gt;</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>]):</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>] =</span></span>
+<span class="giallo-l"><span>    self *&gt; space *&gt; next</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Then we can use the syntax provided by <code>zio-prelude</code> to compose these pretty printer values. The only thing remaining is to provide a transformation of <code>Print[A]</code> to <code>UIO[A]</code>. This is where we can hide the pretty printer state and can handle special rules like collapsing newlines:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">private trait</span><span style="color: #C18401;"> PrettyConsole</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  protected val</span><span style="color: #E45649;"> console</span><span>:</span><span style="color: #C18401;"> Console</span><span>.</span><span style="color: #C18401;">Service</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private case class</span><span style="color: #C18401;"> PrettyState</span><span>(indentation:</span><span style="color: #C18401;"> String</span><span>, afterNL:</span><span style="color: #C18401;"> Boolean</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private def</span><span style="color: #4078F2;"> printFlatMap</span><span>[</span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">B</span><span>](a:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>], f:</span><span style="color: #C18401;"> A</span><span> =&gt;</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">B</span><span>], state:</span><span style="color: #C18401;"> PrettyState</span><span>):</span><span style="color: #C18401;"> UIO</span><span>[(</span><span style="color: #C18401;">B</span><span>, </span><span style="color: #C18401;">PrettyState</span><span>)] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      r1 &lt;- runImpl(a, state)</span></span>
+<span class="giallo-l"><span>      r2 &lt;- runImpl(f(r1._1), r1._2)</span></span>
+<span class="giallo-l"><span>    }</span><span style="color: #A626A4;"> yield</span><span> r2</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private def</span><span style="color: #4078F2;"> runImpl</span><span>[</span><span style="color: #C18401;">A</span><span>](p:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>], state:</span><span style="color: #C18401;"> PrettyState</span><span>):</span><span style="color: #C18401;"> UIO</span><span>[(</span><span style="color: #C18401;">A</span><span>, </span><span style="color: #C18401;">PrettyState</span><span>)] =</span></span>
+<span class="giallo-l"><span>    p </span><span style="color: #A626A4;">match</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintPure</span><span>(a) =&gt;</span><span style="color: #C18401;"> ZIO</span><span>.succeed((a, state))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintS</span><span>(s) =&gt;</span><span style="color: #C18401;"> ZIO</span><span>.when(state.afterNL)(console.putStr(state.indentation)) *&gt; </span></span>
+<span class="giallo-l"><span>        console.putStr(s).as(((), state.copy(afterNL =</span><span style="color: #986801;"> false</span><span>)))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintModified</span><span>(s, modifiers) =&gt;</span><span style="color: #C18401;"> ZIO</span><span>.when(state.afterNL)(console.putStr(state.indentation)) *&gt;</span></span>
+<span class="giallo-l"><span>        console.putStr(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;</span><span>${modifiers}$s$RESET</span><span style="color: #50A14F;">&quot;</span><span>).as(((), state.copy(afterNL =</span><span style="color: #986801;"> false</span><span>)))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintNL</span><span> =&gt; </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        if</span><span> (state.afterNL)</span><span style="color: #C18401;"> ZIO</span><span>.succeed(((), state)) </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        else</span><span> console.putStrLn(</span><span style="color: #50A14F;">&quot;&quot;</span><span>).as(((), state.copy(afterNL =</span><span style="color: #986801;"> true</span><span>)))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintIndented</span><span>(f) =&gt; runImpl(f, state.copy(indentation = state.indentation +</span><span style="color: #50A14F;"> &quot;  &quot;</span><span>)).map {</span><span style="color: #A626A4;"> case</span><span> (a, s) =&gt; </span></span>
+<span class="giallo-l"><span>          (a, s.copy(indentation = state.indentation)) }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintFlatMap</span><span>(a, f) =&gt; printFlatMap(a, f, state)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      case</span><span style="color: #C18401;"> PrintEffect</span><span>(f) =&gt; f.map((_, state))</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> run</span><span>[</span><span style="color: #C18401;">A</span><span>](p:</span><span style="color: #C18401;"> Print</span><span>[</span><span style="color: #C18401;">A</span><span>]):</span><span style="color: #C18401;"> UIO</span><span>[</span><span style="color: #C18401;">A</span><span>] = runImpl(p, </span><span style="color: #C18401;">PrettyState</span><span>(</span><span style="color: #50A14F;">&quot;&quot;</span><span>, afterNL =</span><span style="color: #986801;"> false</span><span>)).map(_._1)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>A couple of things to notice here:</p>
+<ul>
+<li><code>PrettyState</code> holds the indentation and a flag that is true when the last print was a <em>new line</em></li>
+<li><code>runImpl</code> gets the state as input and has the capability to modify it, by returning the modified state together with the computation's result</li>
+<li>there is a <code>PrintEffect</code> constructor that allows lifting arbitrary <code>ZIO</code> effects to the pretty printer. This is needed for interacting with the <code>Ref</code> that holds the record of already printed reports.</li>
+</ul>
+<h2 id="putting-all-together">Putting all together</h2>
+<p>Putting all this together means getting command line arguments, setting up the AWS client libraries, the report cache and the rendering modules and running the top level queries.</p>
+<p>To parse the command line arguments we can use my <a rel="external" href="https://vigoo.github.io/clipp/docs/">clipp library</a>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> Parameters</span><span>(verbose:</span><span style="color: #C18401;"> Boolean</span><span>,</span></span>
+<span class="giallo-l"><span>                            searchInput:</span><span style="color: #C18401;"> String</span><span>,</span></span>
+<span class="giallo-l"><span>                            region:</span><span style="color: #C18401;"> String</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> paramSpec</span><span> =</span><span style="color: #A626A4;"> for</span><span> {</span></span>
+<span class="giallo-l"><span>  _ &lt;- metadata(</span><span style="color: #50A14F;">&quot;aws-query&quot;</span><span>, </span><span style="color: #50A14F;">&quot;search for AWS infrastructure resources&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  verbose &lt;- flag(</span><span style="color: #50A14F;">&quot;Verbose logging&quot;</span><span>, </span><span style="color: #986801;">&#39;v&#39;</span><span>, </span><span style="color: #50A14F;">&quot;verbose&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  searchInput &lt;- parameter[</span><span style="color: #C18401;">String</span><span>](</span><span style="color: #50A14F;">&quot;Search input&quot;</span><span>, </span><span style="color: #50A14F;">&quot;NAME_OR_ID&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  region &lt;- optional { namedParameter[</span><span style="color: #C18401;">String</span><span>](</span><span style="color: #50A14F;">&quot;AWS region&quot;</span><span>, </span><span style="color: #50A14F;">&quot;REGION&quot;</span><span>, </span><span style="color: #50A14F;">&quot;region&quot;</span><span>) }</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #A626A4;"> yield</span><span style="color: #C18401;"> Parameters</span><span>(verbose, searchInput, region.getOrElse(</span><span style="color: #50A14F;">&quot;us-east-1&quot;</span><span>))</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> params</span><span> = clipp.zioapi.config.fromArgsWithUsageInfo(args, paramSpec)</span></span></code></pre>
+<p>The <code>verbose</code> flag is used to set up logging. We use <a rel="external" href="https://zio.github.io/zio-logging/">zio-logging</a> with SLF4j support (to be able to see logs from the underlying AWS Java SDK) with lo4j2 backend. In order to control the log level by the command line <code>verbose</code> flag, instead of the usual XML-based configuration for log4j2 we define a ZIO <em>layer</em> that's only purpose is to perform the configuration programmatically:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">private def</span><span style="color: #4078F2;"> log4j2Configuration</span><span>:</span><span style="color: #C18401;"> ZLayer</span><span>[</span><span style="color: #C18401;">Has</span><span>[</span><span style="color: #C18401;">ClippConfig</span><span>.</span><span style="color: #C18401;">Service</span><span>[</span><span style="color: #C18401;">Parameters</span><span>]], </span><span style="color: #C18401;">Throwable</span><span>, </span><span style="color: #C18401;">Has</span><span>[</span><span style="color: #C18401;">Log4jConfiguration</span><span>]] = {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  ZLayer</span><span>.fromServiceM[</span><span style="color: #C18401;">ClippConfig</span><span>.</span><span style="color: #C18401;">Service</span><span>[</span><span style="color: #C18401;">Parameters</span><span>], </span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">Throwable</span><span>, </span><span style="color: #C18401;">Log4jConfiguration</span><span>] { params =&gt;</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    ZIO</span><span>.effect {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      val</span><span style="color: #E45649;"> builder</span><span> =</span><span style="color: #C18401;"> ConfigurationBuilderFactory</span><span>.newConfigurationBuilder()       </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">      // ...</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Configurator</span><span>.initialize(builder.build())</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Log4jConfiguration</span><span>()</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>This way the root logger's level can depend on the <code>Parameters</code> parsed by <code>clipp</code>. Composing this layer with <code>zio-logger</code>s <code>Slf4jLogger</code> gives us a working <code>Logging</code> layer:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> logging</span><span> = log4j2Configuration &gt;+&gt;</span><span style="color: #C18401;"> Slf4jLogger</span><span>.make { (_, message) =&gt; message }</span></span></code></pre>
+<p>By bootstrapping the parameters and the logging we can run our main application like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">for</span><span> {</span></span>
+<span class="giallo-l"><span>  result &lt;- awsQuery()</span></span>
+<span class="giallo-l"><span>    .provideCustomLayer(params &gt;+&gt; logging)</span></span>
+<span class="giallo-l"><span>    .catchAll { _ =&gt;</span><span style="color: #C18401;"> ZIO</span><span>.succeed(</span><span style="color: #C18401;">ExitCode</span><span>.failure) }</span></span>
+<span class="giallo-l"><span>  _ &lt;-</span><span style="color: #C18401;"> ZIO</span><span>.effect(</span><span style="color: #C18401;">LogManager</span><span>.shutdown()).orDie</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #A626A4;"> yield</span><span> result</span></span></code></pre>
+<p>The <code>clipp</code> parser will print detailed usage info in case it fails, and other runtime errors are logged, so we can simply catch all errors and exit with a failure on top level.</p>
+<p>In <code>awsQuery</code> we create all the other layers necessary for running the queries. First we need to create the <em>throttling policy</em> that is used by all the AWS service clients as I explained above:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">private def</span><span style="color: #4078F2;"> awsQuery</span><span>():</span><span style="color: #C18401;"> ZIO</span><span>[</span><span style="color: #C18401;">Random</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Clock</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Console</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> Logging</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> ClippConfig</span><span>[</span><span style="color: #C18401;">Parameters</span><span>], </span><span style="color: #C18401;">Nothing</span><span>, </span><span style="color: #C18401;">ExitCode</span><span>] =</span></span>
+<span class="giallo-l"><span>    throttlingPolicy.use { policy =&gt;      </span></span></code></pre>
+<p>The <code>zio-aws</code> library uses <a rel="external" href="https://zio.github.io/zio-config/">ZIO Config</a> for configuration. This means we need a <code>ZConfig[CommonAwsConfig]</code> to construct the <code>AwsConfig</code> layer:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> commonConfig</span><span> =</span><span style="color: #C18401;"> ZLayer</span><span>.succeed(</span><span style="color: #C18401;">CommonAwsConfig</span><span>(</span></span>
+<span class="giallo-l"><span>  region =</span><span style="color: #C18401;"> Some</span><span>(</span><span style="color: #C18401;">Region</span><span>.of(params.region)),</span></span>
+<span class="giallo-l"><span>  credentialsProvider =</span><span style="color: #C18401;"> DefaultCredentialsProvider</span><span>.create(),</span></span>
+<span class="giallo-l"><span>  endpointOverride =</span><span style="color: #C18401;"> None</span><span>,</span></span>
+<span class="giallo-l"><span>  commonClientConfig =</span><span style="color: #C18401;"> None</span></span>
+<span class="giallo-l"><span>))</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> awsCore</span><span> = (netty.default ++ commonConfig) &gt;&gt;&gt; core.config.configured()</span></span></code></pre>
+<p>The <code>AwsConfig</code> layer combines the configuration with a selected HTTP backend. In our case this is the <em>Netty</em> backend, using its default configuration.</p>
+<p>Then we define the per-service client layers, applying the throttling and call logging <em>aspects</em> as I described before:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> awsClients</span><span> =</span></span>
+<span class="giallo-l"><span>  ec2.live @@ (throttling &gt;&gt;&gt; callLogging) ++</span></span>
+<span class="giallo-l"><span>  elasticloadbalancing.live @@ (throttling &gt;&gt;&gt; callLogging) ++</span></span>
+<span class="giallo-l"><span>  elasticbeanstalk.live @@ (throttling &gt;&gt;&gt; callLogging) ++</span></span>
+<span class="giallo-l"><span>  autoscaling.live @@ (throttling &gt;&gt;&gt; callLogging)</span></span></code></pre>
+<p>To produce the final layer, we feed the logging and the <code>AwsConfig</code> layers to the client layers, and add the <code>ReportCache</code> and <code>Render</code> implementations:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> finalLayer</span><span> = </span></span>
+<span class="giallo-l"><span>  ((</span><span style="color: #C18401;">ZLayer</span><span>.service[</span><span style="color: #C18401;">Logger</span><span>[</span><span style="color: #C18401;">String</span><span>]] ++ awsCore) &gt;&gt;&gt; awsClients) ++</span></span>
+<span class="giallo-l"><span>  ((</span><span style="color: #C18401;">Console</span><span>.any ++ cache.live) &gt;+&gt; render.live)</span></span></code></pre>
+<p>This has the environment <code>ClippConfig[Parameters] with Console with Logging with ReportCache with Rendering with AllServices</code> where</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> AllServices</span><span> =</span><span style="color: #C18401;"> Ec2</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> ElasticLoadBalancing</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> ElasticBeanstalk</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> AutoScaling</span></span></code></pre><h2 id="conclusion">Conclusion</h2>
+<p>We reimplemented the tool to query AWS resources using functional programming techniques, built on top of ZIO libraries. By separating the execution from the problem specification we get an easily readable and maintainable code that can be easily extended with new queries or reports without having to thing about how caching and concurrency is implemented under the hood. We can rate limit AWS requests without touching the actual queries, and take advantage of batching AWS operations while keeping the query logic simple and unaware of this optimization.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

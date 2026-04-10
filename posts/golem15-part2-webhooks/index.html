@@ -1,0 +1,186 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 2: Webhooks</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part2-webhooks&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 2: Webhooks</h1>
+            
+            <p class="posted-on">Posted on April 10, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+</ul>
+<h2 id="webhooks">Webhooks</h2>
+<p>We have seen how we can map our agents to HTTP APIs in the <a href="/posts/golem15-part1-code-first-routes">previous post</a>. Another new feature of <strong>Golem 1.5</strong>, closely related to that, is the ability to <strong>create webhooks</strong> and await them.</p>
+<p>Let's see how it works!</p>
+<h3 id="creating-a-webhook">Creating a webhook</h3>
+<p>Webhooks are built on top of <a rel="external" href="https://learn.golem.cloud/develop/promises">Golem Promises</a>, which were available in previous Golem releases as well. These are entities you can create from code and then await - while the agent is waiting, it gets fully suspended, consuming no resources.</p>
+<p>What's new is that we can now export these promises as webhook URLs that make it very easy to complete them from a third party system.</p>
+<div class="code-tabs" id="codetabs-1">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> webhook</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> createWebhook</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> url</span><span style="color: #0184BC;"> =</span><span> webhook.</span><span style="color: #4078F2;">getUrl</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// At this point we can somehow advertise this `url` - return as a result, post to a 3rd party API, etc</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> payload</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span> webhook;</span><span style="color: #A0A1A7;font-style: italic;"> // block until someone calls the webhook with a payload</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> result</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> T</span><span style="color: #0184BC;"> =</span><span> payload.</span><span style="color: #4078F2;">json</span><span>();</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> webhook</span><span> =</span><span style="color: #4078F2;"> create_webhook</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> url</span><span> =</span><span style="color: #E45649;"> webhook</span><span>.</span><span style="color: #4078F2;">url</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// At this point we can somehow advertise this `url` - return as a result, post to a 3rd party API, etc</span></span>
+<span class="giallo-l"><span> </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> request</span><span> =</span><span style="color: #E45649;"> webhook</span><span>.</span><span style="color: #A626A4;">await</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> data</span><span>:</span><span style="color: #0184BC;"> T</span><span> =</span><span style="color: #E45649;"> request</span><span>.</span><span style="color: #4078F2;">json</span><span>().</span><span style="color: #4078F2;">unwrap</span><span>();</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> webhook</span><span> =</span><span style="color: #C18401;"> HostApi</span><span>.createWebhook()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> url</span><span> = webhook.url</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// At this point we can somehow advertise this `url` - return as a result, post to a 3rd party API, etc</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>webhook.await().map { payload =&gt;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  val</span><span style="color: #E45649;"> event</span><span> = payload.json[</span><span style="color: #C18401;">T</span><span>]()</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> webhook</span><span> = @webhook.</span><span style="color: #4078F2;">create</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> url</span><span> =</span><span style="color: #E45649;"> webhook</span><span>.</span><span style="color: #4078F2;">url</span><span>()</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// At this point we can somehow advertise this `url` - return as a result, post to a 3rd party API, etc</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> payload</span><span> =</span><span style="color: #E45649;"> webhook</span><span>.</span><span style="color: #4078F2;">wait</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> text</span><span> =</span><span style="color: #E45649;"> payload</span><span>.</span><span style="color: #4078F2;">text</span><span>()</span></span></code></pre></div>
+<h3 id="calling-the-webhook">Calling the webhook</h3>
+<p>The webhook URL simply awaits a POST request with an arbitrary body. This body is what the <code>payload</code>'s helper methods are returning as raw byte array, string or parsed JSON.</p>
+<h3 id="customizing-the-webhook-url">Customizing the webhook URL</h3>
+<p>There are two ways to customize the webhook URL, which is having the following form:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="plain"><span class="giallo-l"><span>https://&lt;domain&gt;/&lt;prefix&gt;/&lt;suffix&gt;/&lt;id&gt; </span></span></code></pre>
+<p>The <code>&lt;domain&gt;</code> part is the domain where our API is deployed to. The <code>&lt;prefix&gt;</code> is <code>/webhooks</code> by default, and it can be customized in the deployment section of the Golem application manifest:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">httpApi</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  deployments</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    default</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> domain</span><span>:</span><span style="color: #50A14F;"> example.com</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        webhookUrl</span><span>:</span><span style="color: #50A14F;"> &quot;/my-custom-webhooks/&quot;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        agents</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">          # ...</span></span></code></pre>
+<p>The <code>&lt;suffix&gt;</code> part is the agent's type name in <code>kebab-case</code> by default, so for example <code>my-workflow</code> if our agent type is <code>MyWorkflow</code>. It can be customized by setting <strong>webhook suffix</strong> on our mount point:</p>
+<div class="code-tabs" id="codetabs-2">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>({</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  mount</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &#39;/workflow/{id}&#39;</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  webhookSuffix</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &#39;/workflow-hooks&#39;</span></span>
+<span class="giallo-l"><span>})</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> Workflow</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {    </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[agent_definition(</span></span>
+<span class="giallo-l"><span style="color: #986801;">    mount </span><span>=</span><span style="color: #50A14F;"> &quot;/workflow/{id}&quot;</span><span style="color: #986801;">,</span></span>
+<span class="giallo-l"><span style="color: #986801;">    webhook_suffix </span><span>=</span><span style="color: #50A14F;"> &quot;/workflow-hooks&quot;</span></span>
+<span class="giallo-l"><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub trait</span><span style="color: #C18401;"> Workflow</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@agentDefinition(</span></span>
+<span class="giallo-l"><span>  mount =</span><span style="color: #50A14F;"> &quot;/workflow/{id}&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>  webhookSuffix =</span><span style="color: #50A14F;"> &quot;/workflow-hooks&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> Workflow</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.agent</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.mount</span><span>(</span><span style="color: #50A14F;">&quot;/workflow/{id}&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.mount_webhook_suffix</span><span>(</span><span style="color: #50A14F;">&quot;/workflow-hooks&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub</span><span>(</span><span style="color: #E45649;">all</span><span>) </span><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> Workflow</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>
