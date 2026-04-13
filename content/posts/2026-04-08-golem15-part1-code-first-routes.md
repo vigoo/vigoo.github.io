@@ -11,6 +11,7 @@ I am writing a series of _short_ posts showcasing the new features of **Golem 1.
 Parts released so far:
 - [Part 1: Code-first routes](/posts/golem15-part1-code-first-routes)
 - [Part 2: Webhooks](/posts/golem15-part2-webhooks)
+- [Part 3: MCP](/posts/golem15-part3-mcp)
 
 ## Code-first routes
 In the previous Golem release we introduced **code-first agents** - we started defining everything in code, with the help of some TypeScript decorators and Rust annotations. With this we could define **agents** that expose a typed interface, can call each other and so on - but to expose these interfaces via regular HTTP endpoints, we had to define these endpoints in a OpenAPI-like YAML section and use a custom scripting language called **Rib** to map between the request/response and the underlying agent interface.
