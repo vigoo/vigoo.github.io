@@ -13,6 +13,7 @@ Parts released so far:
 - [Part 2: Webhooks](/posts/golem15-part2-webhooks)
 - [Part 3: MCP](/posts/golem15-part3-mcp)
 - [Part 4: Node.js compatibility](/posts/golem15-part4-nodejs)
+- [Part 5: Scala support](/posts/golem15-part5-scala)
 
 ## Webhooks
 We have seen how we can map our agents to HTTP APIs in the [previous post](/posts/golem15-part1-code-first-routes). Another new feature of **Golem 1.5**, closely related to that, is the ability to **create webhooks** and await them.
