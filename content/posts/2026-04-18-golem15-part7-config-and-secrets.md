@@ -267,3 +267,5 @@ val password = config.database.password.get
 let password = config.database.password.get!()
 ```
 {% end %}
+
+This way our `password` always gets the latest secret stored in the current environment.
