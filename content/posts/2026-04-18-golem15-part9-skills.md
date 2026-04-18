@@ -20,9 +20,9 @@ Parts released so far:
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 
 ## Skills 
-Using coding agents became a standard way of writing code. With **Golem 1.5**, our application templates include an `AGENTS.md` and a huge catalog of **agent skills** describing every detail of creating, modifying and testing agents on the Golem platform.
+Using coding agents has become a standard way of writing code. With **Golem 1.5**, our application templates include an `AGENTS.md` and a huge catalog of **agent skills** describing every detail of creating, modifying and testing agents on the Golem platform.
 
-A bootstrap skill explaining the `golem new` command is going to be available through [skills.sh](https://skills.sh); then depending on the chosen programming language, a large set of Golem specific skills got unpacked to the application's directory.
+A bootstrap skill explaining the `golem new` command is going to be available through [skills.sh](https://skills.sh); then depending on the chosen programming language, a large set of Golem specific skills get unpacked to the application's directory.
 
 ### Common and per-language skills
 The skill catalog is still being finalized for the release, but we will have 10-15 language-independent skills, and about 25-30 additional skills **for each language** (TypeScript, Rust, Scala and MoonBit). 
@@ -37,7 +37,7 @@ The skills cover every aspect of writing and running applications on the Golem p
 - Configuring applications
 - Writing new agents
 - Exposing agents through HTTP and MCP
-- Communicaton between multiple agents
+- Communication between multiple agents
 - Working with databases
 - Calling external services
 - Integration with AI providers
