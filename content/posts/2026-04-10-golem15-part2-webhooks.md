@@ -16,6 +16,8 @@ Parts released so far:
 - [Part 5: Scala support](/posts/golem15-part5-scala)
 - [Part 6: User-defined snapshotting](/posts/golem15-part6-user-defined-snapshotting)
 - [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
+- [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
+- [Part 9: Agent skills](/posts/golem15-part9-skills)
 
 ## Webhooks
 We have seen how we can map our agents to HTTP APIs in the [previous post](/posts/golem15-part1-code-first-routes). Another new feature of **Golem 1.5**, closely related to that, is the ability to **create webhooks** and await them.
