@@ -133,5 +133,39 @@ final case class ExampleAgentImpl(exampleParam: String, config: Config[ExampleCo
 }
 ```
 ```moonbit
+#derive.golem_schema
+pub(all) struct DbConfig {
+  host : String
+  port : UInt
+} derive(Eq)
+
+#derive.golem_schema
+pub(all) struct ExampleConfig {
+  debug_logs : Bool
+  alias : String?
+  database : DbConfig  // nesting
+} derive(Eq)
+
+#derive.agent
+pub(all) struct ExampleAgent {
+  example_param : String
+  config : @config.Config[ExampleConfig] // injection
+}
+
+fn ExampleAgent::new(
+  example_param : String,
+  config : @config.Config[ExampleConfig]
+) -> ExampleAgent {
+  { example_param, config }
+}
+
+pub fn ExampleAgent::use_config(self : Self) -> Unit {
+  let config = self.config.value
+  if config.debug_logs {
+    @log.debug("Debug logs enabled")
+  }
+}
 ```
 {% end %}
+
+Once we define these configuration **requirements** in code, we can no longer deploy our agent without satisfying them first!
