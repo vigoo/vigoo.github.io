@@ -1,7 +1,7 @@
 +++
 title = "Golem 1.5 features - Part 7: Configuration and Secrets"
 [taxonomies]
-tags = ["golem", "durable-execution", "agents", "scala", "golem-1.5", "code-fist"]
+tags = ["golem", "durable-execution", "agents", "scala", "golem-1.5", "code-first"]
 +++
 
 ## Introduction
@@ -41,7 +41,7 @@ type ExampleConfig = {
 class ExampleAgent extends BaseAgent {
   constructor(
     exampleParam: string, 
-    readonly config: Config<ConfigAgentConfig> // injection
+    readonly config: Config<ExampleConfig> // injection
   ) {
     // ...
   }
@@ -70,7 +70,7 @@ pub struct ExampleConfig {
 
 #[agent_definition]
 pub trait ExampleAgent {
-    fn new(name: String, #[agent_config] config: Config<ConfigAgentConfig>) -> Self;
+    fn new(name: String, #[agent_config] config: Config<ExampleConfig>) -> Self;
     fn use_config(&self);
 }
 
@@ -133,18 +133,18 @@ final case class ExampleAgentImpl(exampleParam: String, config: Config[ExampleCo
 }
 ```
 ```moonbit
-#derive.golem_schema
+#derive.config
 pub(all) struct DbConfig {
   host : String
   port : UInt
-} derive(Eq)
+}
 
-#derive.golem_schema
+#derive.config
 pub(all) struct ExampleConfig {
   debug_logs : Bool
   alias : String?
   database : DbConfig  // nesting
-} derive(Eq)
+}
 
 #derive.agent
 pub(all) struct ExampleAgent {
@@ -168,4 +168,102 @@ pub fn ExampleAgent::use_config(self : Self) -> Unit {
 ```
 {% end %}
 
-Once we define these configuration **requirements** in code, we can no longer deploy our agent without satisfying them first!
+Once we define these configuration **requirements** in code, we can no longer deploy our agent without satisfying them first! 
+
+We can assign values to each field of our structured configuration per agent in the application manifest:
+
+```yaml
+agents:
+  ExampleAgent:
+    config:
+      debugLogs: true
+      alias: "main"
+      database:
+        host: "localhost"
+        port: 5432
+```
+
+It is also possible to use the manifest's `preset` feature to define reusable bits of configuration that can be easily applied to multiple agents, or to define config values that apply to _all_ agents within a component.
+
+### Secrets
+**Secrets** are a special type of configuration - while regular configuration is tied to deployments, secrets can be updated dynamically for example when an API Token needs to be rotated. The difference between regular configuration and secrets is visible both in the code, and in the agent's metadata. The type difference encourages you to always `get` the secret's current value to get the latest available value before each use.
+
+To define parts of the agent configuration as being secrets, wrap them in `Secret`. The following example extends our previous `DbConfig` type with a secret `password` field:
+
+{% codetabs() %}
+```typescript
+type DbConfig = {
+  host: string,
+  port: number,
+  password: Secret<string>
+}
+```
+```rust
+#[derive(ConfigSchema)]
+pub struct DbConfig {
+    host: String,
+    port: u16,
+    #[config_schema(secret)]
+    password: Secret<String>,
+}
+```
+```scala
+final case class DbConfig(
+  host: String,
+  port: Int,
+  password: Secret[String]
+)
+```
+```moonbit
+#derive.config
+pub(all) struct DbConfig {
+  host : String
+  port : UInt
+  password : @config.Secret[String]
+}
+```
+{% end %}
+
+Secret values are stored **per environment** and not per agent deployment. If an environment does not have a secret yet, its initial value can be automatically set at deploy time by using the `secretDefaults` section of the application manifest:
+
+```yaml
+secretDefaults:
+  local:
+    - path: [db, password]
+      value: "{{ DB_PASSWORD }}"   # env var substitution supported
+```
+
+Just like in previous versions for environment variables, the `{{ X }}` format can be used to set a secret value to an environment variable's value **from the user's system**.
+
+Alternatively secrets can be created using CLI commands:
+
+```bash
+golem agent-secret create db.password --secret-type string --secret-value "pwd"
+```
+
+The secrets can be examined and updated any time using the CLI:
+
+```bash
+golem agent-secret list
+golem agent-secret update-value db.password --secret-value "new-pwd"
+golem agent-secret delete db.password
+```
+
+Deleting a secret can make running agents fail at runtime, if they use it.
+
+To access a secret's current value, use `get` on the `Secret` field — unlike regular config fields, this fetches the latest value each time:
+
+{% codetabs() %}
+```typescript
+const password = config.database.password.get();
+```
+```rust
+let password = config.database.password.get();
+```
+```scala
+val password = config.database.password.get
+```
+```moonbit
+let password = config.database.password.get!()
+```
+{% end %}
