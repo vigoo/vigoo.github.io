@@ -15,6 +15,7 @@ Parts released so far:
 - [Part 4: Node.js compatibility](/posts/golem15-part4-nodejs)
 - [Part 5: Scala support](/posts/golem15-part5-scala)
 - [Part 6: User-defined snapshotting](/posts/golem15-part6-user-defined-snapshotting)
+- [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 
 ## MCP
 [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) became a standard way to connect AI applications. With the new Golem release any Golem application can be automatically **exposed through MCP**. It does not require any code written, MCP is available for any agent automatically, but it needs to be enabled in the **application manifest**:

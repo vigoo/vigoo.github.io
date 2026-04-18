@@ -14,7 +14,7 @@ Parts released so far:
 - [Part 4: Node.js compatibility](/posts/golem15-part4-nodejs)
 - [Part 5: Scala support](/posts/golem15-part5-scala)
 - [Part 6: User-defined snapshotting](/posts/golem15-part6-user-defined-snapshotting)
-
+- [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 
 ## Snapshot based recovery
 One of the primary features of **Golem** is that it can recover an agent's state transparently. Under the hood this is implemented by replaying an **oplog** that records every side-effect's results among other things, so we can reconstruct the application's state on recovery. This works perfectly but can be slow if the agent does something CPU-heavy, or it simply have been running long enough to accumulate a long oplog.

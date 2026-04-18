@@ -14,6 +14,7 @@ Parts released so far:
 - [Part 4: Node.js compatibility](/posts/golem15-part4-nodejs)
 - [Part 5: Scala support](/posts/golem15-part5-scala)
 - [Part 6: User-defined snapshotting](/posts/golem15-part6-user-defined-snapshotting)
+- [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 
 ## JS/TS support
 The previous release introduced our new QuickJS based **JavaScript engine** and supported using **TypeScript** for writing Golem applications. The runtime itself and the Golem SDK already worked well, however not many of the third party libraries of the JS/TS ecosystem were compatible with our runtime. We have put a lot of effort into increasing our runtime's compatibility with both browser APIs and Node.js modules.
