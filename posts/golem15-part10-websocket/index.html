@@ -1,0 +1,298 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 10: WebSocket client</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part10-websocket&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 10: WebSocket client</h1>
+            
+            <p class="posted-on">Posted on April 18, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+</ul>
+<h2 id="websockets">WebSockets</h2>
+<p>Golem applications are WebAssembly components and the only way they can make external requests is through the <a rel="external" href="https://github.com/WebAssembly/WASI/tree/main/proposals/http/">WASI HTTP interface</a>. This is not really visible for Golem developers - in TypeScript and Scala the standard <code>fetch</code> or <code>node:http</code> interfaces are hiding this fact, just like in Rust where higher level HTTP libraries like <code>wstd::http</code> can be used.</p>
+<p>This HTTP interface has its limitations; one such limitation is that it does not support upgrading to a WebSocket connection.</p>
+<h3 id="websocket-client-api">WebSocket client API</h3>
+<p>In <strong>Golem 1.5</strong> we introduce a new WebSocket client API that complements the WASI HTTP one for connecting to 3rd party WebSocket servers.</p>
+<p>Under the hood this API is described by the following WebAssembly interface:</p>
+<details>
+<summary>WIT definition of <code>golem:websocket@1.5.0</code></summary>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="wit"><span class="giallo-l"><span style="color: #A626A4;">package</span><span style="color: #C18401;"> golem</span><span>:</span><span style="color: #C18401;">websocket</span><span>@</span><span style="color: #986801;">1.5.0;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">interface</span><span style="color: #C18401;"> client</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  use</span><span> wasi:io/poll@</span><span style="color: #986801;">0.2.3</span><span>.{</span><span style="color: #C18401;">pollable</span><span>};</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  variant</span><span style="color: #C18401;"> error</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    connection-failure</span><span>(</span><span style="color: #C18401;">string</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    send-failure</span><span>(</span><span style="color: #C18401;">string</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    receive-failure</span><span>(</span><span style="color: #C18401;">string</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    protocol-error</span><span>(</span><span style="color: #C18401;">string</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    closed</span><span>(</span><span style="color: #C18401;">option</span><span>&lt;</span><span style="color: #C18401;">close-info</span><span>&gt;),</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    other</span><span>(</span><span style="color: #C18401;">string</span><span>),</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  record</span><span style="color: #C18401;"> close-info</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    code</span><span>:</span><span style="color: #C18401;"> u16</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    reason</span><span>:</span><span style="color: #C18401;"> string</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  /// A WebSocket message — text or binary</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  variant</span><span style="color: #C18401;"> message</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    text</span><span>(</span><span style="color: #C18401;">string</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    binary</span><span>(</span><span style="color: #C18401;">list</span><span>&lt;</span><span style="color: #C18401;">u8</span><span>&gt;),</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  /// A WebSocket connection resource</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  resource</span><span style="color: #C18401;"> websocket-connection</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Connect to a WebSocket server at the given URL (ws:// or wss://)</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Optional headers for auth, subprotocols, etc.</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    connect</span><span>:</span><span style="color: #A626A4;"> static func</span><span>(</span></span>
+<span class="giallo-l"><span>      url:</span><span style="color: #C18401;"> string</span><span>,</span></span>
+<span class="giallo-l"><span>      headers:</span><span style="color: #C18401;"> option</span><span>&lt;</span><span style="color: #C18401;">list</span><span>&lt;</span><span style="color: #C18401;">tuple</span><span>&lt;</span><span style="color: #C18401;">string</span><span>,</span><span style="color: #C18401;"> string</span><span>&gt;&gt;&gt;</span></span>
+<span class="giallo-l"><span>    ) -&gt;</span><span style="color: #C18401;"> result</span><span>&lt;</span><span style="color: #C18401;">websocket-connection</span><span>,</span><span style="color: #C18401;"> error</span><span>&gt;;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Send a message (text or binary)</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    send</span><span>:</span><span style="color: #A626A4;"> func</span><span>(message:</span><span style="color: #C18401;"> message</span><span>) -&gt;</span><span style="color: #C18401;"> result</span><span>&lt;</span><span style="color: #E45649;">_</span><span>,</span><span style="color: #C18401;"> error</span><span>&gt;;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Receive the next message (blocks until available)</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    receive</span><span>:</span><span style="color: #A626A4;"> func</span><span>() -&gt;</span><span style="color: #C18401;"> result</span><span>&lt;</span><span style="color: #C18401;">message</span><span>,</span><span style="color: #C18401;"> error</span><span>&gt;;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Receive the next message with a timeout in milliseconds.</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Returns none if the timeout expires before a message arrives.</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    receive-with-timeout</span><span>:</span><span style="color: #A626A4;"> func</span><span>(timeout-ms:</span><span style="color: #C18401;"> u64</span><span>) -&gt;</span><span style="color: #C18401;"> result</span><span>&lt;</span><span style="color: #C18401;">option</span><span>&lt;</span><span style="color: #C18401;">message</span><span>&gt;,</span><span style="color: #C18401;"> error</span><span>&gt;;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Send a close frame with optional code and reason</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    close</span><span>:</span><span style="color: #A626A4;"> func</span><span>(code:</span><span style="color: #C18401;"> option</span><span>&lt;</span><span style="color: #C18401;">u16</span><span>&gt;, reason:</span><span style="color: #C18401;"> option</span><span>&lt;</span><span style="color: #C18401;">string</span><span>&gt;) -&gt;</span><span style="color: #C18401;"> result</span><span>&lt;</span><span style="color: #E45649;">_</span><span>,</span><span style="color: #C18401;"> error</span><span>&gt;;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    /// Returns a pollable that resolves when a message is available to read</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    subscribe</span><span>:</span><span style="color: #A626A4;"> func</span><span>() -&gt;</span><span style="color: #C18401;"> pollable</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></details>
+<p>This is just an implementation detail which can be mostly hidden by higher level APIs provided by our language-specific SDKs, just like the WASI HTTP interfaces are.</p>
+<h3 id="higher-level-websocket-apis">Higher level WebSocket APIs</h3>
+<p>In <strong>TypeScript</strong> the WebSocket support is implemented through the standard browser <a rel="external" href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocket"><code>WebSocket</code></a> and <a rel="external" href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocketStream"><code>WebSocketStream</code></a> APIs.</p>
+<p>In <strong>Rust</strong> we could not override the behavior of an existing WebSocket library so the Golem Rust SDK provides its own, inspired by the popular <a rel="external" href="https://github.com/snapview/tungstenite-rs">tungstenite</a> library.</p>
+<p><strong>Scala</strong> compiles to JS on Golem, so the most straightforward approach is to use the browser <code>WebSocket</code>/<code>WebSocketStream</code> APIs. At the time of writing <a rel="external" href="https://ziohttp.com"><code>zio-http</code></a> does not support WebSockets on Scala.js, but this is something we could possibly fix!</p>
+<p>In <strong>MoonBit</strong> we can directly use the low level WIT interface through the generated bindings.</p>
+<h4 id="example">Example</h4>
+<p>The following example shows how an agent method can initiate and run a WebSocket connection:</p>
+<div class="code-tabs" id="codetabs-1">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> ExampleAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  async</span><span style="color: #4078F2;"> run</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    return new</span><span style="color: #C18401;"> Promise</span><span>((resolve, reject)</span><span style="color: #A626A4;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      const</span><span style="color: #986801;"> ws</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> WebSocket</span><span>(</span><span style="color: #50A14F;">&quot;wss://example.com/chat&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>      ws.</span><span style="color: #4078F2;">onopen</span><span style="color: #0184BC;"> =</span><span> ()</span><span style="color: #A626A4;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>        console.</span><span style="color: #4078F2;">log</span><span>(</span><span style="color: #50A14F;">&quot;Connected&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>        ws.</span><span style="color: #4078F2;">send</span><span>(</span><span style="color: #50A14F;">&quot;Hello, server!&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>      };</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>      ws.</span><span style="color: #4078F2;">onmessage</span><span style="color: #0184BC;"> =</span><span> (event</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> MessageEvent</span><span>)</span><span style="color: #A626A4;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        if</span><span> (</span><span style="color: #0184BC;">typeof</span><span> event.</span><span style="color: #E45649;">data</span><span style="color: #0184BC;"> ===</span><span style="color: #50A14F;"> &quot;string&quot;</span><span>) {</span></span>
+<span class="giallo-l"><span>          console.</span><span style="color: #4078F2;">log</span><span>(</span><span style="color: #50A14F;">&quot;Text:&quot;</span><span>, event.</span><span style="color: #E45649;">data</span><span>);</span></span>
+<span class="giallo-l"><span>        }</span><span style="color: #A626A4;"> else</span><span> {</span></span>
+<span class="giallo-l"><span>          console.</span><span style="color: #4078F2;">log</span><span>(</span><span style="color: #50A14F;">&quot;Binary:&quot;</span><span>,</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> Uint8Array</span><span>(event.</span><span style="color: #E45649;">data</span><span>));</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>      };</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>      ws.</span><span style="color: #4078F2;">onerror</span><span style="color: #0184BC;"> =</span><span> ()</span><span style="color: #A626A4;"> =&gt;</span><span style="color: #4078F2;"> reject</span><span>(</span><span style="color: #A626A4;">new</span><span style="color: #4078F2;"> Error</span><span>(</span><span style="color: #50A14F;">&quot;WebSocket error&quot;</span><span>));</span></span>
+<span class="giallo-l"><span>      ws.</span><span style="color: #4078F2;">onclose</span><span style="color: #0184BC;"> =</span><span> (event</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> CloseEvent</span><span>)</span><span style="color: #A626A4;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>        console.</span><span style="color: #4078F2;">log</span><span>(</span><span style="color: #50A14F;">`Closed [</span><span style="color: #CA1243;">${</span><span>event</span><span style="color: #50A14F;">.</span><span style="color: #E45649;">code</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">] &quot;</span><span style="color: #CA1243;">${</span><span>event</span><span style="color: #50A14F;">.</span><span style="color: #E45649;">reason</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">&quot;`</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">        resolve</span><span>();</span></span>
+<span class="giallo-l"><span>      };</span></span>
+<span class="giallo-l"><span>    });</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[agent_implementation]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span style="color: #0184BC;"> ExampleAgent</span><span style="color: #A626A4;"> for</span><span style="color: #0184BC;"> ExampleAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async fn</span><span style="color: #4078F2;"> run</span><span>() -&gt;</span><span style="color: #0184BC;"> Result</span><span>&lt;(),</span><span style="color: #0184BC;"> WebSocketError</span><span>&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span style="color: #E45649;"> ws</span><span> =</span><span style="color: #0184BC;"> WebsocketConnection</span><span>::</span><span style="color: #4078F2;">connect</span><span>(</span><span style="color: #50A14F;">&quot;wss://example.com/chat&quot;</span><span>,</span><span style="color: #C18401;"> None</span><span>)?;</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">        println!</span><span>(</span><span style="color: #50A14F;">&quot;Connected&quot;</span><span>);</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span style="color: #E45649;">        ws</span><span>.</span><span style="color: #4078F2;">send</span><span>(&amp;WebSocketMessage::</span><span style="color: #4078F2;">Text</span><span>(</span><span style="color: #50A14F;">&quot;Hello, server!&quot;</span><span>.</span><span style="color: #4078F2;">to_string</span><span>()))?;</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        loop</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">            match</span><span style="color: #E45649;"> ws</span><span>.</span><span style="color: #4078F2;">receive</span><span>().</span><span style="color: #A626A4;">await</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">                Ok</span><span>(</span><span style="color: #0184BC;">WebSocketMessage</span><span>::</span><span style="color: #4078F2;">Text</span><span>(</span><span style="color: #E45649;">text</span><span>)) =&gt;</span><span style="color: #4078F2;"> println!</span><span>(</span><span style="color: #50A14F;">&quot;Text: {text}&quot;</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #C18401;">                Ok</span><span>(</span><span style="color: #0184BC;">WebSocketMessage</span><span>::</span><span style="color: #4078F2;">Binary</span><span>(</span><span style="color: #E45649;">data</span><span>)) =&gt;</span><span style="color: #4078F2;"> println!</span><span>(</span><span style="color: #50A14F;">&quot;Binary: {data:?}&quot;</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #C18401;">                Err</span><span>(</span><span style="color: #0184BC;">WebSocketError</span><span>::</span><span style="color: #4078F2;">Closed</span><span>(</span><span style="color: #E45649;">info</span><span>)) =&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">                    if let</span><span style="color: #C18401;"> Some</span><span>(</span><span style="color: #E45649;">info</span><span>) =</span><span style="color: #E45649;"> info</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">                        println!</span><span>(</span><span style="color: #50A14F;">&quot;Closed [{}] </span><span style="color: #0184BC;">\&quot;</span><span style="color: #50A14F;">{}</span><span style="color: #0184BC;">\&quot;</span><span style="color: #50A14F;">&quot;</span><span>,</span><span style="color: #E45649;"> info</span><span>.code,</span><span style="color: #E45649;"> info</span><span>.reason);</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">                    break</span><span>;</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span style="color: #C18401;">                Err</span><span>(</span><span style="color: #E45649;">err</span><span>) =&gt;</span><span style="color: #A626A4;"> return</span><span style="color: #C18401;"> Err</span><span>(</span><span style="color: #E45649;">err</span><span>),</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span style="color: #C18401;">        Ok</span><span>(())</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">case class</span><span style="color: #C18401;"> ExampleAgentImpl</span><span>()</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> ExampleAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> run</span><span>():</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Unit</span><span>] = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    val</span><span style="color: #E45649;"> done</span><span> =</span><span style="color: #C18401;"> Promise</span><span>[</span><span style="color: #C18401;">Unit</span><span>]()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    val</span><span style="color: #E45649;"> ws</span><span> =</span><span style="color: #A626A4;"> new</span><span style="color: #C18401;"> WebSocket</span><span>(</span><span style="color: #50A14F;">&quot;wss://example.com/chat&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onopen = { (_:</span><span style="color: #C18401;"> Event</span><span>) =&gt;</span></span>
+<span class="giallo-l"><span>      println(</span><span style="color: #50A14F;">&quot;Connected&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>      ws.send(</span><span style="color: #50A14F;">&quot;Hello, server!&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onmessage = { (event:</span><span style="color: #C18401;"> MessageEvent</span><span>) =&gt;</span></span>
+<span class="giallo-l"><span>      event.data </span><span style="color: #A626A4;">match</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span> text:</span><span style="color: #C18401;"> String</span><span> =&gt; println(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;Text:</span><span> $text</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span> other        =&gt; println(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;Binary:</span><span> $other</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onerror = { (_:</span><span style="color: #C18401;"> Event</span><span>) =&gt;</span></span>
+<span class="giallo-l"><span>      done.tryFailure(</span><span style="color: #A626A4;">new</span><span style="color: #C18401;"> Exception</span><span>(</span><span style="color: #50A14F;">&quot;WebSocket error&quot;</span><span>))</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onclose = { (event:</span><span style="color: #C18401;"> CloseEvent</span><span>) =&gt;</span></span>
+<span class="giallo-l"><span>      println(</span><span style="color: #A626A4;">s</span><span style="color: #50A14F;">&quot;Closed [</span><span>${event.code}</span><span style="color: #50A14F;">]</span><span style="color: #0184BC;"> \&quot;</span><span>${event.reason}</span><span style="color: #0184BC;">\&quot;</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>      done.trySuccess(())</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    done.future</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> ExampleAgent</span><span>::</span><span style="color: #4078F2;">run</span><span>(</span><span style="color: #E45649;">self</span><span> : </span><span style="color: #C18401;">Self</span><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> Unit</span><span style="color: #A626A4;"> raise</span><span> @common.</span><span style="color: #C18401;">AgentError</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  let</span><span style="color: #E45649;"> conn</span><span> =</span><span style="color: #A626A4;"> match</span><span> @websocket_client.</span><span style="color: #C18401;">WebsocketConnection</span><span>::</span><span style="color: #4078F2;">connect</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">    &quot;wss://example.com/chat&quot;</span><span>, </span><span style="color: #C18401;">None</span><span>,</span></span>
+<span class="giallo-l"><span>  ) {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Ok</span><span>(</span><span style="color: #E45649;">c</span><span>) </span><span style="color: #A626A4;">=&gt;</span><span style="color: #E45649;"> c</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Err</span><span>(</span><span style="color: #E45649;">e</span><span>) </span><span style="color: #A626A4;">=&gt; raise</span><span> @common.</span><span style="color: #C18401;">AgentError</span><span>::</span><span style="color: #C18401;">InvalidInput</span><span>(</span><span style="color: #50A14F;">&quot;Connect failed: </span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">e</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">  println</span><span>(</span><span style="color: #50A14F;">&quot;Connected&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  match</span><span style="color: #E45649;"> conn</span><span>.</span><span style="color: #4078F2;">send</span><span>(</span><span style="color: #C18401;">Text</span><span>(</span><span style="color: #50A14F;">&quot;Hello, server!&quot;</span><span>)) {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Ok</span><span>(</span><span style="color: #E45649;">_</span><span>) </span><span style="color: #A626A4;">=&gt;</span><span> ()</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Err</span><span>(</span><span style="color: #E45649;">e</span><span>) </span><span style="color: #A626A4;">=&gt; raise</span><span> @common.</span><span style="color: #C18401;">AgentError</span><span>::</span><span style="color: #C18401;">InvalidInput</span><span>(</span><span style="color: #50A14F;">&quot;Send failed: </span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">e</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  while</span><span style="color: #986801;"> true</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    match</span><span style="color: #E45649;"> conn</span><span>.</span><span style="color: #4078F2;">receive</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Ok</span><span>(</span><span style="color: #C18401;">Text</span><span>(</span><span style="color: #E45649;">msg</span><span>)) </span><span style="color: #A626A4;">=&gt;</span><span style="color: #4078F2;"> println</span><span>(</span><span style="color: #50A14F;">&quot;Text: </span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">msg</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Ok</span><span>(</span><span style="color: #C18401;">Binary</span><span>(</span><span style="color: #E45649;">data</span><span>)) </span><span style="color: #A626A4;">=&gt;</span><span style="color: #4078F2;"> println</span><span>(</span><span style="color: #50A14F;">&quot;Binary: </span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">data</span><span style="color: #50A14F;">.</span><span style="color: #4078F2;">length</span><span style="color: #50A14F;">()</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;"> bytes&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Err</span><span>(</span><span style="color: #C18401;">Closed</span><span>(</span><span style="color: #C18401;">Some</span><span>(</span><span style="color: #E45649;">info</span><span>))) </span><span style="color: #A626A4;">=&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">        println</span><span>(</span><span style="color: #50A14F;">&quot;Closed [</span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">info</span><span style="color: #50A14F;">.code</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">] </span><span style="color: #0184BC;">\&quot;</span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">info</span><span style="color: #50A14F;">.reason</span><span style="color: #CA1243;">}</span><span style="color: #0184BC;">\&quot;</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        break</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Err</span><span>(</span><span style="color: #C18401;">Closed</span><span>(</span><span style="color: #C18401;">None</span><span>)) </span><span style="color: #A626A4;">=&gt; break</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Err</span><span>(</span><span style="color: #E45649;">e</span><span>) </span><span style="color: #A626A4;">=&gt; raise</span><span> @common.</span><span style="color: #C18401;">AgentError</span><span>::</span><span style="color: #C18401;">InvalidInput</span><span>(</span><span style="color: #50A14F;">&quot;Receive failed: </span><span style="color: #CA1243;">\{</span><span style="color: #E45649;">e</span><span style="color: #CA1243;">}</span><span style="color: #50A14F;">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  conn</span><span>.</span><span style="color: #4078F2;">drop</span><span>()</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+<h3 id="durability">Durability</h3>
+<p>Golem agents are durable, surviving failures and restarts. But what about these WebSocket connections? In <strong>Golem 1.5</strong> we have limited support for recovering WebSocket connections in case of a restart.</p>
+<p>If the connection happened in the past, and was already closed, it works as expected - the whole communication is stored in the agent's <strong>oplog</strong> and there isn't any problem recovering the agent's state.</p>
+<p>If the connection is still open, we have a problem because WebSocket connections are quite low level - there is no standard way to resume a connection. What Golem does is it assumes that the server supports transparent reconnections, and just reopens the connection and continues sending/receiving on it. For the Golem application's developer this is completely transparent, but it's the server's responsibility to support this kind of resumption.</p>
+<p>If the server does not support this kind of reconnection, then agents using these connections are no longer able to transparently survive failure scenarios. This is something we can further improve in upcoming Golem releases.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

@@ -1,0 +1,370 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Type class derivation with ZIO Schema</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;zio-schema-deriving&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Type class derivation with ZIO Schema</h1>
+            
+            <p class="posted-on">Posted on December 02, 2023</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>Making the compiler to automatically <em>derive</em> implementations of a type class for your custom algebraic data types is a common technique in programming languages. Haskell, for example, has built-in syntax for it:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="haskell"><span class="giallo-l"><span style="color: #A626A4;">data Literal</span><span> =</span><span style="color: #986801;"> StringLit</span><span style="color: #A626A4;"> String</span></span>
+<span class="giallo-l"><span>             |</span><span style="color: #986801;"> BoolLit</span><span style="color: #A626A4;"> Bool</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">               deriving</span><span> (</span><span style="color: #A626A4;">Show</span><span>)</span></span></code></pre>
+<p>and Rust is using macros instantiated by <em>annotations</em> to do the same:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[deriving(</span><span style="color: #0184BC;">Debug</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> Literal</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">  StringLit</span><span>(</span><span style="color: #0184BC;">String</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">  BoolLit</span><span>(</span><span style="color: #C18401;">bool</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Scala 3 has its own syntax for deriving type classes:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> Literal</span><span> deriving </span><span style="color: #C18401;">Show</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case</span><span style="color: #C18401;"> StringLit</span><span>(value:</span><span style="color: #C18401;"> String</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case</span><span style="color: #C18401;"> BoolLit</span><span>(value:</span><span style="color: #C18401;"> Boolean</span><span>)</span></span></code></pre>
+<p>but the more traditional way that works with Scala 2 as well is to define an implicit in the type's companion object by an explicit macro invocation:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> Literal</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> Literal</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  final case class</span><span style="color: #C18401;"> StringLit</span><span>(value:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Literal</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  final case class</span><span style="color: #C18401;"> BoolLit</span><span>(value:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Literal</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> show</span><span>:</span><span style="color: #C18401;"> Show</span><span>[</span><span style="color: #C18401;">Literal</span><span>] =</span><span style="color: #C18401;"> DeriveShow</span><span>[</span><span style="color: #C18401;">Literal</span><span>]</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>All these examples from different languages are common in a way that in order to automatically generate an implementation for an arbitrary type we need to be able to gather information about these types as (compilation-) runtime values, and to generate new code fragments (or actual abstract syntax tree) which then takes part of to the compilation, producing the same result as writing the implementation by hand.</p>
+<p>This means using some kind of macro, depending on which programming language we use. But writing these macros is never easy, and in some cases can be very different from the usual way of writing code - so in each programming language people are writing <em>libraries</em> helping type class derivation in one way or the other.</p>
+<p>In this post I will show a library like that for Scala, the <code>Deriver</code> feature of <a rel="external" href="https://zio.dev/zio-schema/">ZIO Schema</a> that I added at the end of last year (2022). But before that let's see a real world example and what alternatives we had.</p>
+<h2 id="example">Example</h2>
+<p><a rel="external" href="https://vigoo.github.io/desert/">Desert</a> is a Scala serialization library I wrote in 2020. Not surprisingly in the core of Desert is a <em>trait</em> that describes serialization and deserailization of a type <code>T</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>]</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">T</span><span>]</span><span style="color: #A626A4;"> with</span><span style="color: #C18401;"> BinaryDeserializer</span><span>[</span><span style="color: #C18401;">T</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">T</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> serialize</span><span>(value:</span><span style="color: #C18401;"> T</span><span>)(</span><span style="color: #A626A4;">implicit</span><span> context:</span><span style="color: #C18401;"> SerializationContext</span><span>):</span><span style="color: #C18401;"> Unit</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> BinaryDeserializer</span><span>[</span><span style="color: #C18401;">T</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> deserialize</span><span>()(</span><span style="color: #A626A4;">implicit</span><span> ctx:</span><span style="color: #C18401;"> DeserializationContext</span><span>):</span><span style="color: #C18401;"> T</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Although we can implement these traits manually, in order to take advantage of Desert's type evolution capabilities, for complex types like <em>case classes</em> or <em>enums</em> we want the user to be able to write something like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> Point</span><span>(x:</span><span style="color: #C18401;"> Int</span><span>, y:</span><span style="color: #C18401;"> Int</span><span>, z:</span><span style="color: #C18401;"> Int</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> Point</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> codec</span><span>:</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">Point</span><span>] =</span><span style="color: #C18401;"> DerivedBinaryCodec</span><span>.derive</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="alternatives">Alternatives</h2>
+<h3 id="scala-3-mirrors">Scala 3 mirrors</h3>
+<p>First of all, <strong>Scala 3</strong> has some built-in support for implementing derivation macros using its <code>Mirror</code> type, explained in the <a rel="external" href="https://docs.scala-lang.org/scala3/reference/contextual/derivation.html">official documentation</a>. We can see a simple example of this technique <a rel="external" href="https://github.com/zio/zio/blob/series%2F2.x/test-magnolia/shared/src/main/scala-3/zio/test/magnolia/DeriveGen.scala">in the ZIO codebase</a> where I have implemented a deriving mechanism for the <code>Gen[R, A]</code> trait which is Scala 3 specific. (The Scala 2 version is using the Magnolia library, introduced below, which did not have a Scala 3 version back then). The <code>Mirror</code> values are summoned by the compiler and they provide the type information:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">inline def</span><span style="color: #4078F2;"> gen</span><span>[</span><span style="color: #C18401;">T</span><span>](</span><span style="color: #A626A4;">using</span><span> m:</span><span style="color: #C18401;"> Mirror</span><span>.</span><span style="color: #C18401;">Of</span><span>[</span><span style="color: #C18401;">T</span><span>]):</span><span style="color: #C18401;"> DeriveGen</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  new</span><span style="color: #C18401;"> DeriveGen</span><span>[</span><span style="color: #C18401;">T</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> derive</span><span>:</span><span style="color: #C18401;"> Gen</span><span>[</span><span style="color: #C18401;">Any</span><span>, </span><span style="color: #C18401;">T</span><span>] = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      val</span><span style="color: #E45649;"> elemInstances</span><span> = summonAll[m.</span><span style="color: #C18401;">MirroredElemTypes</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      inline</span><span> m </span><span style="color: #A626A4;">match</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span> s:</span><span style="color: #C18401;"> Mirror</span><span>.</span><span style="color: #C18401;">SumOf</span><span>[</span><span style="color: #C18401;">T</span><span>]     =&gt; genSum(s, elemInstances)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        case</span><span> p:</span><span style="color: #C18401;"> Mirror</span><span>.</span><span style="color: #C18401;">ProductOf</span><span>[</span><span style="color: #C18401;">T</span><span>] =&gt; genProduct(p, elemInstances)</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>As this function is an <a rel="external" href="https://docs.scala-lang.org/scala3/reference/metaprogramming/inline.html">inline function</a>, it gets evaluated compile time, using this summoned <code>Mirror</code> value to produce an implementation of <code>Gen[Any, T]</code>.</p>
+<p>This is a little low level and requires knowledge of inline functions and things like <code>summonAll</code> etc., but otherwise a relatively easy way to solve the type class derivation problem. But it is Scala 3 only.</p>
+<p>Back in 2020 when I wrote the first version of Desert, there was no Scala 3 at all, and the three main way to do this were</p>
+<ul>
+<li>writing a (Scala 2) macro by hand</li>
+<li>using <a rel="external" href="https://github.com/milessabin/shapeless">Shapeless</a></li>
+<li>using <a rel="external" href="https://github.com/softwaremill/magnolia">Magnolia</a></li>
+</ul>
+<h3 id="scala-2-macros">Scala 2 macros</h3>
+<p>Writing a custom derivation logic with Scala 2 macros is not easy, but it is completely possible. It starts by defining a <a rel="external" href="https://www.scala-lang.org/api/2.13.12/scala-reflect/scala/reflect/macros/whitebox/Context.html">whitebox macro</a>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> Derive</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">A</span><span>]:</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">A</span><span>] = macro deriveImpl[</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> deriveImpl</span><span>[</span><span style="color: #C18401;">A</span><span>: c.</span><span style="color: #C18401;">WeakTypeTag</span><span>](</span></span>
+<span class="giallo-l"><span>    c: whitebox.</span><span style="color: #C18401;">Context</span></span>
+<span class="giallo-l"><span>  ): c.</span><span style="color: #C18401;">Tree</span><span> = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    import</span><span> c.universe._</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The job of <code>deriveImpl</code> is to examine the type of <code>A</code> and generate a <code>Tree</code> that represents the implementation of the <code>BinaryCodec</code> trait for <code>A</code>. We can start by getting a <code>Type</code> value for <code>A</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> tpe</span><span>:</span><span style="color: #C18401;"> Type</span><span> = weakTypeOf[</span><span style="color: #C18401;">A</span><span>]</span></span></code></pre>
+<p>and then use that to get all kind of information about this type. For example to check if it is a <em>case class</em>, we could write</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> isCaseClass</span><span>(tpe:</span><span style="color: #C18401;"> Type</span><span>):</span><span style="color: #C18401;"> Boolean</span><span> = tpe.typeSymbol.asClass.isCaseClass</span></span></code></pre>
+<p>and then try to collect all the fields of that case class:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> fields</span><span> = tpe.decls.sorted.collect {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case</span><span> p:</span><span style="color: #C18401;"> TermSymbol</span><span style="color: #A626A4;"> if</span><span> p.isCaseAccessor &amp;&amp; !p.isMethod =&gt; p</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>As we can see this is a very direct and low level way to work with the types, much harder then the <code>Mirror</code> type we used for Scala 3. Once we gathered all the necessary information for generating the derived type class, we can use <em>quotes</em> to construct fragments of Scala AST:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> fieldSerializationStatements</span><span> =</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> codec</span><span> =</span><span style="color: #A626A4;"> q</span><span style="color: #50A14F;">&quot;new BinaryCodec[</span><span>$tpe</span><span style="color: #50A14F;">] {</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  def serialize(value: T)(implicit context: SerializationContext): Unit = {</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">    ..</span><span>$fieldSerializationStatements</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  }</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">}</span></span></code></pre>
+<p>In the end, this quoted <code>codec</code> value is a <code>Tree</code> which we can return from the macro.</p>
+<h3 id="shapeless">Shapeless</h3>
+<p><a rel="external" href="https://github.com/milessabin/shapeless">Shapeless</a> is a library for <em>type level programming</em> in Scala 2 (and there is a <a rel="external" href="https://github.com/typelevel/shapeless-3">new version</a> for Scala 3 too). It provides things like type-level heterogeneous lists and all of operations on them, and it also defines <em>macros</em> that can convert an arbitrary case class into a <em>generic representation</em>, which is essentially a type level list containing all the fields. Similarly it can convert an arbitrary sum type (sealed trait in Scala 2) to a generic representation of coproducts. For example the <code>Point</code> case class we used in an earlier example would be represented like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> Point</span><span>(x:</span><span style="color: #C18401;"> Int</span><span>, y:</span><span style="color: #C18401;"> Int</span><span>, z:</span><span style="color: #C18401;"> Int</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> point</span><span>:</span><span style="color: #C18401;"> Point</span><span> =</span><span style="color: #C18401;"> Point</span><span>(</span><span style="color: #986801;">1</span><span>, </span><span style="color: #986801;">2</span><span>, </span><span style="color: #986801;">3</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> genericPoint</span><span>:</span><span style="color: #C18401;"> Int</span><span> ::</span><span style="color: #C18401;"> Int</span><span> ::</span><span style="color: #C18401;"> Int</span><span> ::</span><span style="color: #C18401;"> HNil</span><span> =</span><span style="color: #A0A1A7;font-style: italic;"> // type</span></span>
+<span class="giallo-l"><span style="color: #986801;">  1</span><span> ::</span><span style="color: #986801;"> 2</span><span> ::</span><span style="color: #986801;"> 3</span><span> ::</span><span style="color: #C18401;"> HNil</span><span style="color: #A0A1A7;font-style: italic;"> // value</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> labelledGenericPoint</span><span> =</span><span style="color: #A0A1A7;font-style: italic;"> // type too complex to show here</span></span>
+<span class="giallo-l"><span>  (</span><span style="color: #50A14F;">&quot;x&quot;</span><span> -&gt;&gt;</span><span style="color: #986801;"> 1</span><span>) :: (</span><span style="color: #50A14F;">&quot;y&quot;</span><span> -&gt;&gt;</span><span style="color: #986801;"> 2</span><span>) :: (</span><span style="color: #50A14F;">&quot;z&quot;</span><span> -&gt;&gt;</span><span style="color: #986801;"> 3</span><span>) ::</span><span style="color: #C18401;"> HNil</span><span style="color: #A0A1A7;font-style: italic;"> // value</span></span></code></pre>
+<p>In connection with type class derivation the idea is that by using Shapeless we no longer have to write macros to extract type information for our types - we can work with these generic representations instead using advanced type level programming techniques. So the complexity of writing macros is replaced with the complexity of doing type level computation.</p>
+<p>Let's see how it would look like. First we start by creating a <code>derive</code> method that gets the type we are deriving the codec for as a type parameter:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span></code></pre>
+<p>This <code>T</code> is an arbitrary type, for example our <code>Point</code> structure. In order to get its generic representation provided by Shapeless we have to start using type level techniques, by introducing new type parameters for the things we want to calculate (as types) and implicits to drive these computations. The following version, when compiles, will "calculate" the generic representation of <code>T</code> as the type parameter <code>H</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">T</span><span>, </span><span style="color: #C18401;">H</span><span>](</span><span style="color: #A626A4;">implicit</span><span> gen:</span><span style="color: #C18401;"> LabelledGeneric</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">T</span><span>, </span><span style="color: #C18401;">H</span><span>]) = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  new</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> serialize</span><span>(value:</span><span style="color: #C18401;"> T</span><span>)(</span><span style="color: #A626A4;">implicit</span><span> context:</span><span style="color: #C18401;"> SerializationContext</span><span>):</span><span style="color: #C18401;"> Unit</span><span> = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      val</span><span style="color: #E45649;"> h</span><span>:</span><span style="color: #C18401;"> H</span><span> = gen.to(value)</span><span style="color: #A0A1A7;font-style: italic;"> // generic representation of (value: T)</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">      // ...</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This is not that hard yet but we need to recursively summon implicit codecs for our fields, so we can't just use this <code>H</code> value to go through all the fields in a traditional way - we need to traverse it on the type level.</p>
+<p>To do that we need to write our own type level computations implemented as implicit instances for <code>HNil</code> and <code>::</code> etc. The serialization part of the codec would look something like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">implicit val</span><span style="color: #E45649;"> hnilSerializer</span><span>:</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">HNil</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  new</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">HNil</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> serialize</span><span>(value:</span><span style="color: #C18401;"> HNil</span><span>)(</span><span style="color: #A626A4;">implicit</span><span> context:</span><span style="color: #C18401;"> SerializationContext</span><span>) =&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">      // no (more) fields</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">implicit def</span><span style="color: #4078F2;"> hlistSerializer</span><span>[</span><span style="color: #C18401;">K</span><span> &lt;:</span><span style="color: #C18401;"> Symbol</span><span>, </span><span style="color: #C18401;">H</span><span>, </span><span style="color: #C18401;">T</span><span> &lt;:</span><span style="color: #C18401;"> HList</span><span>](</span><span style="color: #A626A4;">implicit</span></span>
+<span class="giallo-l"><span>  witness:</span><span style="color: #C18401;"> Witness</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">K</span><span>]</span><span style="color: #A0A1A7;font-style: italic;"> // type level extraction of the field&#39;s name</span></span>
+<span class="giallo-l"><span>  headSerializer:</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">H</span><span>]</span><span style="color: #A0A1A7;font-style: italic;"> // type class summoning for the field</span></span>
+<span class="giallo-l"><span>  tailSerializer:</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">T</span><span>]</span><span style="color: #A0A1A7;font-style: italic;"> // hlist recursion</span></span>
+<span class="giallo-l"><span>):</span><span style="color: #C18401;"> BinarySerializer</span><span>[</span><span style="color: #C18401;">FieldType</span><span>[</span><span style="color: #C18401;">K</span><span>, </span><span style="color: #C18401;">H</span><span>] ::</span><span style="color: #C18401;"> T</span><span>] =</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span></code></pre>
+<p>Similar methods have to be implemented for coproducts too, and also in the codec example we would have to simultaneously derive the serializer <em>and</em> the deserializer. A real implementation would also require access to the <em>annotations</em> of various fields to drive the serialization logic, which requires more and more type level calculations and complicates these type signatures.</p>
+<p>I did chose to use Shapeless in the first version of Desert, and the real <code>derive</code> method has the following signature:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">T</span><span>, </span><span style="color: #C18401;">H</span><span>, </span><span style="color: #C18401;">Ks</span><span> &lt;:</span><span style="color: #C18401;"> HList</span><span>, </span><span style="color: #C18401;">Trs</span><span> &lt;:</span><span style="color: #C18401;"> HList</span><span>, </span><span style="color: #C18401;">Trcs</span><span> &lt;:</span><span style="color: #C18401;"> HList</span><span>, </span><span style="color: #C18401;">KsTrs</span><span> &lt;:</span><span style="color: #C18401;"> HList</span><span>, </span><span style="color: #C18401;">TH</span><span>](</span><span style="color: #A626A4;">implicit</span></span>
+<span class="giallo-l"><span>      gen:</span><span style="color: #C18401;"> LabelledGeneric</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">T</span><span>, </span><span style="color: #C18401;">H</span><span>],</span></span>
+<span class="giallo-l"><span>      keys:</span><span style="color: #C18401;"> Lazy</span><span>[</span><span style="color: #C18401;">Symbols</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">H</span><span>, </span><span style="color: #C18401;">Ks</span><span>]],</span></span>
+<span class="giallo-l"><span>      transientAnnotations:</span><span style="color: #C18401;"> Annotations</span><span>.</span><span style="color: #C18401;">Aux</span><span>[transientField, </span><span style="color: #C18401;">T</span><span>, </span><span style="color: #C18401;">Trs</span><span>],</span></span>
+<span class="giallo-l"><span>      transientConstructorAnnotations:</span><span style="color: #C18401;"> Annotations</span><span>.</span><span style="color: #C18401;">Aux</span><span>[transientConstructor, </span><span style="color: #C18401;">T</span><span>, </span><span style="color: #C18401;">Trcs</span><span>],</span></span>
+<span class="giallo-l"><span>      taggedTransients:</span><span style="color: #C18401;"> TagTransients</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">H</span><span>, </span><span style="color: #C18401;">Trs</span><span>, </span><span style="color: #C18401;">Trcs</span><span>, </span><span style="color: #C18401;">TH</span><span>],</span></span>
+<span class="giallo-l"><span>      zip:</span><span style="color: #C18401;"> Zip</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">Ks</span><span> ::</span><span style="color: #C18401;"> Trs</span><span> ::</span><span style="color: #C18401;"> HNil</span><span>, </span><span style="color: #C18401;">KsTrs</span><span>],</span></span>
+<span class="giallo-l"><span>      toList:</span><span style="color: #C18401;"> ToTraversable</span><span>.</span><span style="color: #C18401;">Aux</span><span>[</span><span style="color: #C18401;">KsTrs</span><span>, </span><span style="color: #C18401;">List</span><span>, (</span><span style="color: #C18401;">Symbol</span><span>, </span><span style="color: #C18401;">Option</span><span>[transientField])],</span></span>
+<span class="giallo-l"><span>      serializationPlan:</span><span style="color: #C18401;"> Lazy</span><span>[</span><span style="color: #C18401;">SerializationPlan</span><span>[</span><span style="color: #C18401;">TH</span><span>]],</span></span>
+<span class="giallo-l"><span>      deserializationPlan:</span><span style="color: #C18401;"> Lazy</span><span>[</span><span style="color: #C18401;">DeserializationPlan</span><span>[</span><span style="color: #C18401;">TH</span><span>]],</span></span>
+<span class="giallo-l"><span>      toConstructorMap:</span><span style="color: #C18401;"> Lazy</span><span>[</span><span style="color: #C18401;">ToConstructorMap</span><span>[</span><span style="color: #C18401;">TH</span><span>]],</span></span>
+<span class="giallo-l"><span>      classTag:</span><span style="color: #C18401;"> ClassTag</span><span>[</span><span style="color: #C18401;">T</span><span>]</span></span>
+<span class="giallo-l"><span>  ):</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>]</span></span></code></pre>
+<p>Although this works, there are many problems with this approach. All these type and implicit resolutions can make the compilation quite slow, the code is very complex and hard to understand or modify, and most importantly error messages will be a nightmare. A user trying to derive a type class for our serialization library should not get an error that complains about not being able to find an implicit value of <code>Zip.Aux</code> for a weird type that does not even fit on one screen!</p>
+<h3 id="magnolia">Magnolia</h3>
+<p>The <a rel="external" href="https://github.com/softwaremill/magnolia">Magnolia</a> library provides a much more friendly solution for deriving type classes for algebraic data types - it moves the whole problem into the value space by hiding the necessary macros. The derivation implementation for a given type class then only requires defining two functions (one for working with products, one for working with coproducts) that are regular Scala functions getting a "context" value and producing an instance of the derived type class. The context value contains type information - for example the name and type of all the fields of a case class - and also contains an <em>instance</em> of the derived type class for each of these inner elements.</p>
+<p>To write a Magnolia based deriver you have to create an <code>object</code> with a <code>join</code> and a <code>split</code> method and a <code>Typeclass</code> type:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> BinaryCodecDerivation</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  type</span><span style="color: #C18401;"> Typeclass</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> join</span><span>[</span><span style="color: #C18401;">T</span><span>](ctx:</span><span style="color: #C18401;"> CaseClass</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>, </span><span style="color: #C18401;">T</span><span>]):</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    new</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      def</span><span style="color: #4078F2;"> serialize</span><span>(value:</span><span style="color: #C18401;"> T</span><span>)(</span><span style="color: #A626A4;">implicit</span><span> context:</span><span style="color: #C18401;"> SerializationContext</span><span>) =&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        for</span><span> (parameter &lt;- ctx.parameters) {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">          // recursively serialize the fields</span></span>
+<span class="giallo-l"><span>          parameter.typeclass.serialize(parameter.dereference(value))</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">        // ...</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> split</span><span>[</span><span style="color: #C18401;">T</span><span>](ctx:</span><span style="color: #C18401;"> SealedTrait</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>, </span><span style="color: #C18401;">T</span><span>]):</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> gen</span><span>[</span><span style="color: #C18401;">T</span><span>]:</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] = macro </span><span style="color: #C18401;">Magnolia</span><span>.gen[</span><span style="color: #C18401;">T</span><span>]</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>There is a Magnolia version for Scala 3 too, which is although quite similar, it is not source compatible with the Scala 2 version, leading to the need to define these derivations twice in cross-compiled projects.</p>
+<h2 id="why-not-magnolia">Why not Magnolia?</h2>
+<p>Magnolia already existed when I wrote the first version of Desert, but I could not use it because of two reasons. In that early version of the library the derivation had to take a user defined list of <em>evolution steps</em>, so the actual codec definitions looked something like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> Point</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> codec</span><span>:</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">Point</span><span>] =</span><span style="color: #C18401;"> BinaryCodec</span><span>.derive(</span><span style="color: #C18401;">FieldAdded</span><span>[</span><span style="color: #C18401;">Int</span><span>](</span><span style="color: #50A14F;">&quot;z&quot;</span><span>, </span><span style="color: #986801;">1</span><span>))</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>It was not clear how could I pass these parameters to Magnolia context - with Shapeless it was not a problem because it is possible to simply pass them as a parameter to the <code>derive</code> function that "starts" the type level computation.</p>
+<p>This requirement no longer exists though, as in recent versions the <em>evolution steps</em> are defined by attributes, which are fully supported by Magnolia as well:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@evolutionSteps(</span><span style="color: #C18401;">FieldAdded</span><span>[</span><span style="color: #C18401;">Int</span><span>](</span><span style="color: #50A14F;">&quot;z&quot;</span><span>, </span><span style="color: #986801;">1</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> Point</span><span>(x:</span><span style="color: #C18401;"> Int</span><span>, y:</span><span style="color: #C18401;"> Int</span><span>, z:</span><span style="color: #C18401;"> Int</span><span>)</span></span></code></pre>
+<p>The second reason was a much more important limitation in Magnolia that still exists - it is not possible to shortcut the derivation tree. Desert has <em>transient field</em> and <em>transient constructor</em> support. For those fields and constructors which are marked as transient we don't want to, and cannot define codec instances. They can be things like open files, streams, actor references, sockets etc. Even though Magnolia only instantiates the type class instances when they are accessed, the derivation fails if there are types in the tree that does not have an instance. This issue is <a rel="external" href="https://github.com/softwaremill/magnolia/issues/297">tracked here</a>.</p>
+<p>There was one more decision I did not like regarding Magnolia - the decision to have an incompatible Scala 3 version. I believe it was a big missed opportunity to seamlessly support cross-compiled type class derivation code.</p>
+<h2 id="zio-schema-based-derivation">ZIO Schema based derivation</h2>
+<p>All these issues lead to writing a new derivation library - as part of the <a rel="external" href="https://zio.dev/zio-schema/">ZIO Schema</a> project. It was first released in version <a rel="external" href="https://github.com/zio/zio-schema/releases/tag/v0.3.0">v0.3.0</a> in November of 2022.</p>
+<p>From the previously demonstrated type class derivation techniques the closest to ZIO Schema's deriver is Magnolia. On the other hand it does supports the transient field use case, and it is fully cross-compilation compatible between Scala 2 and Scala 3.</p>
+<p>To implement type class derivation based on ZIO Schema you need to implement a trait called <code>Deriver</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">F</span><span>[_]] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> deriveRecord</span><span>[</span><span style="color: #C18401;">A</span><span>](</span></span>
+<span class="giallo-l"><span>    record:</span><span style="color: #C18401;"> Schema</span><span>.</span><span style="color: #C18401;">Record</span><span>[</span><span style="color: #C18401;">A</span><span>],</span></span>
+<span class="giallo-l"><span>    fields: =&gt;</span><span style="color: #C18401;"> Chunk</span><span>[</span><span style="color: #C18401;">WrappedF</span><span>[</span><span style="color: #C18401;">F</span><span>, _]],</span></span>
+<span class="giallo-l"><span>    summoned: =&gt;</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">F</span><span>[</span><span style="color: #C18401;">A</span><span>]]</span></span>
+<span class="giallo-l"><span>  ):</span><span style="color: #C18401;"> F</span><span>[</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // more deriveXXX methods to impelment</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This looks similar to Magnolia's <code>join</code> method but has some significant differences. The first thing to notice is that we get a <code>Schema.Record</code> value describing our case class. This is one of the cases of the core data type <code>Schema[T]</code> which describes Scala data types and provides a lot of features to work with them. So having a <code>Schema[A]</code> is a requirement to derive an <code>F[A]</code> with <code>Deriver</code> - but luckily ZIO schema has derivation support for Schema itself.</p>
+<p>The second thing to notice is that <code>Schema[A]</code> itself does not know anything about type class derivation and especially about the actual <code>F</code> type class that is being derived, so the second parameter of <code>deriveRecord</code> is a collection of potentially derived instances of our derived type class for each field. <code>WrappedF</code> is just making this lazy so if we decide we don't need instances for (some of) the fields they won't be traversed (they still need to have a <code>Schema</code> though - but it can even be a <code>Schema.fail</code> for things not representable by ZIO Schema - it will be fine if we never touch them by unwrapping the <code>WrappedF</code> value).</p>
+<p>The third parameter is also interesting as it provides full control to the developer to choose between the summoned implicit and the derivation logic. If your <code>deriveRecord</code> is called for a record type <code>A</code> and there is already an implicit <code>F[A]</code> that the compiler can find (for example defined in <code>A</code>'s companion object), it will be passed in the <code>summoned</code> parameter to <code>deriveRecord</code>. The usual logic is to choose the summoned value when it is available and only derive an instance when there isn't any. By calling <code>.autoAcceptSummoned</code> on our <code>Deriver</code> class we can automatically enable this behavior - in this case <code>deriveRecord</code> will only be called for the cases where <code>summoned</code> was <code>None</code>.</p>
+<p>Another method we have on <code>Deriver</code> is <code>.cached</code> which stores the generated type class instances in a concurrent hash map shared between the macro invocations.</p>
+<p>Our ZIO Schema based Desert codec derivation is defined using these modifiers:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> DerivedBinaryCodec</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  lazy val</span><span style="color: #E45649;"> deriver</span><span> =</span><span style="color: #C18401;"> BinaryCodecDeriver</span><span>().cached.autoAcceptSummoned</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private final case class</span><span style="color: #C18401;"> BinaryCodecDeriver</span><span>()</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>As ZIO Schema is not only describing records and enums but also primitive types, tuples, and special cases like <code>Option</code> and <code>Either</code> and collection types, the deriver has to support all these.</p>
+<p>The minimum set of methods to implement is <code>deriveRecord</code>, <code>deriveEnum</code>, <code>derivePrimitive</code>, <code>deriveOption</code>, <code>deriveSequence</code>, <code>deriveMap</code> and <code>deriveTransformedRecord</code>. In addition to that we can also override <code>deriveEither</code>, <code>deriveSet</code> and <code>deriveTupleN</code> (1-22) to handle these cases specially.</p>
+<p>In case of Desert the <code>deriveRecord</code> and <code>deriveEnum</code> are calling to the implementation of the same data-evolution aware binary format that was previously implemented using Shapeless, but this time it is automatically supporting Scala 2 and Scala 3 the same time. The <code>derivePrimitive</code> is just choosing from predefined <code>BinaryCodec</code> instances based on the primitive's type:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">override def</span><span style="color: #4078F2;"> derivePrimitive</span><span>[</span><span style="color: #C18401;">A</span><span>](</span></span>
+<span class="giallo-l"><span>  st:</span><span style="color: #C18401;"> StandardType</span><span>[</span><span style="color: #C18401;">A</span><span>],</span></span>
+<span class="giallo-l"><span>  summoned: =&gt;</span><span style="color: #C18401;"> Option</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>[</span><span style="color: #C18401;">A</span><span>]]</span></span>
+<span class="giallo-l"><span>):</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">A</span><span>] =</span></span>
+<span class="giallo-l"><span>  st </span><span style="color: #A626A4;">match</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    case</span><span style="color: #C18401;"> StandardType</span><span>.</span><span style="color: #C18401;">UnitType</span><span>           =&gt; unitCodec</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    case</span><span style="color: #C18401;"> StandardType</span><span>.</span><span style="color: #C18401;">StringType</span><span>         =&gt; stringCodec</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    case</span><span style="color: #C18401;"> StandardType</span><span>.</span><span style="color: #C18401;">BoolType</span><span>           =&gt; booleanCodec</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    case</span><span style="color: #C18401;"> StandardType</span><span>.</span><span style="color: #C18401;">ByteType</span><span>           =&gt; byteCodec</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Same applies for option, either, sequence etc - it is just a mapping to the library's own definition of these binary codecs.</p>
+<p>Under the hood <code>Deriver</code> is a macro (implemented separately both for Scala 2 and Scala 3) that traverses the types simultaneously with the provided <code>Schema</code> (so it does not need to regenerate those) and maps these informations into calls through the <code>Deriver</code> interface. The whole process is initiated by calling the <code>derive</code> method on our <code>Deriver</code>, which is the entry point of these macros, so it has a different looking (but source-code compatible) definition for Scala 2 and Scala 3:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// Scala 3</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">inline def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">A</span><span>](</span><span style="color: #A626A4;">implicit</span><span> schema:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">A</span><span>]):</span><span style="color: #C18401;"> F</span><span>[</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// Scala 2</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">F</span><span>[_], </span><span style="color: #C18401;">A</span><span>](deriver:</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">F</span><span>])(</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit</span><span> schema:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">A</span><span>]</span></span>
+<span class="giallo-l"><span>):</span><span style="color: #C18401;"> F</span><span>[</span><span style="color: #C18401;">A</span><span>] = macro deriveImpl[</span><span style="color: #C18401;">F</span><span>, </span><span style="color: #C18401;">A</span><span>]</span></span></code></pre>
+<p>These are compatible if you are directly calling them: so you can write</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> binaryCodecDeriver</span><span>:</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>] =</span><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> pointCodec</span><span>:</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">Point</span><span>] = binaryCodecDeriver.derive[</span><span style="color: #C18401;">Point</span><span>]</span></span></code></pre>
+<p>Or even:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> BinaryCodecDeriver</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> pointCodec</span><span>:</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">Point</span><span>] =</span><span style="color: #C18401;"> BinaryCodecDeriver</span><span>.derive[</span><span style="color: #C18401;">Point</span><span>]</span></span></code></pre>
+<p>But if you want to wrap this derive call you have to be aware that they are macro calls, and they have to be wrapped by (version-specific) macros. This is what Desert is doing - as shown before, it uses the <code>cached</code> and <code>autoAcceptSummoned</code> modifiers to create a deriver, but still exposes a simple <code>derive</code> method through an <code>object</code>. To do so it needs to wrap the inner deriver macro with its own macro like this:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// Scala 2</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> DerivedBinaryCodecVersionSpecific</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> deriver</span><span>:</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">T</span><span>](</span><span style="color: #A626A4;">implicit</span><span> schema:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">T</span><span>]):</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span></span>
+<span class="giallo-l"><span>    macro </span><span style="color: #C18401;">DerivedBinaryCodecVersionSpecific</span><span>.deriveImpl[</span><span style="color: #C18401;">T</span><span>]</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> DerivedBinaryCodecVersionSpecific</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    def</span><span style="color: #4078F2;"> deriveImpl</span><span>[</span><span style="color: #C18401;">T</span><span>: c.</span><span style="color: #C18401;">WeakTypeTag</span><span>](</span></span>
+<span class="giallo-l"><span>      c: whitebox.</span><span style="color: #C18401;">Context</span><span>)(</span></span>
+<span class="giallo-l"><span>      schema: c.</span><span style="color: #C18401;">Expr</span><span>[</span><span style="color: #C18401;">Schema</span><span>[</span><span style="color: #C18401;">T</span><span>]]</span></span>
+<span class="giallo-l"><span>    ): c.</span><span style="color: #C18401;">Tree</span><span> = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      import</span><span> c.universe._</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      val</span><span style="color: #E45649;"> tpe</span><span> = weakTypeOf[</span><span style="color: #C18401;">T</span><span>]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      q</span><span style="color: #50A14F;">&quot;_root_.zio.schema.Derive.derive[BinaryCodec,</span><span> $tpe</span><span style="color: #50A14F;">]  (_root_.io.github.vigoo.desert.zioschema.DerivedBinaryCodec.deriver)(</span><span>$schema</span><span style="color: #50A14F;">)&quot;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// Scala 3</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> DerivedBinaryCodecVersionSpecific</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  lazy val</span><span style="color: #E45649;"> deriver</span><span>:</span><span style="color: #C18401;"> Deriver</span><span>[</span><span style="color: #C18401;">BinaryCodec</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  inline def</span><span style="color: #4078F2;"> derive</span><span>[</span><span style="color: #C18401;">T</span><span>](</span><span style="color: #A626A4;">implicit</span><span> schema:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">T</span><span>]):</span><span style="color: #C18401;"> BinaryCodec</span><span>[</span><span style="color: #C18401;">T</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Derive</span><span>.derive[</span><span style="color: #C18401;">BinaryCodec</span><span>, </span><span style="color: #C18401;">T</span><span>](</span><span style="color: #C18401;">DerivedBinaryCodec</span><span>.deriver)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="conclusion">Conclusion</h2>
+<p>We have a new alternative for deriving type class instances from type information, based on ZIO Schema. You may want to use it if you want to have a single deriver source code for both Scala 2 and Scala 3, if you need more flexibility than what Magnolia provides, or if you are already using ZIO Schema in your project.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

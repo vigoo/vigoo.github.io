@@ -1,0 +1,199 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 5: Scala support</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part5-scala&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 5: Scala support</h1>
+            
+            <p class="posted-on">Posted on April 14, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+</ul>
+<h2 id="scala-support">Scala support</h2>
+<p>We love <strong>Scala</strong> and always wanted to have it among the supported languages for <strong>Golem</strong>. As Golem runs <em>WASM components</em> this had some difficulties; there are ongoing projects trying to make Scala compiled to WASM, but none of them were production-ready yet a few months ago - and as far as I know, they still are not. So we took a different route - as we already put <a href="/posts/golem15-part4-nodejs">a lot of effort in our JS support</a>, we decided to support Scala through <strong>Scala.js</strong>.</p>
+<p>Scala gets compiled to JS using Scala.js, and executed in our QuickJS based runtime which is compiled to WASM. This sounds way too complicated, but it works; the important part is not this compilation chain, but rather the <strong>Golem Scala SDK</strong> and its integration with Golem's CLI, which support everything that the other supported languages do.</p>
+<h3 id="cli-integration">CLI integration</h3>
+<p>Scala is a supported language in the Golem CLI - we can select it when creating a new application, and choose from existing <em>templates</em> (although at the time of writing we only have one). When working with a Scala agent through the CLI, types and values (agent identifiers, method parameters, etc.) are parsed and printed using the Scala syntax. The CLI installs a huge catalog of Scala specific agentic skills helping your AI coding assistant write Scala code that runs on Golem.</p>
+<p>Part of the build chain is an <code>sbt</code> plugin, but the whole application is built using <code>golem build</code> just like with the other supported languages.</p>
+<h4 id="what-s-not-supported-yet">What's not supported yet?</h4>
+<p>Two features are not available yet for Scala:</p>
+<ul>
+<li>there is no Scala REPL yet, but you can use the TypeScript one to work with Scala (or any other) agents</li>
+<li>there is no Scala bridge library generator yet - this is a new feature to be explained in a future part of this series; it is a feature that makes it really easy to call agents from non-Golem applications in a typesafe way.</li>
+</ul>
+<h3 id="code-first-features">Code-first features</h3>
+<p>Just like with the other supported languages, we can define Golem <strong>agents</strong> purely by writing Scala code and using some <em>annotations</em>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@agentDefinition(mount =</span><span style="color: #50A14F;"> &quot;/counters/{name}&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  class</span><span style="color: #C18401;"> Id</span><span>(</span><span style="color: #A626A4;">val</span><span style="color: #E45649;"> name</span><span>:</span><span style="color: #C18401;"> String</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  @prompt(</span><span style="color: #50A14F;">&quot;Increase the count by one&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  @description(</span><span style="color: #50A14F;">&quot;Increases the count by one and returns the new value&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  @endpoint(method =</span><span style="color: #50A14F;"> &quot;POST&quot;</span><span>, path =</span><span style="color: #50A14F;"> &quot;/increment&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> increment</span><span>():</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Int</span><span>]</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@agentImplementation()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final class</span><span style="color: #C18401;"> CounterAgentImpl</span><span>(@unused </span><span style="color: #A626A4;">private val</span><span style="color: #E45649;"> name</span><span>:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> CounterAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private var</span><span style="color: #E45649;"> count</span><span>:</span><span style="color: #C18401;"> Int</span><span> =</span><span style="color: #986801;"> 0</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> increment</span><span>():</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Int</span><span>] =</span><span style="color: #C18401;"> Future</span><span>.successful {</span></span>
+<span class="giallo-l"><span>    count +=</span><span style="color: #986801;"> 1</span></span>
+<span class="giallo-l"><span>    count</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This is the default template, a very simple stateful agent representing a counter. The example also demonstrates how <a href="/posts/golem15-part1-code-first-routes">code-first routes</a> are also supported.</p>
+<p>Note that in every code example in <a rel="external" href="https://blog.vigoo.dev/tags/golem-1-5/">this series</a>, I'm showing Scala examples as well.</p>
+<h3 id="rpc">RPC</h3>
+<p>One part of the custom build step implemented by the sbt plugin is generating <strong>client classes</strong> for all the agents. This is very similar to how we do it in Rust - for a given agent called <code>Xyz</code> we generate a new type called <code>XyzClient</code> with <strong>client constructor methods</strong> such as <code>get</code> or <code>newPhantom</code> to get an enriched interface of our agent's methods. This enriched interface not only has the original agent methods - calling them means "invoke it on the remote agent, and await the result" - but also has variants for <em>triggering</em> a remote invocation without awaiting its results, and to <em>schedule it</em> for a future point in time.</p>
+<p>Here is an example of how using these clients look like:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@agentDefinition()</span></span>
+<span class="giallo-l"><span>@description(</span><span style="color: #50A14F;">&quot;Calls CounterAgent remotely and returns the result.&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> CallerAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  class</span><span style="color: #C18401;"> Id</span><span>(</span><span style="color: #A626A4;">val</span><span style="color: #E45649;"> value</span><span>:</span><span style="color: #C18401;"> String</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  @description(</span><span style="color: #50A14F;">&quot;Increments the given counter N times and returns the final value.&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> incrementCounter</span><span>(counterId:</span><span style="color: #C18401;"> String</span><span>, times:</span><span style="color: #C18401;"> Int</span><span>):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Int</span><span>]</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@agentImplementation()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final class</span><span style="color: #C18401;"> CallerAgentImpl</span><span>(@unused </span><span style="color: #A626A4;">private val</span><span style="color: #E45649;"> name</span><span>:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> CallerAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> incrementCounter</span><span>(counterId:</span><span style="color: #C18401;"> String</span><span>, times:</span><span style="color: #C18401;"> Int</span><span>):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Int</span><span>] = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    val</span><span style="color: #E45649;"> counter</span><span> =</span><span style="color: #C18401;"> CounterAgentClient</span><span>.get(counterId)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    (</span><span style="color: #986801;">1</span><span> until times)</span></span>
+<span class="giallo-l"><span>      .foldLeft(counter.increment()) { (prev, _) =&gt;</span></span>
+<span class="giallo-l"><span>        prev.flatMap(_ =&gt; counter.increment())</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="http">HTTP</h3>
+<p>As we compile to JS, we can (and have to) use <code>fetch</code> for making HTTP requests. It can be called directly using Scala.js's interfaces, but it is also possible to use the <a rel="external" href="https://ziohttp.com">zio-http</a> library that has a fetch backend!</p>
+<p>Let's see an example agent using <strong>zio-http</strong>!</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@agentImplementation()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final class</span><span style="color: #C18401;"> FetchAgentImpl</span><span>()</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> FetchAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  override def</span><span style="color: #4078F2;"> fetchFromPort</span><span>(port:</span><span style="color: #C18401;"> Int</span><span>):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">String</span><span>] = {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    val</span><span style="color: #E45649;"> effect</span><span> =</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">      for</span><span> {</span></span>
+<span class="giallo-l"><span>        response &lt;-</span><span style="color: #C18401;"> ZIO</span><span>.serviceWithZIO[</span><span style="color: #C18401;">Client</span><span>] { client =&gt;</span></span>
+<span class="giallo-l"><span>                      client.url(</span><span style="color: #A626A4;">url</span><span style="color: #50A14F;">&quot;http://localhost&quot;</span><span>).port(port).batched.get(</span><span style="color: #50A14F;">&quot;/test&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span>        body &lt;- response.body.asString</span></span>
+<span class="giallo-l"><span>      }</span><span style="color: #A626A4;"> yield</span><span> body;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #C18401;">    Unsafe</span><span>.unsafe {</span><span style="color: #A626A4;"> implicit</span><span> u =&gt;</span></span>
+<span class="giallo-l"><span style="color: #C18401;">      Runtime</span><span>.default.unsafe.runToFuture(effect.provide(</span><span style="color: #C18401;">ZClient</span><span>.default))</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="next-steps">Next steps</h2>
+<p>This is just the beginning. The core Golem SDK is quite low level with no integration with ZIO or other libraries (although it uses the <a rel="external" href="https://www.youtube.com/watch?v=hWhxIYNl1T8">new <strong>ZIO Schema</strong></a> under the hood). With Scala support included in the <strong>Golem 1.5</strong> release we can start building on top of this to have a first-class Scala experience for Golem!</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

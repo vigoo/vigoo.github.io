@@ -1,0 +1,153 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 8: Template simplifications and automatic updates</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part8-template-simplifications&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 8: Template simplifications and automatic updates</h1>
+            
+            <p class="posted-on">Posted on April 18, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+</ul>
+<h2 id="golem-templates">Golem templates</h2>
+<p>Golem comes with <strong>built-in templates</strong> for the supported languages since 1.0. These templates not only contained simple examples of defining an agent running on Golem, but a large amount of build infrastructure as well, and a structure we created to make it easy for a Golem application to grow to be a big multi-component, multi-language project with additional user defined shared libraries and so on.</p>
+<h3 id="previous-versions">Previous versions</h3>
+<p>Although these old templates were quite powerful, they generated a lot of "noise" for reasons that many Golem applications never required. It was hard to understand what all these files are, where should we add our own code, what to touch and what to not touch.</p>
+<p>In addition to that, creating a project with <code>golem new</code> applied that particular golem version's understanding of how a Golem application has to be built. If later the user updated golem itself, the process of updating the build definitions to match the new version was extremely hard.</p>
+<h3 id="the-new-templates">The new templates</h3>
+<p>We understood these problems and in <strong>Golem 1.5</strong> we have a fully revised way of how these templates work!</p>
+<p>For example, creating a new <strong>TypeScript</strong> project gives us the following:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #4078F2;">$</span><span style="color: #50A14F;"> golem new</span><span style="color: #986801;"> --template</span><span style="color: #50A14F;"> ts/default ts-example</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">$</span><span style="color: #50A14F;"> ls ts-example</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">╭───┬──────────────────────────┬──────┬─────────┬─────────────────────╮</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #A0A1A7;font-style: italic;"> # │           name           │ type │  size   │      modified       │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">├───┼──────────────────────────┼──────┼─────────┼─────────────────────┤</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 0</span><span style="color: #50A14F;"> │ ts-example/AGENTS.md     │ file │</span><span style="color: #986801;"> 15.4</span><span style="color: #50A14F;"> kB │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 1</span><span style="color: #50A14F;"> │ ts-example/golem.yaml    │ file │</span><span style="color: #986801;">   997</span><span style="color: #50A14F;"> B │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 2</span><span style="color: #50A14F;"> │ ts-example/package.json  │ file │</span><span style="color: #986801;">   482</span><span style="color: #50A14F;"> B │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 3</span><span style="color: #50A14F;"> │ ts-example/src           │ dir  │</span><span style="color: #986801;">   128</span><span style="color: #50A14F;"> B │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 4</span><span style="color: #50A14F;"> │ ts-example/tsconfig.json │ file │</span><span style="color: #986801;">   578</span><span style="color: #50A14F;"> B │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">╰───┴──────────────────────────┴──────┴─────────┴─────────────────────╯</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">$</span><span style="color: #50A14F;"> ls ts-example/src</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">╭───┬─────────────────────────────────┬──────┬───────┬─────────────────────╮</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #A0A1A7;font-style: italic;"> # │              name               │ type │ size  │      modified       │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">├───┼─────────────────────────────────┼──────┼───────┼─────────────────────┤</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 0</span><span style="color: #50A14F;"> │ ts-example/src/counter-agent.ts │ file │</span><span style="color: #986801;"> 593</span><span style="color: #50A14F;"> B │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">│</span><span style="color: #986801;"> 1</span><span style="color: #50A14F;"> │ ts-example/src/main.ts          │ file │</span><span style="color: #986801;">  26</span><span style="color: #50A14F;"> B │ 2026-04-18 11:19:10 │</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">╰───┴─────────────────────────────────┴──────┴───────┴─────────────────────╯</span></span></code></pre>
+<p>The root of our application contains our application's <code>golem.yaml</code> - this is where we can configure things like HTTP deployments, configuration, etc. Other than that we just see a simple <code>package.json</code> and <code>tsconfig.json</code> and the two TypeScript source files of the <em>default</em> example.</p>
+<h3 id="mixing-multiple-templates">Mixing multiple templates</h3>
+<p>In the new template system we can also mix-in multiple templates into a single application, either during <code>golem new</code> or later. These additional templates just bring in more example agents - for example we could have the default CounterAgent and next to it a "human in the loop" example. Our new templates are composable.</p>
+<h3 id="automatic-updates">Automatic updates</h3>
+<p>Another big problem with the old template system was that we could not easily update Golem applications to a new Golem version. New versions usually require updating the language-specific Golem SDKs, and sometimes also require changes to the build steps that <code>golem build</code> performs under the hood. With the new templates, as seen above, these build steps are no longer dumped to static files generated by <code>golem new</code>. They get dynamically extracted by the CLI tool to temporary directories, which means they can still be observed for troubleshooting purposes but they don't get checked in the application's repository, and a new golem version can just use an updated set of these build specific files if needed.</p>
+<p>Golem-specific dependencies in the project's <code>package.json</code>/<code>Cargo.toml</code>/etc also get verified by the <code>golem build</code> command, and if anything needs to be updated, it is going to be reported with a helpful message.</p>
+<p>The automatic update also applies to <a href="/posts/golem15-part9-skills">our agent skills</a>. Simply updating the CLI will guarantee the project always has the latest version of the golem-specific agent skills.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

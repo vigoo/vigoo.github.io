@@ -1,0 +1,323 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 6: User-defined snapshotting</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part6-user-defined-snapshotting&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 6: User-defined snapshotting</h1>
+            
+            <p class="posted-on">Posted on April 15, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+</ul>
+<h2 id="snapshot-based-recovery">Snapshot based recovery</h2>
+<p>One of the primary features of <strong>Golem</strong> is that it can recover an agent's state transparently. Under the hood this is implemented by replaying an <strong>oplog</strong> that records every side-effect's results among other things, so we can reconstruct the application's state on recovery. This works perfectly but can be slow if the agent does something CPU-heavy, or it simply have been running long enough to accumulate a long oplog.</p>
+<p>One way to fix this slowness is to do periodic <strong>snapshots</strong> - a fully automated snapshotting mechanism would take the snapshot of the agent's memory, file system etc., and during recovery we would only need to replay the part of the oplog that happened <em>after</em> the last snapshot. We did experiments with  automatic snapshotting like this, but it is not part of Golem at the time of writing yet.</p>
+<p>In <strong>Golem 1.5</strong> we introduce a new feature that is in some ways more limited, but one can argue that for many use cases even more powerful than the fully automatic snapshotting.</p>
+<h3 id="user-defined-snapshotting">User-defined snapshotting</h3>
+<p>Instead of snapshotting automatically the whole memory and other state of an agent, an agent can <strong>opt-in</strong> to snapshot support by implementing a pair of load/save functions. With this the agent only serializes the actual state that matters - but it is no longer transparent, it is something the developer must think through.</p>
+<p>Note that the load/save snapshot functions are not really new in Golem 1.5 - we had it since the first release, but previously it was only used as a way to migrate to new versions of an agent when the automatic update was not possible (code leading to diverging replays).</p>
+<p>The following example shows how the manually implemented save/load pair would look like for the default template's <code>CounterAgent</code>:</p>
+<div class="code-tabs" id="codetabs-1">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private readonly</span><span> name</span><span style="color: #0184BC;">: string</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    private</span><span> value</span><span style="color: #0184BC;">: number =</span><span style="color: #986801;"> 0</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    override async</span><span style="color: #4078F2;"> saveSnapshot</span><span>()</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;</span><span style="color: #C18401;">Uint8Array</span><span>&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> snapshot</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> Uint8Array</span><span>(</span><span style="color: #986801;">4</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        const</span><span style="color: #986801;"> view</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> DataView</span><span>(snapshot.</span><span style="color: #E45649;">buffer</span><span>);</span></span>
+<span class="giallo-l"><span>        view.</span><span style="color: #4078F2;">setUint32</span><span>(</span><span style="color: #986801;">0</span><span>,</span><span style="color: #E45649;"> this</span><span>.</span><span style="color: #E45649;">value</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        return</span><span> snapshot;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    override async</span><span style="color: #4078F2;"> loadSnapshot</span><span>(bytes</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Uint8Array</span><span>)</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> Promise</span><span>&lt;void&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span> view</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> new</span><span style="color: #4078F2;"> DataView</span><span>(bytes.</span><span style="color: #E45649;">buffer</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        this</span><span>.</span><span style="color: #E45649;">value</span><span style="color: #0184BC;"> =</span><span> view.</span><span style="color: #4078F2;">getUint32</span><span>(</span><span style="color: #986801;">0</span><span>);</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[agent_implementation()]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> CounterImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    _name</span><span>:</span><span style="color: #0184BC;"> String</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    count</span><span>:</span><span style="color: #C18401;"> u32</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_implementation()]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span style="color: #0184BC;"> CounterAgent</span><span style="color: #A626A4;"> for</span><span style="color: #0184BC;"> CounterImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async fn</span><span style="color: #4078F2;"> load_snapshot</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>,</span><span style="color: #E45649;"> bytes</span><span>:</span><span style="color: #0184BC;"> Vec</span><span>&lt;</span><span style="color: #C18401;">u8</span><span>&gt;) -&gt;</span><span style="color: #0184BC;"> Result</span><span>&lt;(),</span><span style="color: #0184BC;"> String</span><span>&gt; {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">        let</span><span style="color: #E45649;"> arr</span><span>: [</span><span style="color: #C18401;">u8</span><span>;</span><span style="color: #986801;"> 4</span><span>] =</span><span style="color: #E45649;"> bytes</span></span>
+<span class="giallo-l"><span>            .</span><span style="color: #4078F2;">try_into</span><span>()</span></span>
+<span class="giallo-l"><span>            .</span><span style="color: #4078F2;">map_err</span><span>(|</span><span style="color: #E45649;">_</span><span>|</span><span style="color: #50A14F;"> &quot;Expected a 4-byte long snapshot&quot;</span><span>)?;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        self</span><span>.count =</span><span style="color: #C18401;"> u32</span><span>::</span><span style="color: #4078F2;">from_be_bytes</span><span>(</span><span style="color: #E45649;">arr</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #C18401;">        Ok</span><span>(())</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    async fn</span><span style="color: #4078F2;"> save_snapshot</span><span>(&amp;</span><span style="color: #E45649;">self</span><span>) -&gt;</span><span style="color: #0184BC;"> Result</span><span>&lt;</span><span style="color: #0184BC;">Vec</span><span>&lt;</span><span style="color: #C18401;">u8</span><span>&gt;,</span><span style="color: #0184BC;"> String</span><span>&gt; {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">        Ok</span><span>(</span><span style="color: #E45649;">self</span><span>.count.</span><span style="color: #4078F2;">to_be_bytes</span><span>().</span><span style="color: #4078F2;">to_vec</span><span>())</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@agentImplementation()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final class</span><span style="color: #C18401;"> SnapshotCounterImpl</span><span>(@unused </span><span style="color: #A626A4;">private val</span><span style="color: #E45649;"> name</span><span>:</span><span style="color: #C18401;"> String</span><span>)</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> SnapshotCounter</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private var</span><span style="color: #E45649;"> value</span><span>:</span><span style="color: #C18401;"> Int</span><span> =</span><span style="color: #986801;"> 0</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> saveSnapshot</span><span>():</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Array</span><span>[</span><span style="color: #C18401;">Byte</span><span>]] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Future</span><span>.successful(encodeU32(value))</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  def</span><span style="color: #4078F2;"> loadSnapshot</span><span>(bytes:</span><span style="color: #C18401;"> Array</span><span>[</span><span style="color: #C18401;">Byte</span><span>]):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Unit</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Future</span><span>.successful {</span></span>
+<span class="giallo-l"><span>      value = decodeU32(bytes)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private def</span><span style="color: #4078F2;"> encodeU32</span><span>(i:</span><span style="color: #C18401;"> Int</span><span>):</span><span style="color: #C18401;"> Array</span><span>[</span><span style="color: #C18401;">Byte</span><span>] =</span></span>
+<span class="giallo-l"><span style="color: #C18401;">    Array</span><span>(</span></span>
+<span class="giallo-l"><span>      ((i &gt;&gt;&gt;</span><span style="color: #986801;"> 24</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>).toByte,</span></span>
+<span class="giallo-l"><span>      ((i &gt;&gt;&gt;</span><span style="color: #986801;"> 16</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>).toByte,</span></span>
+<span class="giallo-l"><span>      ((i &gt;&gt;&gt;</span><span style="color: #986801;"> 8</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>).toByte,</span></span>
+<span class="giallo-l"><span>      (i &amp;</span><span style="color: #986801;"> 0xff</span><span>).toByte</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  private def</span><span style="color: #4078F2;"> decodeU32</span><span>(bytes:</span><span style="color: #C18401;"> Array</span><span>[</span><span style="color: #C18401;">Byte</span><span>]):</span><span style="color: #C18401;"> Int</span><span> =</span></span>
+<span class="giallo-l"><span>    ((bytes(</span><span style="color: #986801;">0</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>) &lt;&lt;</span><span style="color: #986801;"> 24</span><span>) |</span></span>
+<span class="giallo-l"><span>      ((bytes(</span><span style="color: #986801;">1</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>) &lt;&lt;</span><span style="color: #986801;"> 16</span><span>) |</span></span>
+<span class="giallo-l"><span>      ((bytes(</span><span style="color: #986801;">2</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>) &lt;&lt;</span><span style="color: #986801;"> 8</span><span>) |</span></span>
+<span class="giallo-l"><span>      (bytes(</span><span style="color: #986801;">3</span><span>) &amp;</span><span style="color: #986801;"> 0xff</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">///|</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">/// Counter agent with snapshot persistence</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.agent</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> CounterAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  name</span><span> : </span><span style="color: #C18401;">String</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  mut</span><span style="color: #E45649;"> value</span><span> : </span><span style="color: #C18401;">UInt64</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span> @agents.</span><span style="color: #C18401;">Snapshottable</span><span style="color: #A626A4;"> for</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> with</span><span style="color: #4078F2;"> save_snapshot</span><span>(</span><span style="color: #E45649;">self</span><span>)</span><span style="color: #A626A4;"> -&gt;</span><span style="color: #C18401;"> Bytes</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  let</span><span style="color: #E45649;"> snapshot</span><span> =</span><span style="color: #C18401;"> Bytes</span><span>::</span><span style="color: #4078F2;">make</span><span>(</span><span style="color: #986801;">8</span><span>, </span><span style="color: #986801;">0</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  let</span><span style="color: #E45649;"> value</span><span> =</span><span style="color: #E45649;"> self</span><span>.value</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">0</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 56</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">1</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 48</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">2</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 40</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">3</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 32</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">4</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 24</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">5</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 16</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">6</span><span>] = ((</span><span style="color: #E45649;">value</span><span> &gt;&gt;</span><span style="color: #986801;"> 8</span><span>) &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span><span>[</span><span style="color: #986801;">7</span><span>] = (</span><span style="color: #E45649;">value</span><span> &amp;</span><span style="color: #986801;"> 0xFF</span><span>).</span><span style="color: #4078F2;">to_byte</span><span>()</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E45649;">  snapshot</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span> @agents.</span><span style="color: #C18401;">Snapshottable</span><span style="color: #A626A4;"> for</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> with</span><span style="color: #4078F2;"> load_snapshot</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  bytes</span><span> : </span><span style="color: #C18401;">Bytes</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span style="color: #A626A4;"> -&gt;</span><span style="color: #C18401;"> Result</span><span>[</span><span style="color: #C18401;">Unit</span><span>, </span><span style="color: #C18401;">String</span><span>] {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  if</span><span style="color: #E45649;"> bytes</span><span>.</span><span style="color: #4078F2;">length</span><span>() !=</span><span style="color: #986801;"> 8</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    return</span><span style="color: #C18401;"> Err</span><span>(</span><span style="color: #50A14F;">&quot;Invalid snapshot length: expected 8, got &quot;</span><span> +</span><span style="color: #E45649;"> bytes</span><span>.</span><span style="color: #4078F2;">length</span><span>().</span><span style="color: #4078F2;">to_string</span><span>())</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  let</span><span style="color: #E45649;"> value</span><span> =</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">0</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 56</span><span>) |</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">1</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 48</span><span>) |</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">2</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 40</span><span>) |</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">3</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 32</span><span>) |</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">4</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 24</span><span>) |</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">5</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 16</span><span>) |</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #E45649;">bytes</span><span>[</span><span style="color: #986801;">6</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>() &lt;&lt;</span><span style="color: #986801;"> 8</span><span>) |</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    bytes</span><span>[</span><span style="color: #986801;">7</span><span>].</span><span style="color: #4078F2;">to_uint64</span><span>()</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span>.value =</span><span style="color: #E45649;"> value</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  Ok</span><span>(())</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+<h3 id="recovery-configuration">Recovery configuration</h3>
+<p>Defining the pair of snapshotting functions is enough to use these for <strong>updating agents</strong> but it does not enable <strong>snapshot-based recovery</strong>. We can configure that through the agent annotation:</p>
+<div class="code-tabs" id="codetabs-2">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">agent</span><span>({</span><span style="color: #E45649;"> snapshotting</span><span style="color: #0184BC;">:</span><span> {</span><span style="color: #E45649;"> periodic</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &#39;5s&#39;</span><span> } })</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[agent_definition(snapshotting </span><span>=</span><span style="color: #50A14F;"> &quot;periodic(5s)&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> CounterAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@agentDefinition(snapshotting =</span><span style="color: #50A14F;"> &quot;periodic(5 seconds)&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">trait</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.agent</span><span>(</span><span style="color: #E45649;">snapshotting</span><span>=</span><span style="color: #50A14F;">&quot;periodic(5)&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub struct</span><span style="color: #C18401;"> CounterAgent</span><span> {</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+<p>The options can be <code>disabled</code>, <code>enabled</code> to use the server-side default (which is set to disabled by default), <code>every(N)</code> meaning snapshot after every <em>Nth</em> oplog entry, or <code>periodic(5s)</code> to make a snapshot every 5 seconds.</p>
+<h3 id="default-implementation">Default implementation</h3>
+<p>Having snapshot-based recovery is really useful but we realized that writing these manual serialization functions may be too painful. In <strong>Golem 1.5</strong> each supported language has a mechanism to opt-in for a <strong>default snapshotting implementation</strong> while still allowing defining a fully custom pair of methods like we've seen above.</p>
+<div class="code-tabs" id="codetabs-3">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">class</span><span style="color: #C18401;"> CounterAgent</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // For TypeScript, simply NOT defining loadSnapshot and saveSnapshot will </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // provide a default implementation that saves/loads the agent class itself </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // as JSON</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">Serialize</span><span style="color: #986801;">,</span><span style="color: #0184BC;"> Deserialize</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> CounterAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    count</span><span>:</span><span style="color: #C18401;"> u32</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #986801;">    #[serde(skip)]</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    _id</span><span>:</span><span style="color: #0184BC;"> String</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_implementation]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span style="color: #0184BC;"> CounterAgent</span><span style="color: #A626A4;"> for</span><span style="color: #0184BC;"> CounterAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // Not overriding save_snapshot and load_snapshot will provide the </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // default implementation, if the agent type has serde Serialize </span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // and Deserialize instances</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// For Scala we need to explicitly define the state to be serialized</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// and mix-in the `Snapshotted[T]` trait</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> SnapshotCounterState</span><span>(value:</span><span style="color: #C18401;"> Int</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> SnapshotCounterState</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> schema</span><span>:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">SnapshotCounterState</span><span>] =</span><span style="color: #C18401;"> Schema</span><span>.derived</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@agentImplementation()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">final class</span><span style="color: #C18401;"> CounterAgentImpl</span><span>(@unused </span><span style="color: #A626A4;">private val</span><span style="color: #E45649;"> name</span><span>:</span><span style="color: #C18401;"> String</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    extends</span><span style="color: #C18401;"> CounterAgent</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    with</span><span style="color: #C18401;"> Snapshotted</span><span>[</span><span style="color: #C18401;">SnapshotCounterState</span><span>] {</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  var</span><span style="color: #E45649;"> state</span><span>:</span><span style="color: #C18401;"> SnapshotCounterState</span><span>                                 =</span><span style="color: #C18401;"> SnapshotCounterState</span><span>(</span><span style="color: #986801;">0</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  val</span><span style="color: #E45649;"> stateSchema</span><span>:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">SnapshotCounterState</span><span>] =</span><span style="color: #C18401;"> SnapshotCounterState</span><span>.schema</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.agent</span><span>(</span><span style="color: #E45649;">snapshotting</span><span>=</span><span style="color: #50A14F;">&quot;every_n(1)&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  name</span><span> : </span><span style="color: #C18401;">String</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  mut</span><span style="color: #E45649;"> value</span><span> : </span><span style="color: #C18401;">UInt64</span></span>
+<span class="giallo-l"><span>} </span><span style="color: #A626A4;">derive</span><span>(</span><span style="color: #C18401;">ToJson</span><span>, @json.</span><span style="color: #C18401;">FromJson</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// If an agent derives ToJson/FromJson and has no manual Snapshottable instance,</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">// the SDK provides a default implementation</span></span></code></pre></div>
+<h3 id="observability">Observability</h3>
+<p>Using the default snapshotting implementation, or implementing one by hand that uses the <code>application/json</code> content type has one more nice feature: when observing the <strong>oplog</strong> of an agent for debugging purposes, we can see the snapshot entries with the serialized JSON state!</p>
+<p>Let's see an example:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="plain"><span class="giallo-l"><span>#00021:</span></span>
+<span class="giallo-l"><span>INVOKE COMPLETED</span></span>
+<span class="giallo-l"><span>          at:                2026-04-15T13:19:04.618Z</span></span>
+<span class="giallo-l"><span>          consumed fuel:     200796</span></span>
+<span class="giallo-l"><span>          result:            AgentMethod(AgentInvocationOutputParameters { output: Tuple(ElementValues { elements: [] }) })</span></span>
+<span class="giallo-l"><span>#00022:</span></span>
+<span class="giallo-l"><span>SNAPSHOT</span></span>
+<span class="giallo-l"><span>          at:                2026-04-15T13:19:04.619Z</span></span>
+<span class="giallo-l"><span>          data:              {</span></span>
+<span class="giallo-l"><span>  &quot;principal&quot;: {</span></span>
+<span class="giallo-l"><span>    &quot;tag&quot;: &quot;anonymous&quot;</span></span>
+<span class="giallo-l"><span>  },</span></span>
+<span class="giallo-l"><span>  &quot;state&quot;: {</span></span>
+<span class="giallo-l"><span>    &quot;name&quot;: &quot;test1&quot;,</span></span>
+<span class="giallo-l"><span>    &quot;value&quot;: 5</span></span>
+<span class="giallo-l"><span>  },</span></span>
+<span class="giallo-l"><span>  &quot;version&quot;: 1</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"><span>#00023:</span></span>
+<span class="giallo-l"><span>ENQUEUED INVOCATION increment</span></span>
+<span class="giallo-l"><span>          at:                2026-04-15T13:19:05.355Z</span></span>
+<span class="giallo-l"><span>          idempotency key:   3da50be7-f426-427b-8f50-a05ced00d20a</span></span></code></pre>
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>
