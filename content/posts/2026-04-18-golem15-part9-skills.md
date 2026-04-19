@@ -2,7 +2,7 @@
 title = "Golem 1.5 features - Part 9: Agent skills"
 date = 2026-04-18T11:50:00Z
 [taxonomies]
-tags = ["golem", "durable-execution", "agents", "scala", "golem-1.5", "ai"]
+tags = ["golem", "durable-execution", "agents", "golem-1.5", "ai"]
 +++
 
 ## Introduction

@@ -1,7 +1,7 @@
 +++
 title = "Golem 1.5 features - Part 7: Configuration and Secrets"
 [taxonomies]
-tags = ["golem", "durable-execution", "agents", "scala", "golem-1.5", "code-first"]
+tags = ["golem", "durable-execution", "agents", "golem-1.5", "code-first"]
 +++
 
 ## Introduction

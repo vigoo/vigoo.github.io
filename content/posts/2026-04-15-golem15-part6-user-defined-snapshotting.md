@@ -1,7 +1,7 @@
 +++
 title = "Golem 1.5 features - Part 6: User-defined snapshotting"
 [taxonomies]
-tags = ["golem", "durable-execution", "agents", "scala", "golem-1.5", "durability"]
+tags = ["golem", "durable-execution", "agents", "golem-1.5", "durability"]
 +++
 
 ## Introduction

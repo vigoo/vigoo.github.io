@@ -2,7 +2,7 @@
 title = "Golem 1.5 features - Part 8: Template simplifications and automatic updates"
 date = 2026-04-18T11:45:00Z
 [taxonomies]
-tags = ["golem", "durable-execution", "agents", "scala", "golem-1.5"]
+tags = ["golem", "durable-execution", "agents", "golem-1.5"]
 +++
 
 ## Introduction
