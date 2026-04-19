@@ -18,7 +18,7 @@ Parts released so far:
 - [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
-- [Part 10: Websocket client](/posts/golem15-part10-websocket)
+- [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 
 ## MCP
 [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) became a standard way to connect AI applications. With the new Golem release any Golem application can be automatically **exposed through MCP**. It does not require any code written, MCP is available for any agent automatically, but it needs to be enabled in the **application manifest**:

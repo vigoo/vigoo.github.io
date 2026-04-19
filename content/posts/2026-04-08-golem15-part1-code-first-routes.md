@@ -18,7 +18,7 @@ Parts released so far:
 - [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
-- [Part 10: Websocket client](/posts/golem15-part10-websocket)
+- [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 
 ## Code-first routes
 In the previous Golem release we introduced **code-first agents** - we started defining everything in code, with the help of some TypeScript decorators and Rust annotations. With this we could define **agents** that expose a typed interface, can call each other and so on - but to expose these interfaces via regular HTTP endpoints, we had to define these endpoints in a OpenAPI-like YAML section and use a custom scripting language called **Rib** to map between the request/response and the underlying agent interface.

@@ -1,5 +1,5 @@
 +++
-title = "Golem 1.5 features - Part 10: Websocket client"
+title = "Golem 1.5 features - Part 10: WebSocket client"
 date = 2026-04-18T11:50:00Z
 [taxonomies]
 tags = ["golem", "durable-execution", "agents", "golem-1.5", "websocket"]
@@ -18,17 +18,20 @@ Parts released so far:
 - [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
-- [Part 10: Websocket client](/posts/golem15-part10-websocket)
+- [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 
-## Websockets
+## WebSockets
 Golem applications are WebAssembly components and the only way they can make external requests is through the [WASI HTTP interface](https://github.com/WebAssembly/WASI/tree/main/proposals/http/). This is not really visible for Golem developers - in TypeScript and Scala the standard `fetch` or `node:http` interfaces are hiding this fact, just like in Rust where higher level HTTP libraries like `wstd::http` can be used.
 
-This HTTP interface has its limitations; one such limitation is that it does not support upgrading to a websocket connection.
+This HTTP interface has its limitations; one such limitation is that it does not support upgrading to a WebSocket connection.
 
-### Websocket client API
+### WebSocket client API
 In **Golem 1.5** we introduce a new WebSocket client API that complements the WASI HTTP one for connecting to 3rd party WebSocket servers. 
 
 Under the hood this API is described by the following WebAssembly interface:
+
+<details>
+<summary>WIT definition of <code>golem:websocket@1.5.0</code></summary>
 
 ```wit
 package golem:websocket@1.5.0;
@@ -84,15 +87,25 @@ interface client {
 }
 ```
 
-This is just an implementation detail which can be mostly hidden for our users, just like the WASI HTTP interfaces are.
+</details>
+
+This is just an implementation detail which can be mostly hidden by higher level APIs provided by our language-specific SDKs, just like the WASI HTTP interfaces are.
 
 ### Higher level WebSocket APIs
 
-#### TypeScript
 In **TypeScript** the WebSocket support is implemented through the standard browser [`WebSocket`](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket) and [`WebSocketStream`](https://developer.mozilla.org/en-US/docs/Web/API/WebSocketStream) APIs.
+
+In **Rust** we could not override the behavior of an existing WebSocket library so the Golem Rust SDK provides its own, inspired by the popular [tungstenite](https://github.com/snapview/tungstenite-rs) library.
+
+**Scala** compiles to JS on Golem, so the most straightforward approach is to use the browser `WebSocket`/`WebSocketStream` APIs. At the time of writing [`zio-http`](https://ziohttp.com) does not support WebSockets on Scala.js, but this is something we could possibly fix!
+
+In **MoonBit** we can directly use the low level WIT interface through the generated bindings.
+
+#### Example
 
 The following example shows how an agent method can initiate and run a WebSocket connection:
 
+{% codetabs() %}
 ```typescript
 @agent()
 class ExampleAgent extends BaseAgent {
@@ -122,18 +135,14 @@ class ExampleAgent extends BaseAgent {
   }
 }
 ```
-
-#### Rust
-In **Rust** we could not override the behavior of an existing WebSocket library so the Golem Rust SDK provides its own, inspired by the popular [tungstenite](https://github.com/snapview/tungstenite-rs) library:
-
 ```rust
 #[agent_implementation]
 impl ExampleAgent for ExampleAgentImpl {
     async fn run() -> Result<(), WebSocketError> {
         let ws = WebsocketConnection::connect("wss://example.com/chat", None)?;
+        println!("Connected");
     
         ws.send(&WebSocketMessage::Text("Hello, server!".to_string()))?;
-        ws.send(&WebSocketMessage::Binary(vec![0x01, 0x02, 0x03]))?;
     
         loop {
             match ws.receive().await {
@@ -153,10 +162,6 @@ impl ExampleAgent for ExampleAgentImpl {
     }
 }
 ```
-
-#### Scala 
-Scala is compiling to JS so here the most straightforward is to use the browser `WebSocket`/`WebSocketStream` APIs. At the time of writing [`zio-http`](https://ziohttp.com) does not support WebSockets on Scala.js, but this is something we could possibly fix!
-
 ```scala
 case class ExampleAgentImpl() extends ExampleAgent {
   def run(): Future[Unit] = {
@@ -188,10 +193,6 @@ case class ExampleAgentImpl() extends ExampleAgent {
   }
 }
 ```
-
-#### MoonBit
-We can directly use the low level interface from MoonBit in the following way:
-
 ```moonbit
 pub fn ExampleAgent::run(self : Self) -> Unit raise @common.AgentError {
   let conn = match @websocket_client.WebsocketConnection::connect(
@@ -220,10 +221,13 @@ pub fn ExampleAgent::run(self : Self) -> Unit raise @common.AgentError {
   conn.drop()
 }
 ```
+{% end %}
 
 ### Durability
-Golem agents are durable, surviving failures and restarts. But what about these WebSocket connections? In **Golem 1.5** we have a limited support for recovering WebSocket connections in case of a restart. 
+Golem agents are durable, surviving failures and restarts. But what about these WebSocket connections? In **Golem 1.5** we have limited support for recovering WebSocket connections in case of a restart. 
 
 If the connection happened in the past, and was already closed, it works as expected - the whole communication is stored in the agent's **oplog** and there isn't any problem recovering the agent's state. 
 
 If the connection is still open, we have a problem because WebSocket connections are quite low level - there is no standard way to resume a connection. What Golem does is it assumes that the server supports transparent reconnections, and just reopens the connection and continues sending/receiving on it. For the Golem application's developer this is completely transparent, but it's the server's responsibility to support this kind of resumption.
+
+If the server does not support this kind of reconnection, then agents using these connections are no longer able to transparently survive failure scenarios. This is something we can further improve in upcoming Golem releases.
