@@ -18,6 +18,7 @@ Parts released so far:
 - [Part 7: Configuration and Secrets](/posts/golem15-part7-config-and-secrets)
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
+- [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
 
 ## Golem templates
 Golem comes with **built-in templates** for the supported languages since 1.0. These templates not only contained simple examples of defining an agent running on Golem, but a large amount of build infrastructure as well, and a structure we created to make it easy for a Golem application to grow to be a big multi-component, multi-language project with additional user defined shared libraries and so on.

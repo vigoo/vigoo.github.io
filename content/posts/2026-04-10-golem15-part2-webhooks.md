@@ -19,6 +19,7 @@ Parts released so far:
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 - [Part 10: WebSocket client](/posts/golem15-part10-websocket)
+- [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
 
 ## Webhooks
 We have seen how we can map our agents to HTTP APIs in the [previous post](/posts/golem15-part1-code-first-routes). Another new feature of **Golem 1.5**, closely related to that, is the ability to **create webhooks** and await them.
