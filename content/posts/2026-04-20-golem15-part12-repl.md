@@ -21,6 +21,7 @@ Parts released so far:
 - [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
 - [Part 12: REPL](/posts/golem15-part12-repl)
+- [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 
 ## Testing agents with a REPL
 The Golem REPL was an important element of **testing agents** during development. The REPL allows you to get or create agent instances, invoke methods on them, and see their logs streamed during these invocations.

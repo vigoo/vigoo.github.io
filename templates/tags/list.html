@@ -7,11 +7,7 @@
 <ul class="tag-list">
     {% for term in terms %}
     <li>
-        {% if term.page_count == 1 %}
-        {% set scale = 100 %}
-        {% else %}
-        {% set scale = 25 + (term.page_count * 50) %}
-        {% endif %}
+        {% set scale = 100 + ((term.page_count - 1) * 6) %}
         <span class="post-tag" style="font-size: {{ scale }}%">
             <a href="{{ term.permalink }}">{{ term.name }} <sup>{{ term.page_count }}</sup></a>
         </span>

@@ -21,6 +21,7 @@ Parts released so far:
 - [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
 - [Part 12: REPL](/posts/golem15-part12-repl)
+- [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 
 ## WebSockets
 Golem applications are WebAssembly components and the only way they can make external requests is through the [WASI HTTP interface](https://github.com/WebAssembly/WASI/tree/main/proposals/http/). This is not really visible for Golem developers - in TypeScript and Scala the standard `fetch` or `node:http` interfaces are hiding this fact, just like in Rust where higher level HTTP libraries like `wstd::http` can be used.
