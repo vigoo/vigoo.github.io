@@ -18,6 +18,7 @@ Parts released so far:
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
+- [Part 12: REPL](/posts/golem15-part12-repl)
 
 ## Code-first Configuration
 Before **Golem 1.5**, the standard way to inject configuration values and secrets were through _environment variables_. We can specify environment variables on a per-component, per agent type or per agent instance level, and the application can read them using the standard APIs such as `node:process` or the Rust standard library. Environment variables also get inherited when agents are doing agent-to-agent RPC calls. This works, but has some drawbacks - they can only be strings, and most importantly they are not discoverable. An agent can read arbitrary environment variables and there is no way to tell in advance what they require.

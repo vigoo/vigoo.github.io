@@ -19,6 +19,7 @@ Parts released so far:
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 - [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
+- [Part 12: REPL](/posts/golem15-part12-repl)
 
 ## JS/TS support
 The previous release introduced our new QuickJS based **JavaScript engine** and supported using **TypeScript** for writing Golem applications. The runtime itself and the Golem SDK already worked well, however not many of the third party libraries of the JS/TS ecosystem were compatible with our runtime. We have put a lot of effort into increasing our runtime's compatibility with both browser APIs and Node.js modules.

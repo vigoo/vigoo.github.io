@@ -19,6 +19,7 @@ Parts released so far:
 - [Part 8: Template simplifications and automatic updates](/posts/golem15-part8-template-simplifications)
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
+- [Part 12: REPL](/posts/golem15-part12-repl)
 
 ## Skills 
 Using coding agents has become a standard way of writing code. With **Golem 1.5**, our application templates include an `AGENTS.md` and a huge catalog of **agent skills** describing every detail of creating, modifying and testing agents on the Golem platform.

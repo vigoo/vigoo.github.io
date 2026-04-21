@@ -20,6 +20,7 @@ Parts released so far:
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 - [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
+- [Part 12: REPL](/posts/golem15-part12-repl)
 
 ## Scala support
 We love **Scala** and always wanted to have it among the supported languages for **Golem**. As Golem runs _WASM components_ this had some difficulties; there are ongoing projects trying to make Scala compiled to WASM, but none of them were production-ready yet a few months ago - and as far as I know, they still are not. So we took a different route - as we already put [a lot of effort in our JS support](/posts/golem15-part4-nodejs), we decided to support Scala through **Scala.js**.

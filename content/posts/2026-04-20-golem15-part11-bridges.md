@@ -19,6 +19,7 @@ Parts released so far:
 - [Part 9: Agent skills](/posts/golem15-part9-skills)
 - [Part 10: WebSocket client](/posts/golem15-part10-websocket)
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
+- [Part 12: REPL](/posts/golem15-part12-repl)
 
 ## Calling agents from outside of Golem
 There are multiple ways to create and invoke **Golem agents** from _outside_ of Golem. It is possible to [expose agents through HTTP](/posts/golem15-part1-code-first-routes) or [MCP](/posts/golem15-part3-mcp), to use the CLI or the new [REPL](/posts/golem15-part12-repl), or just use Golem's own REST API directly.
