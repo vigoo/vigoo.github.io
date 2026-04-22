@@ -21,6 +21,7 @@ Parts released so far:
 - [Part 11: Bridge libraries](/posts/golem15-part11-bridges)
 - [Part 12: REPL](/posts/golem15-part12-repl)
 - [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
+- [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 
 ## Components vs agents
 Previously, in Golem **components** were the most important user-defined entities. Components were the unit of compilation, each transformed to be a **WebAssembly component** and all the customization such as environment variables, initial file system and so on were configurable **per component**.
