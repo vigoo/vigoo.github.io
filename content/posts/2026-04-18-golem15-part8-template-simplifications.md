@@ -22,6 +22,7 @@ Parts released so far:
 - [Part 12: REPL](/posts/golem15-part12-repl)
 - [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
+- [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 
 ## Golem templates
 Golem comes with **built-in templates** for the supported languages since 1.0. These templates not only contained simple examples of defining an agent running on Golem, but a large amount of build infrastructure as well, and a structure we created to make it easy for a Golem application to grow to be a big multi-component, multi-language project with additional user defined shared libraries and so on.

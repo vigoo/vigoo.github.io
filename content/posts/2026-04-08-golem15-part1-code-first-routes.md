@@ -23,6 +23,7 @@ Parts released so far:
 - [Part 12: REPL](/posts/golem15-part12-repl)
 - [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
+- [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 
 ## Code-first routes
 In the previous Golem release we introduced **code-first agents** - we started defining everything in code, with the help of some TypeScript decorators and Rust annotations. With this we could define **agents** that expose a typed interface, can call each other and so on - but to expose these interfaces via regular HTTP endpoints, we had to define these endpoints in a OpenAPI-like YAML section and use a custom scripting language called **Rib** to map between the request/response and the underlying agent interface.

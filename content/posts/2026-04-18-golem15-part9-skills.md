@@ -22,6 +22,7 @@ Parts released so far:
 - [Part 12: REPL](/posts/golem15-part12-repl)
 - [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
+- [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 
 ## Skills 
 Using coding agents has become a standard way of writing code. With **Golem 1.5**, our application templates include an `AGENTS.md` and a huge catalog of **agent skills** describing every detail of creating, modifying and testing agents on the Golem platform.

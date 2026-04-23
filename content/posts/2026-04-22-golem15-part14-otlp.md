@@ -22,6 +22,7 @@ Parts released so far:
 - [Part 12: REPL](/posts/golem15-part12-repl)
 - [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
+- [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 
 ## Oplog processor plugins
 Previous Golem versions had an unfinished feature called **oplog processor plugins**; the basics were already there but we did not have _exactly-once delivery semantics_ for it yet, and there were no actual use cases built on top of it.
