@@ -1,0 +1,244 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 13: Per-agent configuration</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part13-per-agent-config&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 13: Per-agent configuration</h1>
+            
+            <p class="posted-on">Posted on April 21, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="components-vs-agents">Components vs agents</h2>
+<p>Previously, in Golem <strong>components</strong> were the most important user-defined entities. Components were the unit of compilation, each transformed to be a <strong>WebAssembly component</strong> and all the customization such as environment variables, initial file system and so on were configurable <strong>per component</strong>.</p>
+<p>In <strong>Golem 1.5</strong> the primary entity is an <strong>agent</strong>. Agents are still organized into components - these are the unit of compilation and deployment, but each component can contain an arbitrary number of agents. These agents have to have unique type names in the whole application (that can consist of multiple components) so whenever we refer to a specific agent instance, for example to invoke them or query its metadata or oplog, we no longer need to deal with <strong>component ids</strong> like before. We can identify the agents just by their type name and constructor parameters.</p>
+<p>To further continue our journey towards being <em>agent first</em>, in the new release all the customization is <strong>per agent</strong>. We can configure everything on the agent level:</p>
+<ul>
+<li>environment variables</li>
+<li>initial file system</li>
+<li><a href="/posts/golem15-part7-config-and-secrets">configuration</a></li>
+<li><a href="/posts/golem15-part11-bridges">bridge generation</a></li>
+</ul>
+<p>With this small detail application manifests became much more in sync with how we can configure some other aspects (such as <a href="/posts/golem15-part1-code-first-routes">http routes</a> and <a href="/posts/golem15-part6-user-defined-snapshotting">snapshotting</a>) per agent from the code itself.</p>
+<h3 id="example">Example</h3>
+<p>The following example shows how we can configure different settings for three agents defined in the same component.</p>
+<p>We start with the application's shared runtime settings. We define them as a <strong>component template</strong> so we can apply them to any component in our application, and every agent in those components will get them:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">manifestVersion</span><span>:</span><span style="color: #50A14F;"> &quot;1.5.0&quot;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">app</span><span>:</span><span style="color: #50A14F;"> supportdesk</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E45649;">componentTemplates</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  shared-runtime</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    env</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      RUST_LOG</span><span>:</span><span style="color: #50A14F;"> info</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      TZ</span><span>:</span><span style="color: #50A14F;"> UTC</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    files</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> ./shared/ca-certificates.pem</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /certs/ca-certificates.pem</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    presets</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      local</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        default</span><span>:</span><span style="color: #986801;"> true</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        env</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">          GOLEM_ENV</span><span>:</span><span style="color: #50A14F;"> local</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      cloud</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        env</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">          GOLEM_ENV</span><span>:</span><span style="color: #50A14F;"> cloud</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E45649;">components</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  supportdesk:agents</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    dir</span><span>:</span><span style="color: #986801;"> .</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    templates</span><span>:</span><span style="color: #50A14F;"> shared-runtime</span></span></code></pre>
+<p>Then we can provide additional configuration <strong>per agent</strong>. For <code>InboxAgent</code> we override the environment, config and initial file system:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">agents</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  InboxAgent</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    env</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      OPENAI_API_KEY</span><span>:</span><span style="color: #50A14F;"> &quot;{{ OPENAI_API_KEY }}&quot;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      MODEL</span><span>:</span><span style="color: #50A14F;"> gpt-4.1-mini</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    files</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> ./prompts/inbox-system.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /prompts/system.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> ./data/routing-rules.json</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /data/routing-rules.json</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    config</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      defaultQueue</span><span>:</span><span style="color: #50A14F;"> general</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      summarizeReplies</span><span>:</span><span style="color: #986801;"> true</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      classification</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        confidenceThreshold</span><span>:</span><span style="color: #986801;"> 0.75</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        labels</span><span>:</span></span>
+<span class="giallo-l"><span>          -</span><span style="color: #50A14F;"> billing</span></span>
+<span class="giallo-l"><span>          -</span><span style="color: #50A14F;"> outage</span></span>
+<span class="giallo-l"><span>          -</span><span style="color: #50A14F;"> product</span></span></code></pre>
+<p>We can define a completely different set of overrides for the other agents. Note that each agent has its own typed configuration, and we only have to satisfy each agent's own requirements.</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">agents</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  EscalationAgent</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    env</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      JIRA_BASE_URL</span><span>:</span><span style="color: #50A14F;"> https://acme.atlassian.net</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      JIRA_TOKEN</span><span>:</span><span style="color: #50A14F;"> &quot;{{ JIRA_TOKEN }}&quot;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      MODEL</span><span>:</span><span style="color: #50A14F;"> claude-3-7-sonnet</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    files</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> ./prompts/escalation-system.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /prompts/system.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> ./playbooks/p1-outage.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /playbooks/p1-outage.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> https://example.com/runbooks/severity-guide.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /playbooks/severity-guide.md</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    config</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      projectKey</span><span>:</span><span style="color: #50A14F;"> OPS</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      defaultPriority</span><span>:</span><span style="color: #50A14F;"> high</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      pagerduty</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        serviceId</span><span>:</span><span style="color: #50A14F;"> P123456</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        autoPageAfterMinutes</span><span>:</span><span style="color: #986801;"> 5</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E45649;">  AuditAgent</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    env</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      S3_BUCKET</span><span>:</span><span style="color: #50A14F;"> supportdesk-audit</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    files</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> sourcePath</span><span>:</span><span style="color: #50A14F;"> ./schemas/audit-event.schema.json</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        targetPath</span><span>:</span><span style="color: #50A14F;"> /schemas/audit-event.schema.json</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        permissions</span><span>:</span><span style="color: #50A14F;"> read-only</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    config</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      redactFields</span><span>:</span></span>
+<span class="giallo-l"><span>        -</span><span style="color: #50A14F;"> email</span></span>
+<span class="giallo-l"><span>        -</span><span style="color: #50A14F;"> phone</span></span>
+<span class="giallo-l"><span>        -</span><span style="color: #50A14F;"> paymentToken</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      retentionDays</span><span>:</span><span style="color: #986801;"> 90</span></span></code></pre>
+<p>Finally, we can configure the <strong>bridge generator</strong> also per agent:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">bridge</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  ts</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    agents</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #50A14F;"> InboxAgent</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #50A14F;"> EscalationAgent</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  rust</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    agents</span><span>:</span><span style="color: #50A14F;"> AuditAgent</span></span></code></pre>
+<p>When we define our <strong>environments</strong> - these are the targets where we can deploy our application to - we can define <code>componentPresets</code>. This selects one section from the <code>presets</code> map we defined in the first snippet. This feature allows us to have different environment variables / configuration per deployment target!</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">environments</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  local</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    default</span><span>:</span><span style="color: #986801;"> true</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    server</span><span>:</span><span style="color: #50A14F;"> local</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    componentPresets</span><span>:</span><span style="color: #50A14F;"> local</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  prod</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    server</span><span>:</span><span style="color: #50A14F;"> cloud</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    componentPresets</span><span>:</span><span style="color: #50A14F;"> cloud</span></span></code></pre>
+<p>As demonstrated, the Golem application manifest is very powerful and allows quite complicated setup, even though in its default form it is just a few lines long. To help working on these files, we are publishing a full <strong>JSON schema</strong> for it as well as a dedicated <a href="/posts/golem15-part9-skills">agent skill</a>.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

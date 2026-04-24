@@ -1,0 +1,235 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 16: Quotas</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part16-quotas&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 16: Quotas</h1>
+            
+            <p class="posted-on">Posted on April 24, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="quotas">Quotas</h2>
+<p>A modern application usually depends on various third party services. This is even more true today with AI agents - an agent is going to make requests to various external systems as well as LLM providers and other AI infrastructure. Most of these have costs and limits. It does matter how many and how big requests you make to your chosen model, and many APIs have built-in quotas and rate limits affecting the callers.</p>
+<p>In <strong>Golem 1.5</strong> we introduced a new, general purpose feature that tracks resource quotas in a distributed Golem application. The idea is that we can define an arbitrary set of <strong>resources</strong> with a limited availability, and enforce reserving some of this pool of available resources through <strong>quota tokens</strong>. With this token-granting we can control the parallel running agents and make sure we don't over-use the limited resources.</p>
+<p>It is possible to acquire some quota tokens and <strong>split them</strong>, passing a part of them to another Golem agent through agent-to-agent RPC calls. This is a very powerful tool to have a structured control over arbitrary external resource consumption.</p>
+<h3 id="integration">Integration</h3>
+<p>In this release we just introduce this as a general tool, available through the Golem SDKs, but it is not integrated with any libraries yet. In the future we expect to have dedicated support for quota tokens in various client libraries, but for now they have to be used as a manually implemented layer on top of the clients.</p>
+<h3 id="setting-it-up">Setting it up</h3>
+<p>Let's see some concrete examples. Just like with <a href="/posts/golem15-part7-config-and-secrets">secrets</a>, quota <strong>resources</strong> are also defined <strong>per environment</strong>, and we can define them with their initial limits in the <strong>application manifest</strong>.</p>
+<p>The following manifest snippet defines three different types of resources:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">resourceDefaults</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  prod</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    api-calls</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      limit</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        type</span><span>:</span><span style="color: #50A14F;"> Rate</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        value</span><span>:</span><span style="color: #986801;"> 100</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        period</span><span>:</span><span style="color: #50A14F;"> minute</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        max</span><span>:</span><span style="color: #986801;"> 1000</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      enforcementAction</span><span>:</span><span style="color: #50A14F;"> reject</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      unit</span><span>:</span><span style="color: #50A14F;"> request</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      units</span><span>:</span><span style="color: #50A14F;"> requests</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    storage</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      limit</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        type</span><span>:</span><span style="color: #50A14F;"> Capacity</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        value</span><span>:</span><span style="color: #986801;"> 1073741824</span><span style="color: #A0A1A7;font-style: italic;">       # 1 GB</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      enforcementAction</span><span>:</span><span style="color: #50A14F;"> reject</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      unit</span><span>:</span><span style="color: #50A14F;"> byte</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      units</span><span>:</span><span style="color: #50A14F;"> bytes</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    connections</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      limit</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        type</span><span>:</span><span style="color: #50A14F;"> Concurrency</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        value</span><span>:</span><span style="color: #986801;"> 50</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      enforcementAction</span><span>:</span><span style="color: #50A14F;"> throttle</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      unit</span><span>:</span><span style="color: #50A14F;"> connection</span></span>
+<span class="giallo-l"><span style="color: #E45649;">      units</span><span>:</span><span style="color: #50A14F;"> connections</span></span></code></pre>
+<p>The <code>prod</code> is just an example environment. For each environment we can define an arbitrary number of resources, identified by a unique name. The most important in their configuration are <code>limit</code> and <code>enforcementAction</code>.</p>
+<p>We have three different <strong>limit</strong> types:</p>
+<ul>
+<li><code>Rate</code> defines a limited pool that refills by <code>value</code> in every <code>period</code>, with a maximum of <code>max</code>. This is great for example for rate-limiting API calls.</li>
+<li><code>Capacity</code> defines a fixed number of <code>value</code> tokens. It never gets refilled - if an agent takes some of it, it remains taken forever.</li>
+<li><code>Concurrency</code> defines a fixed pool of <code>value</code> tokens. The agents can never allocate more than this value at the same time, but once they stop using the tokens they get back to the pool. This is useful for limiting concurrency.</li>
+</ul>
+<p>In addition to the limits, we can select what to do when the token request cannot be satisfied:</p>
+<ul>
+<li><code>reject</code> means we return an error (with an optional hint of how much to wait). It is the agent's responsibility to handle this</li>
+<li><code>throttle</code> means Golem will suspend the agent until the resource becomes available. This is fully automatic and does not require any further logic in the user code!</li>
+<li><code>terminate</code> kills the agent with a specific failure message</li>
+</ul>
+<h3 id="dynamic-changes">Dynamic changes</h3>
+<p>The resource definitions in the application manifest are only <strong>defaults</strong> applied at deployment. With CLI commands (or REST API calls) we can modify them any time, and the changes will affect running agents immediately.</p>
+<p>For example we can increase the above defined <code>connections</code> resource's limit to 100 if we need more concurrency:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #4078F2;">$</span><span style="color: #50A14F;"> golem resource update connections</span><span style="color: #986801;"> --limit</span><span style="color: #50A14F;"> &#39;{&quot;type&quot;:&quot;concurrency&quot;,&quot;value&quot;:100}&#39;</span><span style="color: #986801;"> --environment</span><span style="color: #50A14F;"> prod</span></span></code></pre><h3 id="code-example">Code example</h3>
+<p>Let's see how we can use these resources from code!</p>
+<h4 id="initialization">Initialization</h4>
+<p>The first step is to acquire a <strong>quota token interface</strong> for every resource our agent is going to need. This can be done in the agent's constructor, or the first time the token is needed, but should be done only once:</p>
+<div class="code-tabs" id="codetabs-1">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">import</span><span> {</span><span style="color: #E45649;"> acquireQuotaToken</span><span> }</span><span style="color: #A626A4;"> from</span><span style="color: #50A14F;"> &quot;golem-ts-sdk&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> token</span><span style="color: #0184BC;"> =</span><span style="color: #4078F2;"> acquireQuotaToken</span><span>(</span><span style="color: #50A14F;">&quot;api-calls&quot;</span><span>,</span><span style="color: #986801;"> 1</span><span style="color: #A626A4;">n</span><span>);</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #A626A4;">use</span><span> golem_rust::quota::</span><span style="color: #0184BC;">QuotaToken</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> token</span><span> =</span><span style="color: #0184BC;"> QuotaToken</span><span>::</span><span style="color: #4078F2;">new</span><span>(</span><span style="color: #50A14F;">&quot;api-calls&quot;</span><span>,</span><span style="color: #986801;"> 1</span><span>);</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">import</span><span> golem.host.</span><span style="color: #C18401;">QuotaApi</span><span>._</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> token</span><span> =</span><span style="color: #C18401;"> QuotaToken</span><span>(</span><span style="color: #50A14F;">&quot;api-calls&quot;</span><span>, </span><span style="color: #C18401;">BigInt</span><span>(</span><span style="color: #986801;">1</span><span>))</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> token</span><span> = @quota.</span><span style="color: #C18401;">QuotaToken</span><span>::</span><span style="color: #4078F2;">new</span><span>(</span><span style="color: #50A14F;">&quot;api-calls&quot;</span><span>, </span><span style="color: #986801;">1UL</span><span>)</span></span></code></pre></div>
+<p>The parameter (<code>1</code>) is the <strong>expected amount asked per reservation</strong>. For a simple rate limiting use case, where we associate 1 API call with 1 token, this can be 1.</p>
+<h4 id="simple-rate-limiting">Simple rate limiting</h4>
+<p>For a simple rate limiting case, we can <strong>reserve</strong> one token for each API call (of course we could also weight different API calls differently, by associating different token counts to them):</p>
+<div class="code-tabs" id="codetabs-2">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">import</span><span> {</span><span style="color: #E45649;"> withReservation</span><span> }</span><span style="color: #A626A4;"> from</span><span style="color: #50A14F;"> &quot;golem-ts-sdk&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> result</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span style="color: #4078F2;"> withReservation</span><span>(token,</span><span style="color: #986801;"> 1</span><span style="color: #A626A4;">n</span><span>,</span><span style="color: #A626A4;"> async</span><span> (reservation)</span><span style="color: #A626A4;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  const</span><span style="color: #986801;"> response</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span style="color: #4078F2;"> callSimpleApi</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  return</span><span> {</span><span style="color: #E45649;"> used</span><span style="color: #0184BC;">:</span><span style="color: #4078F2;"> BigInt</span><span>(</span><span style="color: #986801;">1</span><span>),</span><span style="color: #E45649;"> value</span><span style="color: #0184BC;">:</span><span> response };</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #A626A4;">use</span><span> golem_rust::quota::with_reservation;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> result</span><span> =</span><span style="color: #4078F2;"> with_reservation</span><span>(&amp;</span><span style="color: #E45649;">token</span><span>,</span><span style="color: #986801;"> 1</span><span>, |</span><span style="color: #E45649;">_reservation</span><span>| {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    let</span><span style="color: #E45649;"> response</span><span> =</span><span style="color: #4078F2;"> call_simple_api</span><span>();</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #986801;">1</span><span>,</span><span style="color: #E45649;"> response</span><span>)</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> result</span><span> = withReservation(token, </span><span style="color: #C18401;">BigInt</span><span>(</span><span style="color: #986801;">1</span><span>)) { reservation =&gt;</span></span>
+<span class="giallo-l"><span>  callSimpleApi().map { response =&gt;</span></span>
+<span class="giallo-l"><span>    (</span><span style="color: #C18401;">BigInt</span><span>(</span><span style="color: #986801;">1</span><span>), response)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> result</span><span> = @quota.</span><span style="color: #4078F2;">with_reservation</span><span>(</span><span style="color: #E45649;">token</span><span>, </span><span style="color: #986801;">1UL</span><span>, </span><span style="color: #A626A4;">fn</span><span>(</span><span style="color: #E45649;">reservation</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  let</span><span style="color: #E45649;"> response</span><span> =</span><span style="color: #4078F2;"> callSimpleApi</span><span>()</span></span>
+<span class="giallo-l"><span>  (</span><span style="color: #986801;">1</span><span>, </span><span style="color: #E45649;">response</span><span>)</span></span>
+<span class="giallo-l"><span>})</span></span></code></pre></div>
+<h4 id="rate-limiting-llms">Rate-limiting LLMs</h4>
+<p>The same mechanism can be used to rate-limit for example LLMs, but not based on just the requests, but on the actual tokens consumed. Instead of reserving just one token, we reserve the number of maximum tokens we expect the request will consume (and in most LLM APIs we can enforce this). Then in the <code>response</code> we read how much actual tokens our request used, and <strong>commit</strong> that (returning the final number the <code>withReservation</code> helper is a way to commit, but there is also an explicit <code>commit</code> call we can use).</p>
+<h4 id="splitting-and-merging">Splitting and merging</h4>
+<p>Quota tokens can be <strong>split</strong>, <strong>merged</strong> and <strong>transformed</strong> between agents. The following example splits off 200 units from our agent's available tokens for a given resource, and sends it to another agent.</p>
+<div class="code-tabs" id="codetabs-3">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> childToken</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> QuotaToken</span><span style="color: #0184BC;"> =</span><span> token.</span><span style="color: #4078F2;">split</span><span>(</span><span style="color: #986801;">200</span><span style="color: #A626A4;">n</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> childAgent</span><span style="color: #0184BC;"> =</span><span style="color: #A626A4;"> await</span><span> SummarizerAgent.</span><span style="color: #4078F2;">newPhantom</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">const</span><span style="color: #986801;"> summary</span><span style="color: #0184BC;"> =</span><span> childAgent.</span><span style="color: #4078F2;">summarize</span><span>(text, childToken);</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> child_token</span><span>:</span><span style="color: #0184BC;"> QuotaToken</span><span> =</span><span style="color: #E45649;"> token</span><span>.</span><span style="color: #4078F2;">split</span><span>(</span><span style="color: #986801;">200</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> child_agent</span><span> =</span><span style="color: #0184BC;"> SummarizerAgent</span><span>::</span><span style="color: #4078F2;">new_phantom</span><span>().</span><span style="color: #A626A4;">await</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> summary</span><span> =</span><span style="color: #E45649;"> child_agent</span><span>.</span><span style="color: #4078F2;">summarize</span><span>(</span><span style="color: #E45649;">text</span><span>,</span><span style="color: #E45649;"> child_token</span><span>).</span><span style="color: #A626A4;">await</span><span>;</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">val</span><span style="color: #E45649;"> childToken</span><span>:</span><span style="color: #C18401;"> QuotaToken</span><span> = token.split(</span><span style="color: #C18401;">BigInt</span><span>(</span><span style="color: #986801;">200</span><span>))</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">for</span><span> {</span></span>
+<span class="giallo-l"><span>  childAgent &lt;-</span><span style="color: #C18401;"> SummarizerAgent</span><span>.newPhantom()</span></span>
+<span class="giallo-l"><span>  summary &lt;- childAgent.summarize(text, childToken)</span></span>
+<span class="giallo-l"><span>}</span><span style="color: #A626A4;"> yield</span><span> summary</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> child_token</span><span>: </span><span style="color: #C18401;">QuotaToken</span><span> =</span><span style="color: #E45649;"> self</span><span>.token.</span><span style="color: #4078F2;">split</span><span>(</span><span style="color: #986801;">200UL</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">let</span><span style="color: #E45649;"> child_agent</span><span> =</span><span style="color: #C18401;"> SummarizerAgent</span><span>::</span><span style="color: #4078F2;">new_phantom</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">child_agent</span><span>.</span><span style="color: #4078F2;">summarize</span><span>(</span><span style="color: #E45649;">text</span><span>, </span><span style="color: #E45649;">child_token</span><span>)</span></span></code></pre></div>
+<p>In addition to this, we could return the split tokens after the remote call, and merge them back into the original agent's tokens:</p>
+<div class="code-tabs" id="codetabs-4">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>token.</span><span style="color: #4078F2;">merge</span><span>(returnedToken)</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E45649;">token</span><span>.</span><span style="color: #4078F2;">merge</span><span>(</span><span style="color: #E45649;">returned_token</span><span>)</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>token.merge(returnedToken)</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #E45649;">token</span><span>.</span><span style="color: #4078F2;">merge</span><span>(</span><span style="color: #E45649;">returned_token</span><span>)</span></span></code></pre></div>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

@@ -1,0 +1,199 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 15: MoonBit</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part15-moonbit&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 15: MoonBit</h1>
+            
+            <p class="posted-on">Posted on April 23, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="moonbit-support">MoonBit support</h2>
+<p>The new <strong>Golem 1.5</strong> release compes with two new supported languages: <a href="/posts/golem15-part5-scala">Scala</a> and <strong>MoonBit</strong>. An experimental Golem MoonBit SDK has already been released as a separate project for the previous Golem version, but now it becomes a first-class supported language, integrated with our CLI and build flows.</p>
+<p><a rel="external" href="https://www.moonbitlang.com">MoonBit</a> is an interesting new language with many nice features. One property that distinguishes it from the other languages we support is that it can compile to very small WASM binaries (and very quickly). This makes a difference in Golem, as the smallest the actual compiled component is, the faster we can instantiate an agent.</p>
+<p>As with Scala, we don't have <a href="/posts/golem15-part11-bridges">bridge generators</a> and a MoonBit <a href="/posts/golem15-part12-repl">REPL</a> yet, but the TypeScript REPL is fully usable with MoonBit agents as well.</p>
+<h3 id="how-does-it-look-like">How does it look like?</h3>
+<p>Let's see how the simplest <em>counter agent</em> example looks like in MooBit:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">///|</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">/// Counter agent in MoonBit</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.agent</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  name</span><span> : </span><span style="color: #C18401;">String</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  mut</span><span style="color: #E45649;"> value</span><span> : </span><span style="color: #C18401;">UInt64</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">///|</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">/// Creates a new counter with the given name</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #C18401;"> Counter</span><span>::</span><span style="color: #4078F2;">new</span><span>(</span><span style="color: #E45649;">name</span><span> : </span><span style="color: #C18401;">String</span><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span>  { </span><span style="color: #E45649;">name</span><span>, </span><span style="color: #E45649;">value</span><span>: </span><span style="color: #986801;">0</span><span> }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">///|</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">/// Increments the counter and returns the new value</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> Counter</span><span>::</span><span style="color: #4078F2;">increment</span><span>(</span><span style="color: #E45649;">self</span><span> : </span><span style="color: #C18401;">Self</span><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> UInt64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span>.value +=</span><span style="color: #986801;"> 1</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span>.value</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">///|</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">/// Returns the current value of the counter</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> Counter</span><span>::</span><span style="color: #4078F2;">get_value</span><span>(</span><span style="color: #E45649;">self</span><span> : </span><span style="color: #C18401;">Self</span><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> UInt64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span>.value</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Agents are structs annotated with <code>#derive.agent</code>, and all public methods are becoming <strong>agent methods</strong>. The type needs a <code>new</code> constructor that is going to the agent's <strong>identity</strong>.</p>
+<p>Custom data types are supported by annotating them with <code>#derive.golem_schema</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.golem_schema</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> MyData</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  field1</span><span>: </span><span style="color: #C18401;">String</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  field2</span><span>: </span><span style="color: #C18401;">UInt</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.golem_schema</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> Status</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  Active</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  Inactive</span><span>(</span><span style="color: #C18401;">String</span><span>)</span></span></code></pre>
+<p>Every type used in the constructor or agent methods (either as a parameter or return type) must have a derived Golem schema.</p>
+<h4 id="rpc">RPC</h4>
+<p>Agent to agent communication works just like with the other languages - for each agent we have a <strong>client type</strong> generated:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #C18401;">CounterClient</span><span>::</span><span style="color: #4078F2;">scoped</span><span>(</span><span style="color: #50A14F;">&quot;my-counter&quot;</span><span>, </span><span style="color: #A626A4;">fn</span><span>(</span><span style="color: #E45649;">counter</span><span>)</span><span style="color: #A626A4;"> raise</span><span> @common.</span><span style="color: #C18401;">AgentError</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  counter</span><span>.</span><span style="color: #4078F2;">increment</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  counter</span><span>.</span><span style="color: #4078F2;">increment</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  let</span><span style="color: #E45649;"> value</span><span> =</span><span style="color: #E45649;"> counter</span><span>.</span><span style="color: #4078F2;">get_value</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  value</span></span>
+<span class="giallo-l"><span>})</span></span></code></pre>
+<p>The <code>scoped</code> function is equivalent to calling the <code>get</code> constructor (that in Golem means "get or create if not existing" an agent), and dropping the remote connection in the end.</p>
+<h4 id="exposing-http-endpoints">Exposing HTTP endpoints</h4>
+<p>As we've seen, Golem 1.5 comes with <a href="/posts/golem15-part1-code-first-routes">code-first routes</a> and MoonBit also fully supports this. For example we could expose our counter via a POST endpoint by just adding a few more annotations:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.agent</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.mount</span><span>(</span><span style="color: #50A14F;">&quot;/moonbit-counters/{name}&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;"> // ...</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.endpoint</span><span>(</span><span style="color: #E45649;">post</span><span>=</span><span style="color: #50A14F;">&quot;/increment&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> Counter</span><span>::</span><span style="color: #4078F2;">increment</span><span>(</span><span style="color: #E45649;">self</span><span> : </span><span style="color: #C18401;">Self</span><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> UInt64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ..</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="other-features">Other features</h3>
+<p>Every other feature we mentioned in <a rel="external" href="https://blog.vigoo.dev/tags/golem/">this series</a> is available for MoonBit. The new version of our <a rel="external" href="https://learn.golem.cloud">documentation</a> will have every code snippet presented in all supported languages including MoonBit, and we our <a href="/posts/golem15-part9-skills">skill catalog</a> also have a large number of MoonBit specific agent skills. Until the new documentation site is published, they can be checked in <a rel="external" href="https://github.com/golemcloud/golem/tree/main/golem-skills/skills/moonbit">the repo</a>.</p>
+<h3 id="implementation-details">Implementation details</h3>
+<p>The MoonBit SDK consists of two major parts: a code-level transformation tool implemented in MoonBit using the <a rel="external" href="https://mooncakes.io/docs/moonbitlang/parser">moonbitlang/parser</a> and <a rel="external" href="https://mooncakes.io/docs/moonbitlang/formatter">moonbitlang/formatter</a> packages, and a MoonBit library every Golem application must depend on.</p>
+<p>The tool parses the user's source code and finds all the Golem-specific derive attributes, and generates code (typeclass implementations for annotated custom types, agent registration code, RPC clients etc). The SDK encapsulates the generated WASM bindings (using <code>wit-bindgen-moonbit</code>) and presents them as a higher level MoonBit library for the Golem developers.</p>
+<p>The whole multi-step build flow is <em>hidden</em> in a <a rel="external" href="https://github.com/golemcloud/golem/blob/main/cli/golem-cli/templates/moonbit/common-on-demand/golem.yaml">golem-managed build template</a>.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

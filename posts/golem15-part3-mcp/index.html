@@ -1,0 +1,403 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 3: MCP</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part3-mcp&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 3: MCP</h1>
+            
+            <p class="posted-on">Posted on April 11, 2026</p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="mcp">MCP</h2>
+<p><a rel="external" href="https://modelcontextprotocol.io/docs/getting-started/intro">MCP (Model Context Protocol)</a> became a standard way to connect AI applications. With the new Golem release any Golem application can be automatically <strong>exposed through MCP</strong>. It does not require any code written, MCP is available for any agent automatically, but it needs to be enabled in the <strong>application manifest</strong>:</p>
+<h3 id="enabling">Enabling</h3>
+<p>The same way how we can deploy HTTP APIs with the application manifest, we can add an <code>mcp</code> section and choose which agents to deploy to which subdomains per environment:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">mcp</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  deployments</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    local</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> domain</span><span>:</span><span style="color: #50A14F;"> mcp-demo.localhost:9007</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        agents</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">          CounterAgent</span><span>: {}</span></span></code></pre><h3 id="security">Security</h3>
+<p>The above manifest section already exposes the listed agent through MCP, but it is not protected by any form of authentication. Similar to how we can protect HTTP endpoints with OAuth, we can attach a <strong>security scheme</strong> to our MCP deployment, let's call it <code>mcp-oauth</code>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="yaml"><span class="giallo-l"><span style="color: #E45649;">mcp</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  deployments</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    local</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span style="color: #E45649;"> domain</span><span>:</span><span style="color: #50A14F;"> mcp-demo.localhost:9007</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        agents</span><span>:</span></span>
+<span class="giallo-l"><span style="color: #E45649;">          CounterAgent</span><span>: </span></span>
+<span class="giallo-l"><span style="color: #E45649;">            securityScheme</span><span>:</span><span style="color: #50A14F;"> mcp-oauth</span></span></code></pre>
+<p>To set that up we need an OAuth provider and have to create a security scheme using the <code>golem</code> CLI. The provider can be one of the common ones like Google, etc., or any custom one. In this post we are going to use the <code>mock-oauth2-server</code> docker container:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #4078F2;">docker</span><span style="color: #50A14F;"> run</span><span style="color: #986801;"> -d</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --name</span><span style="color: #50A14F;"> &quot;golem-mock-oauth2&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  -p</span><span style="color: #50A14F;"> &quot;9099:8080&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  ghcr.io/navikt/mock-oauth2-server:2.1.10</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span style="color: #E45649;">CLIENT_ID</span><span>=</span><span style="color: #50A14F;">&quot;golem-mcp-client&quot;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">CLIENT_SECRET</span><span>=</span><span style="color: #50A14F;">&quot;golem-mcp-secret&quot;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">REDIRECT_URL</span><span>=</span><span style="color: #50A14F;">&quot;http://mcp-demo.localhost:9007/mcp/oauth/callback&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #4078F2;">golem</span><span style="color: #986801;"> -L</span><span style="color: #50A14F;"> api security-scheme create</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --provider-type</span><span style="color: #50A14F;"> custom</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --custom-provider-name</span><span style="color: #50A14F;"> &quot;mock-oauth2&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --custom-issuer-url</span><span style="color: #50A14F;"> &quot;http://localhost:9099/golem&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --client-id</span><span style="color: #50A14F;"> &quot;</span><span style="color: #E45649;">${CLIENT_ID}</span><span style="color: #50A14F;">&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --client-secret</span><span style="color: #50A14F;"> &quot;</span><span style="color: #E45649;">${CLIENT_SECRET}</span><span style="color: #50A14F;">&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --scope</span><span style="color: #50A14F;"> openid</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --scope</span><span style="color: #50A14F;"> email</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --scope</span><span style="color: #50A14F;"> profile</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #986801;">  --redirect-url</span><span style="color: #50A14F;"> &quot;</span><span style="color: #E45649;">${REDIRECT_URL}</span><span style="color: #50A14F;">&quot;</span><span style="color: #0184BC;"> \</span></span>
+<span class="giallo-l"><span style="color: #50A14F;">  mcp-oauth</span></span></code></pre>
+<p>With that set, and running <code>golem deploy</code>, our MCP server is ready to be used at <code>http://mcp-demo.localhost:9007/mcp</code> using <em>streamable HTTP</em> protocol, authenticated by the mock OAuth2 server.</p>
+<h3 id="demo">Demo</h3>
+<p>We can prove this by simply creating the default template (which simply implements a stateful counter), let's use the Rust one for this example and modify it slightly:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_definition(mount </span><span>=</span><span style="color: #50A14F;"> &quot;/counters/{name}&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub trait</span><span style="color: #C18401;"> CounterAgent</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">    // The agent constructor, its parameters identify the agent</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> new</span><span>(</span><span style="color: #E45649;">name</span><span>:</span><span style="color: #0184BC;"> String</span><span>) -&gt;</span><span style="color: #E45649;"> Self</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">    #[description(</span><span style="color: #50A14F;">&quot;Increment by a given number&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> increment_by</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>,</span><span style="color: #E45649;"> n</span><span>:</span><span style="color: #C18401;"> u32</span><span>) -&gt;</span><span style="color: #C18401;"> u32</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> CounterImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    _name</span><span>:</span><span style="color: #0184BC;"> String</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    count</span><span>:</span><span style="color: #C18401;"> u32</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[agent_implementation]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">impl</span><span style="color: #0184BC;"> CounterAgent</span><span style="color: #A626A4;"> for</span><span style="color: #0184BC;"> CounterImpl</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> new</span><span>(</span><span style="color: #E45649;">name</span><span>:</span><span style="color: #0184BC;"> String</span><span>) -&gt;</span><span style="color: #E45649;"> Self</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        Self</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">            _name</span><span>:</span><span style="color: #E45649;"> name</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">            count</span><span>:</span><span style="color: #986801;"> 0</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">    fn</span><span style="color: #4078F2;"> increment_by</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>,</span><span style="color: #E45649;"> n</span><span>:</span><span style="color: #C18401;"> u32</span><span>) -&gt;</span><span style="color: #C18401;"> u32</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        self</span><span>.count +=</span><span style="color: #E45649;"> n</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #E45649;">        self</span><span>.count</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We replaced the default <code>increment</code> method with a parametrized <code>increment_by</code>, which is going to be mapped into an <strong>MCP tool</strong> in our MCP server automatically.</p>
+<p>If we start the <a rel="external" href="https://modelcontextprotocol.io/docs/tools/inspector">MCP Inspector</a>:</p>
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #4078F2;">npx</span><span style="color: #50A14F;"> @modelcontextprotocol/inspector node build/index.js</span></span></code></pre>
+<p><img src="/images/golem15-mcp1.png" alt="" /></p>
+<p>then click on the <em>quick auth flow</em> and <em>connect</em>, we can go to the <em>Tools</em> page and see our counter incrementation tool:</p>
+<p><img src="/images/golem15-mcp2.png" alt="" /></p>
+<p>We can pass the <code>Counter</code> agent's constructor parameter, <code>name</code> and the <code>increment_by</code> method's <code>n</code> parameter, and invoke it through an MCP tool.</p>
+<h3 id="mapping">Mapping</h3>
+<p>As demonstrated above, <code>increment_by</code> has been automatically exported as a <strong>tool</strong>. But MCP not only defines tools, but also resources and resource templates. We support these with an automatic mapping in the following way:</p>
+<table><thead><tr><th>Agent</th><th>Method</th><th>MCP entity</th></tr></thead><tbody>
+<tr><td>Singleton</td><td>No parameters</td><td>Resource</td></tr>
+<tr><td>Non-singleton</td><td>No parameters</td><td>Resource template</td></tr>
+<tr><td>Any</td><td>Has parameters</td><td>Tool</td></tr>
+</tbody></table>
+<h3 id="metadata">Metadata</h3>
+<p>For every agent and agent method, we can attach a <strong>description</strong> and a <strong>prompt</strong>:</p>
+<div class="code-tabs" id="codetabs-1">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span>@</span><span style="color: #4078F2;">description</span><span>(</span><span style="color: #50A14F;">&quot;Increments the counter by the number provided in the `n` parameter&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>@</span><span style="color: #4078F2;">prompt</span><span>(</span><span style="color: #50A14F;">&quot;Increment by a given number&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>async</span><span style="color: #4078F2;"> increment_by</span><span>(n: number): </span><span style="color: #C18401;">Promise</span><span style="color: #0184BC;">&lt;</span><span>number</span><span style="color: #0184BC;">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[description(</span><span style="color: #50A14F;">&quot;Increments the counter by the number provided in the `n` parameter&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #986801;">#[prompt(</span><span style="color: #50A14F;">&quot;Increment by a given number&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #4078F2;"> increment_by</span><span>(&amp;</span><span style="color: #A626A4;">mut</span><span style="color: #E45649;"> self</span><span>,</span><span style="color: #E45649;"> n</span><span>:</span><span style="color: #C18401;"> u32</span><span>) -&gt;</span><span style="color: #C18401;"> u32</span><span>;</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span>@description(</span><span style="color: #50A14F;">&quot;Increments the counter by the number provided in the `n` parameter&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>@prompt(</span><span style="color: #50A14F;">&quot;Increment by a given number&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> incrementBy</span><span>(n:</span><span style="color: #C18401;"> Int</span><span>):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Int</span><span>]</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">///| Increments the counter by the number provided in the `n` parameter</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.prompt_hint</span><span>(</span><span style="color: #50A14F;">&quot;Increment by a given number&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> Counter</span><span>::</span><span style="color: #4078F2;">increment</span><span>(</span><span style="color: #E45649;">self</span><span> : </span><span style="color: #C18401;">Self</span><span>, </span><span style="color: #E45649;">n</span><span>: </span><span style="color: #C18401;">UInt32</span><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> UInt32</span><span> {</span></span></code></pre></div>
+<p>Both are optional, and both are added to the MCP metadata.</p>
+<h3 id="special-data-types">Special data types</h3>
+<p>It's not strictly related to the MCP feature, and not even new in <strong>Golem 1.5</strong>, but the three special data types supported by all the Golem SDKs are a good match for exposing some special tools and resources through the MCP protocol:</p>
+<h4 id="unstructured-text">Unstructured text</h4>
+<p>Any method parameter or return type can be defined as <strong>unstructured text</strong>. Optionally a set of allowed <strong>language codes</strong> can be attached to the type:</p>
+<div class="code-tabs" id="codetabs-2">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #4078F2;">myMethod</span><span>(</span></span>
+<span class="giallo-l"><span>  anyText: UnstructuredText,</span></span>
+<span class="giallo-l"><span>  constrainedText: UnstructuredText</span><span style="color: #0184BC;">&lt;</span><span>[</span><span style="color: #50A14F;">&#39;en&#39;</span><span>,</span><span style="color: #50A14F;"> &#39;de&#39;</span><span>]</span><span style="color: #0184BC;">&gt;</span></span>
+<span class="giallo-l"><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">AllowedLanguages</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> MyLangs</span><span> {</span><span style="color: #0184BC;"> En</span><span>,</span><span style="color: #986801;"> #[code(</span><span style="color: #50A14F;">&quot;de&quot;</span><span style="color: #986801;">)]</span><span style="color: #0184BC;"> German</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #4078F2;"> my_method</span><span>(</span></span>
+<span class="giallo-l"><span>    &amp;</span><span style="color: #E45649;">self</span><span>, </span></span>
+<span class="giallo-l"><span style="color: #E45649;">    any_text</span><span>:</span><span style="color: #0184BC;"> UnstructuredText</span><span>, </span></span>
+<span class="giallo-l"><span style="color: #E45649;">    constrained_text</span><span>:</span><span style="color: #0184BC;"> UnstructuredText</span><span>&lt;</span><span style="color: #0184BC;">MyLangs</span><span>&gt;</span></span>
+<span class="giallo-l"><span>);</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> myMethod</span><span>(</span></span>
+<span class="giallo-l"><span>  anyText:</span><span style="color: #C18401;"> TextSegment</span><span>[</span><span style="color: #C18401;">AllowedLanguages</span><span>.</span><span style="color: #C18401;">Any</span><span>],</span></span>
+<span class="giallo-l"><span>  constrainedText:</span><span style="color: #C18401;"> TextSegment</span><span>[</span><span style="color: #C18401;">MyLangs</span><span>]</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> MyLangs</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> MyLangs</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> En</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> MyLangs</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.languageCode(</span><span style="color: #50A14F;">&quot;de&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> German</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> MyLangs</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> allowed</span><span>:</span><span style="color: #C18401;"> AllowedLanguages</span><span>[</span><span style="color: #C18401;">MyLangs</span><span>] =</span></span>
+<span class="giallo-l"><span>    golem.runtime.macros.</span><span style="color: #C18401;">AllowedLanguagesDerivation</span><span>.derived  </span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.text_languages</span><span>(</span><span style="color: #50A14F;">&quot;constrained_text&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;en&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;de&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> MyAgent</span><span>::</span><span style="color: #4078F2;">my_method</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span> : </span><span style="color: #C18401;">Self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  any_text</span><span> : </span><span style="color: #C18401;">UnstructuredText</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  constrained_text</span><span> : </span><span style="color: #C18401;">UnstructuredText</span><span>,</span></span>
+<span class="giallo-l"><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> Unit</span><span> {</span></span>
+<span class="giallo-l"><span>  ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+<h4 id="unstructured-binary">Unstructured binary</h4>
+<p>Similarly to <strong>unstructured text</strong>, we can also use <strong>unstructured binary</strong> parameters and return types, and optionally define the allowed <em>MIME types</em> for them:</p>
+<div class="code-tabs" id="codetabs-3">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #4078F2;">myMethod</span><span>(</span></span>
+<span class="giallo-l"><span>  anyBinary: UnstructuredBinary,</span></span>
+<span class="giallo-l"><span>  image: UnstructuredBinary</span><span style="color: #0184BC;">&lt;</span><span>[</span><span style="color: #50A14F;">&#39;image/png&#39;</span><span>,</span><span style="color: #50A14F;"> &#39;image/jpeg&#39;</span><span>]</span><span style="color: #0184BC;">&gt;</span></span>
+<span class="giallo-l"><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A0A1A7;font-style: italic;">  // ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">Debug</span><span style="color: #986801;">,</span><span style="color: #0184BC;"> Clone</span><span style="color: #986801;">,</span><span style="color: #0184BC;"> AllowedMimeTypes</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> Image</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #986801;">    #[mime_type(</span><span style="color: #50A14F;">&quot;image/png&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #0184BC;">    Png</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #986801;">    #[mime_type(</span><span style="color: #50A14F;">&quot;image/jpeg&quot;</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #0184BC;">    Jpeg</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #4078F2;"> my_method</span><span>(</span></span>
+<span class="giallo-l"><span>    &amp;</span><span style="color: #E45649;">self</span><span>, </span></span>
+<span class="giallo-l"><span style="color: #E45649;">    any_binary</span><span>:</span><span style="color: #0184BC;"> UnstructuredBinary</span><span>, </span></span>
+<span class="giallo-l"><span style="color: #E45649;">    image</span><span>:</span><span style="color: #0184BC;"> UnstructuredBinary</span><span>&lt;</span><span style="color: #0184BC;">Image</span><span>&gt;</span></span>
+<span class="giallo-l"><span>);</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> myMethod</span><span>(</span></span>
+<span class="giallo-l"><span>  anyBinary:</span><span style="color: #C18401;"> BinarySegment</span><span>[</span><span style="color: #C18401;">AllowedMimeTypes</span><span>.</span><span style="color: #C18401;">Any</span><span>],</span></span>
+<span class="giallo-l"><span>  image:</span><span style="color: #C18401;"> BinarySegment</span><span>[</span><span style="color: #C18401;">Image</span><span>]</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> Image</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> Image</span><span> {</span></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.mimeType(</span><span style="color: #50A14F;">&quot;image/png&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> Png</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Image</span></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.mimeType(</span><span style="color: #50A14F;">&quot;image/jpeg&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> Jpeg</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> Image</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> allowed</span><span>:</span><span style="color: #C18401;"> AllowedMimeTypes</span><span>[</span><span style="color: #C18401;">Image</span><span>] =</span></span>
+<span class="giallo-l"><span>    golem.runtime.macros.</span><span style="color: #C18401;">AllowedMimeTypesDerivation</span><span>.derived</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.mime_types</span><span>(</span><span style="color: #50A14F;">&quot;image&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;image/png&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;image/jpeg&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> MyAgent</span><span>::</span><span style="color: #4078F2;">my_method</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span> : </span><span style="color: #C18401;">Self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  any_binary</span><span> : </span><span style="color: #C18401;">UnstructuredBinary</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  image</span><span> : </span><span style="color: #C18401;">UnstructuredBinary</span><span>,</span></span>
+<span class="giallo-l"><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> Unit</span><span> {</span></span>
+<span class="giallo-l"><span>  ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+<h4 id="multimodal">Multimodal</h4>
+<p>Finally there is a special parameter type called <strong>multimodal</strong>, which is a special way to define methods (tools) that can work on multiple types of input. The default multimodal type just allows pasting either text or binary, but it is fully customizable with the above defined language and MIME type constraints, and can also include structured data.
+By using multimodal types, and not just modelling the same input using custom data types, Golem can map these definitions better to MCP concepts.</p>
+<p>The simplest version just accepts either an arbitrary text, or an arbitrary binary:</p>
+<div class="code-tabs" id="codetabs-4">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #4078F2;">textOrBinary</span><span>(input: Multimodal) {</span><span style="color: #0184BC;"> ...</span><span> }</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #4078F2;"> text_or_binary</span><span>(&amp;</span><span style="color: #E45649;">self</span><span>,</span><span style="color: #E45649;"> input</span><span>:</span><span style="color: #0184BC;"> Multimodal</span><span>) -&gt;</span><span style="color: #0184BC;"> Multimodal</span><span> {</span><span style="color: #E45649;"> input</span><span> }</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> textOrBinary</span><span>(input:</span><span style="color: #C18401;"> MultimodalItems</span><span>.</span><span style="color: #C18401;">Basic</span><span>):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">MultimodalItems</span><span>.</span><span style="color: #C18401;">Basic</span><span>]</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> MyAgent</span><span>::</span><span style="color: #4078F2;">text_or_binary</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span> : </span><span style="color: #C18401;">Self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  input</span><span> : @types.</span><span style="color: #C18401;">Multimodal</span><span>[</span><span style="color: #C18401;">TextOrBinary</span><span>],</span></span>
+<span class="giallo-l"><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> String</span><span> { ... }</span></span></code></pre></div>
+<p>We can add a third option in the form of a structured data type to this:</p>
+<div class="code-tabs" id="codetabs-5">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">type</span><span style="color: #C18401;"> MyStructuredType</span><span style="color: #0184BC;"> =</span><span> {</span><span style="color: #0184BC;"> ...</span><span>}</span></span>
+<span class="giallo-l"><span style="color: #C18401;">textOrBinaryOrStructured</span><span>(input</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> MultimodalCustom</span><span>&lt;</span><span style="color: #C18401;">MyStructuredType</span><span>&gt;) {</span><span style="color: #0184BC;"> ...</span><span> }</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">Schema</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> MyStructuredType</span><span> {</span><span style="color: #A0A1A7;font-style: italic;"> /* ... */</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #4078F2;"> text_or_binary_or_structured</span><span>(</span></span>
+<span class="giallo-l"><span>    &amp;</span><span style="color: #E45649;">self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    input</span><span>:</span><span style="color: #0184BC;"> MultimodalCustom</span><span>&lt;</span><span style="color: #0184BC;">MyStructuredType</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>) -&gt;</span><span style="color: #0184BC;"> MultimodalCustom</span><span>&lt;</span><span style="color: #0184BC;">MyStructuredType</span><span>&gt; {</span><span style="color: #E45649;"> input</span><span> }</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> MyStructuredType</span><span>(</span><span style="color: #A0A1A7;font-style: italic;">/* ... */</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> MyStructuredType</span><span> {</span><span style="color: #A626A4;"> implicit val</span><span style="color: #E45649;"> schema</span><span>:</span><span style="color: #C18401;"> Schema</span><span>[</span><span style="color: #C18401;">MyStructuredType</span><span>] =</span><span style="color: #C18401;"> Schema</span><span>.derived }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> textOrBinaryOrStructured</span><span>(</span></span>
+<span class="giallo-l"><span>  input:</span><span style="color: #C18401;"> MultimodalItems</span><span>.</span><span style="color: #C18401;">WithCustom</span><span>[</span><span style="color: #C18401;">MyStructuredType</span><span>]</span></span>
+<span class="giallo-l"><span>):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">MultimodalItems</span><span>.</span><span style="color: #C18401;">WithCustom</span><span>[</span><span style="color: #C18401;">MyStructuredType</span><span>]]</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.golem_schema</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub</span><span>(</span><span style="color: #E45649;">all</span><span>) </span><span style="color: #A626A4;">struct</span><span style="color: #C18401;"> MyStructuredType</span><span> { /* ... */ }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> MyAgent</span><span>::</span><span style="color: #4078F2;">text_or_binary_or_structured</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span> : </span><span style="color: #C18401;">Self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  input</span><span> : @types.</span><span style="color: #C18401;">Multimodal</span><span>[</span><span style="color: #C18401;">CustomModality</span><span>[</span><span style="color: #C18401;">MyStructuredType</span><span>]],</span></span>
+<span class="giallo-l"><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> String</span><span> { ... }</span></span></code></pre></div>
+<p>Or we can fully customize the multimodal behavior by defining our own variant type it maps to:</p>
+<div class="code-tabs" id="codetabs-6">
+<pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="typescript"><span class="giallo-l"><span style="color: #A626A4;">export type</span><span style="color: #C18401;"> TextOrImage</span><span style="color: #0184BC;"> =</span></span>
+<span class="giallo-l"><span style="color: #0184BC;">  |</span><span> { tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &#39;text&#39;</span><span>; val</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> UnstructuredText</span><span>&lt;[</span><span style="color: #50A14F;">&#39;en&#39;</span><span>,</span><span style="color: #50A14F;"> &#39;de&#39;</span><span>&gt;] }</span></span>
+<span class="giallo-l"><span style="color: #0184BC;">  |</span><span> { tag</span><span style="color: #0184BC;">:</span><span style="color: #50A14F;"> &#39;image&#39;</span><span>; val</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> UnstructuredBinary</span><span>&lt;[</span><span style="color: #50A14F;">&#39;image/jpeg&#39;</span><span>,</span><span style="color: #50A14F;"> &#39;image/png&#39;</span><span>]&gt; };</span></span>
+<span class="giallo-l"><span style="color: #C18401;">fullyCustom</span><span>(input</span><span style="color: #0184BC;">:</span><span style="color: #C18401;"> MultimodalAdvanced</span><span>&lt;</span><span style="color: #C18401;">TextOrImage</span><span>&gt;) {</span><span style="color: #0184BC;"> ...</span><span> }</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="rust"><span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">AllowedLanguages</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> TextLang</span><span> {</span><span style="color: #0184BC;"> En</span><span>,</span><span style="color: #986801;"> #[code(</span><span style="color: #50A14F;">&quot;de&quot;</span><span style="color: #986801;">)]</span><span style="color: #0184BC;"> German</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">AllowedMimeTypes</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> ImageType</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #986801;">    #[mime_type(</span><span style="color: #50A14F;">&quot;image/jpeg&quot;</span><span style="color: #986801;">)]</span><span style="color: #0184BC;"> Jpeg</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #986801;">    #[mime_type(</span><span style="color: #50A14F;">&quot;image/png&quot;</span><span style="color: #986801;">)]</span><span style="color: #0184BC;"> Png</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #986801;">#[derive(</span><span style="color: #0184BC;">Schema</span><span style="color: #986801;">,</span><span style="color: #0184BC;"> MultimodalSchema</span><span style="color: #986801;">)]</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> TextOrImage</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    Text</span><span>(</span><span style="color: #0184BC;">UnstructuredText</span><span>&lt;</span><span style="color: #0184BC;">TextLang</span><span>&gt;),</span></span>
+<span class="giallo-l"><span style="color: #4078F2;">    Image</span><span>(</span><span style="color: #0184BC;">UnstructuredBinary</span><span>&lt;</span><span style="color: #0184BC;">ImageType</span><span>&gt;),</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">fn</span><span style="color: #4078F2;"> fully_custom</span><span>(</span></span>
+<span class="giallo-l"><span>    &amp;</span><span style="color: #E45649;">self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">    input</span><span>:</span><span style="color: #0184BC;"> MultimodalAdvanced</span><span>&lt;</span><span style="color: #0184BC;">TextOrImage</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>) -&gt;</span><span style="color: #0184BC;"> MultimodalAdvanced</span><span>&lt;</span><span style="color: #0184BC;">TextOrImage</span><span>&gt; {</span><span style="color: #E45649;"> input</span><span> }</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="scala"><span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> TextLang</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> TextLang</span><span> {</span></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.languageCode(</span><span style="color: #50A14F;">&quot;en&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> En</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> TextLang</span></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.languageCode(</span><span style="color: #50A14F;">&quot;de&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> De</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> TextLang</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> allowed</span><span>:</span><span style="color: #C18401;"> AllowedLanguages</span><span>[</span><span style="color: #C18401;">TextLang</span><span>] =</span></span>
+<span class="giallo-l"><span>    golem.runtime.macros.</span><span style="color: #C18401;">AllowedLanguagesDerivation</span><span>.derived</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">sealed trait</span><span style="color: #C18401;"> ImageType</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> ImageType</span><span> {</span></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.mimeType(</span><span style="color: #50A14F;">&quot;image/jpeg&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> Jpeg</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> ImageType</span></span>
+<span class="giallo-l"><span>  @golem.runtime.annotations.mimeType(</span><span style="color: #50A14F;">&quot;image/png&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  case object</span><span style="color: #C18401;"> Png</span><span style="color: #A626A4;"> extends</span><span style="color: #C18401;"> ImageType</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">  implicit val</span><span style="color: #E45649;"> allowed</span><span>:</span><span style="color: #C18401;"> AllowedMimeTypes</span><span>[</span><span style="color: #C18401;">ImageType</span><span>] =</span></span>
+<span class="giallo-l"><span>    golem.runtime.macros.</span><span style="color: #C18401;">AllowedMimeTypesDerivation</span><span>.derived</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">final case class</span><span style="color: #C18401;"> TextOrImage</span><span>(</span></span>
+<span class="giallo-l"><span>  text:</span><span style="color: #C18401;"> TextSegment</span><span>[</span><span style="color: #C18401;">TextLang</span><span>],</span></span>
+<span class="giallo-l"><span>  image:</span><span style="color: #C18401;"> BinarySegment</span><span>[</span><span style="color: #C18401;">ImageType</span><span>],</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">object</span><span style="color: #C18401;"> TextOrImage</span><span> {</span><span style="color: #A626A4;"> implicit val</span><span style="color: #E45649;"> schema</span><span>:</span><span style="color: #C18401;"> GolemSchema</span><span>[</span><span style="color: #C18401;">TextOrImage</span><span>] =</span><span style="color: #A0A1A7;font-style: italic;"> /* derived */</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">def</span><span style="color: #4078F2;"> fullyCustom</span><span>(input:</span><span style="color: #C18401;"> Multimodal</span><span>[</span><span style="color: #C18401;">TextOrImage</span><span>]):</span><span style="color: #C18401;"> Future</span><span>[</span><span style="color: #C18401;">Multimodal</span><span>[</span><span style="color: #C18401;">TextOrImage</span><span>]]</span></span></code></pre><pre class="giallo" style="color: #383A42; background-color: #FAFAFA;"><code data-lang="moonbit"><span class="giallo-l"><span style="color: #A626A4;">#derive.multimodal</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub</span><span>(</span><span style="color: #E45649;">all</span><span>) </span><span style="color: #A626A4;">enum</span><span style="color: #C18401;"> TextOrImage</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  Text</span><span>(</span><span style="color: #C18401;">UnstructuredText</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #C18401;">  Image</span><span>(</span><span style="color: #C18401;">UnstructuredBinary</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.text_languages</span><span>(</span><span style="color: #50A14F;">&quot;input.Text&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;en&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;de&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">#derive.mime_types</span><span>(</span><span style="color: #50A14F;">&quot;input.Image&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;image/jpeg&quot;</span><span>,</span><span style="color: #50A14F;"> &quot;image/png&quot;</span><span>)</span></span>
+<span class="giallo-l"><span style="color: #A626A4;">pub fn</span><span style="color: #C18401;"> MyAgent</span><span>::</span><span style="color: #4078F2;">fully_custom</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  self</span><span> : </span><span style="color: #C18401;">Self</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #E45649;">  input</span><span> : @types.</span><span style="color: #C18401;">Multimodal</span><span>[</span><span style="color: #C18401;">TextOrImage</span><span>],</span></span>
+<span class="giallo-l"><span>) </span><span style="color: #A626A4;">-&gt;</span><span style="color: #C18401;"> String</span><span> { ... }</span></span></code></pre></div>
+<h4 id="remarks">Remarks</h4>
+<p>None of these special data types are MCP specific - using them in our agent code is not constraining them to be only called through MCP, they can still be invoked through agent-to-agent communication, mapped to HTTP APIs and so on.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>

@@ -1,0 +1,159 @@
+<html>
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>vigoo&#x27;s software development blog</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;ai&#x2F;">
+        
+        
+        
+  
+  <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/tags/ai/atom.xml">
+
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+    
+</html>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <section class="post-list">
+        <h2>Blog posts tagged with ai</h2>
+        <ul>
+        
+            <li>
+    <article>
+        <h3><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem15-part9-skills&#x2F;">Golem 1.5 features - Part 9: Agent skills</a><h3>
+        
+        <span class="post-date">April 18, 2026</span>
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;golem&#x2F;">golem</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;durable-execution&#x2F;">durable-execution</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;agents&#x2F;">agents</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;golem-1-5&#x2F;">golem-1.5</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;ai&#x2F;">ai</a></span>                        
+        
+        <span class="post-word-count">434 words</span>
+    </article>
+</li>
+        
+            <li>
+    <article>
+        <h3><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;golem-coding-agent&#x2F;">Golem as a Coding Agent engine</a><h3>
+        
+        <span class="post-date">March 29, 2026</span>
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;golem&#x2F;">golem</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;durable-execution&#x2F;">durable-execution</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;agents&#x2F;">agents</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;coding-agents&#x2F;">coding-agents</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;ai&#x2F;">ai</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;typescript&#x2F;">typescript</a></span>                        
+        
+                                
+        <span class="post-tag"><a href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;rust&#x2F;">rust</a></span>                        
+        
+        <span class="post-word-count">5847 words</span>
+    </article>
+</li>
+        
+        </ul>
+    </section>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>
