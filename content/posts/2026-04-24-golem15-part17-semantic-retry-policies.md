@@ -109,7 +109,7 @@ Retry policies can be defined in the application manifest under the `retryPolicy
 retryPolicyDefaults:
   my-environment:
     # Never retry client errors (4xx)
-    - name: no-retry-4xx
+    no-retry-4xx:
       priority: 20
       predicate:
         and:
@@ -118,7 +118,7 @@ retryPolicyDefaults:
       policy: "never"
 
     # Aggressive retry for known-transient HTTP errors
-    - name: http-transient
+    http-transient:
       priority: 10
       predicate:
         propIn:
@@ -140,7 +140,7 @@ retryPolicyDefaults:
                       factor: 2.0
 
     # Catch-all: moderate retry for everything else
-    - name: catch-all
+    catch-all:
       priority: 0
       predicate: true
       policy:

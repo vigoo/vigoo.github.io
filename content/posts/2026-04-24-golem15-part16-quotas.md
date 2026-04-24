@@ -43,7 +43,7 @@ The following manifest snippet defines three different types of resources:
 ```yaml
 resourceDefaults:
   prod:
-    - name: api-calls
+    api-calls:
       limit:
         type: Rate
         value: 100
@@ -52,14 +52,14 @@ resourceDefaults:
       enforcementAction: reject
       unit: request
       units: requests
-    - name: storage
+    storage:
       limit:
         type: Capacity
         value: 1073741824       # 1 GB
       enforcementAction: reject
       unit: byte
       units: bytes
-    - name: connections
+    connections:
       limit:
         type: Concurrency
         value: 50
