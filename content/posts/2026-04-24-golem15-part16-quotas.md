@@ -24,6 +24,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## Quotas
 A modern application usually depends on various third party services. This is even more true today with AI agents - an agent is going to make requests to various external systems as well as LLM providers and other AI infrastructure. Most of these have costs and limits. It does matter how many and how big requests you make to your chosen model, and many APIs have built-in quotas and rate limits affecting the callers.

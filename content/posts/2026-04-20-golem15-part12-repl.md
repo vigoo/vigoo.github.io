@@ -25,6 +25,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## Testing agents with a REPL
 The Golem REPL was an important element of **testing agents** during development. The REPL allows you to get or create agent instances, invoke methods on them, and see their logs streamed during these invocations.

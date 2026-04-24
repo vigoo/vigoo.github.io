@@ -24,6 +24,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## MoonBit support
 The new **Golem 1.5** release compes with two new supported languages: [Scala](/posts/golem15-part5-scala) and **MoonBit**. An experimental Golem MoonBit SDK has already been released as a separate project for the previous Golem version, but now it becomes a first-class supported language, integrated with our CLI and build flows.

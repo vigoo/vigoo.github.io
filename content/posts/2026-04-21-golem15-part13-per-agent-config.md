@@ -24,6 +24,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## Components vs agents
 Previously, in Golem **components** were the most important user-defined entities. Components were the unit of compilation, each transformed to be a **WebAssembly component** and all the customization such as environment variables, initial file system and so on were configurable **per component**.

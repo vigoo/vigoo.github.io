@@ -24,6 +24,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## JS/TS support
 The previous release introduced our new QuickJS based **JavaScript engine** and supported using **TypeScript** for writing Golem applications. The runtime itself and the Golem SDK already worked well, however not many of the third party libraries of the JS/TS ecosystem were compatible with our runtime. We have put a lot of effort into increasing our runtime's compatibility with both browser APIs and Node.js modules.

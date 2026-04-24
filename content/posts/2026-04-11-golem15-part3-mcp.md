@@ -25,6 +25,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## MCP
 [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) became a standard way to connect AI applications. With the new Golem release any Golem application can be automatically **exposed through MCP**. It does not require any code written, MCP is available for any agent automatically, but it needs to be enabled in the **application manifest**:

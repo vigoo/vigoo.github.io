@@ -25,6 +25,7 @@ Parts released so far:
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
 - [Part 16: Quotas](/posts/golem15-part16-quotas)
+- [Part 17: Semantic retry policies](/posts/golem15-part17-semantic-retry-policies)
 
 ## Webhooks
 We have seen how we can map our agents to HTTP APIs in the [previous post](/posts/golem15-part1-code-first-routes). Another new feature of **Golem 1.5**, closely related to that, is the ability to **create webhooks** and await them.
