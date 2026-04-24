@@ -23,6 +23,7 @@ Parts released so far:
 - [Part 13: Per-agent configuration](/posts/golem15-part13-per-agent-config)
 - [Part 14: OpenTelemetry](/posts/golem15-part14-otlp)
 - [Part 15: MoonBit](/posts/golem15-part15-moonbit)
+- [Part 16: Quotas](/posts/golem15-part16-quotas)
 
 ## MoonBit support
 The new **Golem 1.5** release compes with two new supported languages: [Scala](/posts/golem15-part5-scala) and **MoonBit**. An experimental Golem MoonBit SDK has already been released as a separate project for the previous Golem version, but now it becomes a first-class supported language, integrated with our CLI and build flows.
