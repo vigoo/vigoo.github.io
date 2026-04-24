@@ -47,6 +47,32 @@ h1 {
         font-family: $iosevka;
         font-display: block;
     }
+
+    > table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.95rem;
+        line-height: 1.35;
+
+        th,
+        td {
+            padding: 0.5rem 0.85rem;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid rgba(44, 30, 55, 0.12);
+        }
+
+        thead th {
+            font-family: $iosevka;
+            font-weight: 800;
+            border-bottom: 2px solid #2c1e37;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: rgba(44, 30, 55, 0.03);
+        }
+    }
 }
 
 .about {
