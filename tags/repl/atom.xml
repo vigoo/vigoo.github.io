@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - repl</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/repl/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2026-04-20T20:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/repl/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Golem 1.5 features - Part 12: REPL</title>
+        <published>2026-04-20T20:00:00+00:00</published>
+        <updated>2026-04-20T20:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/golem15-part12-repl/"/>
+        <id>https://blog.vigoo.dev/posts/golem15-part12-repl/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/golem15-part12-repl/">&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;&#x2F;h2&gt;
+&lt;p&gt;I am writing a series of &lt;em&gt;short&lt;&#x2F;em&gt; posts showcasing the new features of &lt;strong&gt;Golem 1.5&lt;&#x2F;strong&gt;, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my &lt;a rel=&quot;external&quot; href=&quot;https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;tags&#x2F;golem&#x2F;&quot;&gt;other Golem-related posts&lt;&#x2F;a&gt; for more information!&lt;&#x2F;p&gt;
+&lt;p&gt;Parts released so far:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part1-code-first-routes&quot;&gt;Part 1: Code-first routes&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part2-webhooks&quot;&gt;Part 2: Webhooks&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part3-mcp&quot;&gt;Part 3: MCP&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part4-nodejs&quot;&gt;Part 4: Node.js compatibility&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part5-scala&quot;&gt;Part 5: Scala support&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part6-user-defined-snapshotting&quot;&gt;Part 6: User-defined snapshotting&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part7-config-and-secrets&quot;&gt;Part 7: Configuration and Secrets&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part8-template-simplifications&quot;&gt;Part 8: Template simplifications and automatic updates&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part9-skills&quot;&gt;Part 9: Agent skills&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part10-websocket&quot;&gt;Part 10: WebSocket client&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part11-bridges&quot;&gt;Part 11: Bridge libraries&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part12-repl&quot;&gt;Part 12: REPL&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part13-per-agent-config&quot;&gt;Part 13: Per-agent configuration&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part14-otlp&quot;&gt;Part 14: OpenTelemetry&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part15-moonbit&quot;&gt;Part 15: MoonBit&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part16-quotas&quot;&gt;Part 16: Quotas&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;a href=&quot;&#x2F;posts&#x2F;golem15-part17-semantic-retry-policies&quot;&gt;Part 17: Semantic retry policies&lt;&#x2F;a&gt;&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;testing-agents-with-a-repl&quot;&gt;Testing agents with a REPL&lt;&#x2F;h2&gt;
+&lt;p&gt;The Golem REPL was an important element of &lt;strong&gt;testing agents&lt;&#x2F;strong&gt; during development. The REPL allows you to get or create agent instances, invoke methods on them, and see their logs streamed during these invocations.&lt;&#x2F;p&gt;
+&lt;p&gt;In previous Golem versions, the REPL used our own scripting language called &lt;a rel=&quot;external&quot; href=&quot;https:&#x2F;&#x2F;golemcloud.github.io&#x2F;rib&#x2F;guide.html&quot;&gt;Rib&lt;&#x2F;a&gt;. The same language was used for implementing HTTP APIs, but &lt;a href=&quot;&#x2F;posts&#x2F;golem15-part1-code-first-routes&quot;&gt;we changed that to be directly expressed in the agent&#x27;s code&lt;&#x2F;a&gt;. It did not make much sense to keep a custom scripting language just for interacting with agent instances, because it required learning a completely new syntax and mapping between its data types and the &quot;real&quot; data types in the agent&#x27;s source code.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;typescript-repl&quot;&gt;TypeScript REPL&lt;&#x2F;h3&gt;
+&lt;p&gt;We decided to completely remove Rib from Golem, make it available as a standalone tool, and &lt;a rel=&quot;external&quot; href=&quot;https:&#x2F;&#x2F;github.com&#x2F;bytecodealliance&#x2F;wasmtime&#x2F;issues&#x2F;13136&quot;&gt;offer it&lt;&#x2F;a&gt; for integration with &lt;code&gt;wasmtime&lt;&#x2F;code&gt;. We no longer need to use Rib for anything in Golem, and our primary REPL is now a real &lt;strong&gt;TypeScript REPL&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;The TypeScript REPL behaves just like you would expect, and it has all the agent client classes from &lt;a href=&quot;&#x2F;posts&#x2F;golem15-part11-bridges&quot;&gt;the bridge libraries&lt;&#x2F;a&gt; in the global scope, preconfigured. The following example shows how we can invoke the default counter example through it:&lt;&#x2F;p&gt;
+&lt;div id=&quot;demo1&quot;&gt;&lt;&#x2F;div&gt;
+&lt;p&gt;Note that the TypeScript REPL is not restricted to only agents &lt;em&gt;written&lt;&#x2F;em&gt; in TypeScript. We can call any agent from it in the same, type-safe way, even if they are Rust, Scala or MoonBit agents.&lt;&#x2F;p&gt;
+&lt;h4 id=&quot;cli-commands-from-the-repl&quot;&gt;CLI commands from the REPL&lt;&#x2F;h4&gt;
+&lt;p&gt;In addition to the TypeScript classes for calling the agents, the REPL also provides a large set of &lt;strong&gt;built-in commands&lt;&#x2F;strong&gt;. These accept both &lt;code&gt;.&lt;&#x2F;code&gt; and &lt;code&gt;:&lt;&#x2F;code&gt; prefixes, and many of them match CLI commands directly. This means we can run all the usual commands such as build, deploy, or inspecting agent logs without leaving the REPL:&lt;&#x2F;p&gt;
+&lt;div id=&quot;demo2&quot;&gt;&lt;&#x2F;div&gt;
+&lt;h4 id=&quot;running-scripts&quot;&gt;Running scripts&lt;&#x2F;h4&gt;
+&lt;p&gt;It is also possible to run whole TypeScript scripts through the REPL in a non-interactive way.&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;shellscript&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; cat test.ts&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;const&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; c2 = await CounterAgent.get&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;&amp;quot;c2&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;await&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; c2.increment&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;await&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; c2.increment&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; golem repl&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; --script-file&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; test.ts&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; --yes&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;2&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;&lt;h3 id=&quot;rust-repl&quot;&gt;Rust REPL&lt;&#x2F;h3&gt;
+&lt;p&gt;We wanted to bring a first-class REPL experience to every supported language, but with Golem 1.5 we are not there yet. We &lt;em&gt;do&lt;&#x2F;em&gt; have a Rust REPL, but, as expected, it is very slow because it has to continuously recompile things. We kept it mainly because it can also run Rust &quot;scripts&quot;. In that mode the slowness is much less of an issue, and it lets these test scripts (potentially generated by a coding agent on the fly) use the same language as the agents themselves.&lt;&#x2F;p&gt;
+&lt;p&gt;The following example demonstrates this:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;shellscript&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; cat test.rs&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #0184BC;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; c3 = CounterAgent::get&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;&amp;quot;c3&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;)&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt;.await.unwrap&lt;&#x2F;span&gt;&lt;span&gt;();&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;c3.increment&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;.await&lt;&#x2F;span&gt;&lt;span&gt;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;c3.increment&lt;&#x2F;span&gt;&lt;span&gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;.await&lt;&#x2F;span&gt;&lt;span&gt;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; golem repl&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; --script-file&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; test.rs&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; --language&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; rust&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; --yes&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;2&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;&lt;h3 id=&quot;what-about-scala-and-moonbit&quot;&gt;What about Scala and MoonBit?&lt;&#x2F;h3&gt;
+&lt;p&gt;Unfortunately we don&#x27;t have any REPL implementation for Scala and MoonBit in &lt;strong&gt;Golem 1.5&lt;&#x2F;strong&gt;. This means we cannot use Scala or MoonBit syntax in the interactive REPL or in test scripts, but the TypeScript and Rust REPLs have full support for any agent, even if implemented in another language.&lt;&#x2F;p&gt;
+&lt;link rel=&quot;stylesheet&quot; type=&quot;text&#x2F;css&quot; href=&quot;https:&#x2F;&#x2F;cdn.jsdelivr.net&#x2F;npm&#x2F;asciinema-player@3.9.0&#x2F;dist&#x2F;bundle&#x2F;asciinema-player.css&quot; &#x2F;&gt;
+&lt;script src=&quot;https:&#x2F;&#x2F;cdn.jsdelivr.net&#x2F;npm&#x2F;asciinema-player@3.9.0&#x2F;dist&#x2F;bundle&#x2F;asciinema-player.min.js&quot;&gt;&lt;&#x2F;script&gt;
+&lt;script&gt;
+  function mountAsciinema(id, url, cols, rows) {
+    const host = document.getElementById(id)
+
+    const syncHeight = () =&gt; {
+      const player = host.querySelector(&#x27;.ap-player&#x27;)
+      if (player) {
+        host.style.height = `${player.getBoundingClientRect().height}px`
+      }
+    }
+
+    AsciinemaPlayer.create(url, host, { theme: &#x27;monokai&#x27;, fit: &#x27;width&#x27;, cols, rows })
+
+    requestAnimationFrame(() =&gt; requestAnimationFrame(syncHeight))
+    setTimeout(syncHeight, 250)
+    setTimeout(syncHeight, 1000)
+    window.addEventListener(&#x27;resize&#x27;, syncHeight)
+  }
+
+  mountAsciinema(&#x27;demo1&#x27;, &#x27;&#x2F;images&#x2F;repl-demo2.cast&#x27;, 237, 48)
+  mountAsciinema(&#x27;demo2&#x27;, &#x27;&#x2F;images&#x2F;repl-demo3.cast&#x27;, 237, 48)
+&lt;&#x2F;script&gt;
+</content>
+        
+    </entry>
+</feed>

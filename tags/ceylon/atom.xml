@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#x27;s software development blog - ceylon</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/ceylon/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2013-11-17T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/ceylon/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Trying out Ceylon - Part 1</title>
+        <published>2013-11-17T00:00:00+00:00</published>
+        <updated>2013-11-17T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Daniel Vigovszky
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/trying-out-ceylon-part-1/"/>
+        <id>https://blog.vigoo.dev/posts/trying-out-ceylon-part-1/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/trying-out-ceylon-part-1/">&lt;p&gt;Ceylon&#x27;s first production release was announced on 12th of November. I decided to try it out after going through the quick introduction, as it looked quite promising. In a series of posts I&#x27;d like to share my first attempts to use this interesting language.&lt;&#x2F;p&gt;
+&lt;p&gt;This first release came with an eclipse plugin as well - after installing it I was immediately able to start working on my test project. In this few hours the plugin seemed to be stable enough, I did not experience any problems.&lt;&#x2F;p&gt;
+&lt;p&gt;I have a &lt;code&gt;JVLT&lt;&#x2F;code&gt; file which I created while attending a foreign language course about a year ago. I was using only a limited subset of this application, so basically what I have is a .jvlt file, which is in fact a ZIP archive, in which a &lt;code&gt;dict.xml&lt;&#x2F;code&gt; stores a set of words and for each word one or more translation and the lesson we have learnt it.&lt;&#x2F;p&gt;
+&lt;p&gt;See the following example:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;xml&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;dictionary&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; language&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt;&amp;quot;french&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; version&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt;&amp;quot;1.4&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;entry&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; id&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt;&amp;quot;e275&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;orth&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;à côté de&amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;orth&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;sense&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; id&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt;&amp;quot;e275-s1&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;      &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;trans&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;mellett&amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;trans&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    &amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;sense&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;sense&lt;&#x2F;span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; id&lt;&#x2F;span&gt;&lt;span&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt;&amp;quot;e275-s2&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;      &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;trans&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;mellé&amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;trans&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    &amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;sense&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    &amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;lesson&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;8&amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;lesson&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  &amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;entry&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;lt;&#x2F;&lt;&#x2F;span&gt;&lt;span style=&quot;color: #E45649;&quot;&gt;dictionary&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;My idea was to write an application that helps me learning and practicing these words.&lt;&#x2F;p&gt;
+&lt;p&gt;In this first post I&#x27;m going to load the dictionary from the JVLT file.&lt;&#x2F;p&gt;
+&lt;p&gt;To get started, I created a new Ceylon module with the help of the IDE called jvlt. This immediately created three program units: &lt;code&gt;module.ceylon&lt;&#x2F;code&gt;, &lt;code&gt;package.ceylon&lt;&#x2F;code&gt; and &lt;code&gt;run.ceylon&lt;&#x2F;code&gt;. The &lt;code&gt;module.ceylon&lt;&#x2F;code&gt; contains the module definition, which also describes the module&#x27;s dependencies. As I was trying to implement the dictionary reader, I ended up with the following module definition:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;module jvlt &amp;quot;1.0.0&amp;quot; {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    shared import ceylon.file &amp;quot;1.0.0&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	import ceylon.collection &amp;quot;1.0.0&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    import ceylon.interop.java &amp;quot;1.0.0&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    import javax.xml &amp;quot;7&amp;quot;; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    import ceylon.test &amp;quot;1.0.0&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Let&#x27;s start with the data model we want to build up! The dictionary consists of words:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Represents a foreign word with one or more senses&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;shared class Word(shared String word, shared Set&amp;lt;string&amp;gt; senses, shared Integer lesson){ &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The word, senses and lessons are all shared attributes of this class, accessible from the outside. To make it easy to access the word objects by their foreign word, I&#x27;m currently storing them in a map:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Represents a dictionary of words in a given language&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;shared class Dictionary(shared String language, shared Map&amp;lt;string word=&amp;quot;&amp;quot;&amp;gt; words) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Basically that&#x27;s the data model, but I wrapped the whole thing in an abstract JVLT class which looks like this:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Represents a JVLT file&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;abstract shared class JVLT() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	&amp;quot;The dictionary stored in this JVLT&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	formal shared Dictionary dictionary;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The idea is that you get a JVLT instance from one of the helper functions and then use it as a root of the data model.&lt;&#x2F;p&gt;
+&lt;p&gt;The next thing is to create this data model from the JVLT files. For this, I needed two things:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Reading a ZIP archive&lt;&#x2F;li&gt;
+&lt;li&gt;Parsing XML&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;It turned out that Ceylon&#x27;s file module has ZIP support, with the &lt;code&gt;createZipFileSystem&lt;&#x2F;code&gt; function as an entry point. I made two module-level functions beside the JVLT class for creating instances deriving from the abstract JVLT class:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;loadJVLT&lt;&#x2F;code&gt; which loads a JVLT ZIP archive from the file system&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;code&gt;loadJVLTFromDictionaryString&lt;&#x2F;code&gt; oads directly a dict.xml-like XML passed as a simple string. I&#x27;m using this for unit testing the XML parser.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Let&#x27;s see the ZIP handling first:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Loads a JVLT file from a `.jvlt` ZIP archive, if possible.&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;shared JVLT? loadJVLT(File file) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	value zip = createZipFileSystem(file);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value dictPath = zip.parsePath(&amp;quot;&#x2F;dict.xml&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	if (is File dictFile = dictPath.resource) {  &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		try (reader = dictFile.Reader()) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   			return loadJVLTFromDictionaryString(readAll(reader));&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	} else {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		return null;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Well, the error handling is not too sophisticated in this case, it either returns a JVLT or returns &lt;code&gt;null&lt;&#x2F;code&gt; if the given file did not have a &lt;code&gt;dict.xml&lt;&#x2F;code&gt; in it. Other error conditions such as a &lt;code&gt;dict.xml&lt;&#x2F;code&gt; with a wrong format, etc., are not handled currently. As you can see, I&#x27;m reusing my other load function here, once the &lt;code&gt;dict.xml&lt;&#x2F;code&gt; is read.&lt;&#x2F;p&gt;
+&lt;p&gt;There are two interesting things here. First, the if statement where we check if the resource is an instance of &lt;code&gt;File&lt;&#x2F;code&gt; and immediately store it in the value called &lt;code&gt;dictFile&lt;&#x2F;code&gt;. The &lt;code&gt;dictPath.resource&lt;&#x2F;code&gt; attribute has the type &lt;code&gt;Resource&lt;&#x2F;code&gt; which is a Ceylon interface. It is either an &lt;code&gt;ExistingResource&lt;&#x2F;code&gt;: &lt;code&gt;Directory&lt;&#x2F;code&gt;, &lt;code&gt;File&lt;&#x2F;code&gt; or &lt;code&gt;Link&lt;&#x2F;code&gt;, or &lt;code&gt;Nil&lt;&#x2F;code&gt;. In any case if it is not a &lt;code&gt;File&lt;&#x2F;code&gt; instance, we just return &lt;code&gt;null&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;For simplicity, I&#x27;m reading the full &lt;code&gt;dict.xml&lt;&#x2F;code&gt; into a string before parsing it. For this purpose I wrote a small helper function &lt;code&gt;readAll&lt;&#x2F;code&gt;:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Reads all lines from a file reader and returns the concatenated string&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;String readAll(File.Reader reader) { &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	variable String result = &amp;quot;&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	while (exists line = reader.readLine()) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		result += line; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	return result;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Probably it&#x27;s not an optimal solution, but works :)&lt;&#x2F;p&gt;
+&lt;p&gt;Now that we have our data model and have a way to build it up from XML, we can write some unit tests to see how it works. The Ceylon SDK has a test module and the Ceylon IDE supports running the tests. There is a &lt;a rel=&quot;external&quot; href=&quot;http:&#x2F;&#x2F;ceylon-lang.org&#x2F;documentation&#x2F;1.0&#x2F;ide&#x2F;test-plugin&#x2F;&quot;&gt;separate page in the documentation&lt;&#x2F;a&gt; describing how. It is really simple, I had to add the test module as a dependency, and I created a separate file to hold my test definitions. The class groups the tests together and optionally supports running extra code before&#x2F;after each test case, as in other test frameworks:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;class DictionaryParserTests() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	shared test void emptyDictionary() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	  	value dic = loadJVLTFromDictionaryString(&amp;quot;&amp;lt;dictionary&amp;gt;&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	  &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	  	assert (dic.dictionary.words.empty);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	  	assert (dic.dictionary.language == &amp;quot;unknown&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	shared test void languageAttributeRead() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		value dic = loadJVLTFromDictionaryString(&amp;quot;&amp;lt;dictionary language=&amp;quot;testlang&amp;quot;&amp;gt;&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		assert (dic.dictionary.language == &amp;quot;testlang&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	&#x2F;&#x2F; ...&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;I won&#x27;t paste here all the test code, only a few samples to get the feeling how the Ceylon code looks like. To test whether a given word&#x27;s translations are loaded correctly, I wrote a helper function:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;void assertSenses(JVLT jvlt, String w, [String+] expectedSenses) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    Word? word = jvlt.dictionary.words[w];&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    if (exists word) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    	assert (word.senses.equals(HashSet(expectedSenses)));  &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    } else {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;     	fail(&amp;quot;Word does not exists&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    }&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This helper function can be used to assert that a word has been loaded correctly:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;shared test void wordWithMultipleSenses() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	value dic = loadJVLTFromDictionaryString(&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		&amp;quot;&amp;lt;dictionary&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   			&amp;lt;entry id=&amp;quot;e1&amp;quot;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			&amp;lt;orth&amp;gt;src1&amp;lt;&#x2F;orth&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			&amp;lt;sense id=&amp;quot;e1-s1&amp;quot;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;     				&amp;lt;trans&amp;gt;dst1&amp;lt;&#x2F;trans&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			&amp;lt;&#x2F;sense&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			&amp;lt;sense id=&amp;quot;e1-s2&amp;quot;&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;     				&amp;lt;trans&amp;gt;dst2&amp;lt;&#x2F;trans&amp;gt;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			&amp;lt;&#x2F;sense&amp;gt;    &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   			&amp;lt;&#x2F;entry&amp;gt;  &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   		&amp;lt;&#x2F;dictionary&amp;gt;&amp;quot;);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	assertSenses(dic, &amp;quot;src1&amp;quot;, [&amp;quot;dst1&amp;quot;, &amp;quot;dst2&amp;quot;]);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now the only problem is that there is no XML parsing support in the Ceylon SDK currently, so it has to be done using Java interop. As I wrote the code to build up the data model from the XML, I wrote several helper functions to make it easier to fit into the language. So let&#x27;s see first how the dictionary loading is defined, and then I&#x27;ll show the helper functions.&lt;&#x2F;p&gt;
+&lt;p&gt;The XML parsing is done by two module level functions which are not shared - only used by the JVLT constructor functions I shown before. The first one creates a map entry for a single word:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Creates a word entry for the dictionary&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;String-&amp;gt;Word loadEntry(Element elem) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value w = Word {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		word = selectNodeText(elem, &amp;quot;orth&amp;quot;) else &amp;quot;???&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		lesson = selectNodeInteger(elem, &amp;quot;lesson&amp;quot;) else 0;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		senses = HashSet(selectNodes(elem, &amp;quot;sense&#x2F;trans&amp;quot;)&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  					.map((Node n) =&amp;gt; n.textContent));&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	};&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	return w.word-&amp;gt;w;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and the second one loads all the words from the XML document:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Loads a dictionary from JVLT&amp;#39;s `dict.xml` format.&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;Dictionary loadDictionaryFromXML(Document doc) { &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	doc.documentElement.normalize();&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	return Dictionary { &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		language = getAttribute(doc.documentElement, &amp;quot;language&amp;quot;) else &amp;quot;unknown&amp;quot;;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		words = HashMap({ &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;     		for (node in selectNodes(doc, &amp;quot;dictionary&#x2F;entry&amp;quot;))&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;       			if (is Element elem = node)&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;             		loadEntry(elem) });   &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	};&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The function which returns the JVLT instance uses this function and Java interop to read the dictionary:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;&amp;quot;Loads a JVLT file by the parsing the dictionary XML directly from a string&amp;quot;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;shared JVLT loadJVLTFromDictionaryString(String dictXML) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	value docBuilderFactory = DocumentBuilderFactory.newInstance();&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value builder = docBuilderFactory.newDocumentBuilder();&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value doc = builder.parse(ByteArrayInputStream(javaString(dictXML).bytes));&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	object result extends JVLT() { &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		dictionary = loadDictionaryFromXML(doc);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	return result;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;There are two things to notice here: we had to convert from Ceylon&#x27;s string to Java string. This is not done automatically and we need the &lt;code&gt;ceylon.interop.java&lt;&#x2F;code&gt; module to do it. In the last lines we define an anonymous class extending from JVLT and overwriting it&#x27;s abstract dictionary attribute. Then this anonymous class instance is returned as the loaded JVLT.&lt;&#x2F;p&gt;
+&lt;p&gt;To make the XML parsing less painful, I defined a few helper functions in a separate compilation unit (&lt;code&gt;XmlHelper.ceylon&lt;&#x2F;code&gt;). I won&#x27;t show here the full file but there are some interesting parts. First, from Ceylon you cannot call static methods, but you can import them. I&#x27;m using the following two import statements:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;import org.w3c.dom { Node, NodeList, Element }&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;import javax.xml.xpath { XPathFactory { newXPathFactory = newInstance },&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;       XPathConstants { nodeSet = \iNODESET }}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The first one is straightforward. It imports three DOM interfaces. The second one first imports the &lt;code&gt;XPathFactory.newInstance&lt;&#x2F;code&gt; static method and also renames it, as newInstance is a too generic name without its class name as a prefix. The third line imports a constant value and gives it a Ceylon-compatible name. Because in Ceylon only the types can start with an uppercase character, we have to use a special and ugly syntax which helps the interoperability - prefixing it with &lt;code&gt;\i&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;ceylon.interop.java&lt;&#x2F;code&gt; module has helper classes to make Java Iterable objects iterable in Ceylon, but unfortunately the &lt;code&gt;NodeList&lt;&#x2F;code&gt; interface is not iterable in Java either. So I wrote a simple wrapper that iterates through a node list:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;class NodeListIterator(NodeList nodes) satisfies Iterable&amp;lt;Node&amp;gt; {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	shared actual default Iterator&amp;lt;Node&amp;gt; iterator() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		object it satisfies Iterator&amp;lt;Node&amp;gt; {   &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   			variable Integer i = 0;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   			shared actual Node|Finished next() {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			if (i &amp;lt; nodes.length) {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;     				return nodes.item(i++);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			} else {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;     				return finished;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    			}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;   			}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		return it;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Using this iterator and the imports I wrote a &lt;code&gt;selectNodes&lt;&#x2F;code&gt; function to run XPath expressions and return the result as a Ceylon iterable:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;{Node*} selectNodes(Node root, String xpath) { &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	value factory = newXPathFactory();&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value xpathCompiler = factory.newXPath();&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value expr = xpathCompiler.compile(xpath);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	value nodeList = expr.evaluate(root, nodeSet); &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	if (is NodeList nodeList) {  &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		return NodeListIterator(nodeList);&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	else {&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;  		return [];&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; 	}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Using this function it is very easy to write a variant that selects a single node:&lt;&#x2F;p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot;&gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;Node? selectNode(Node root, String xpath) { &lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;	return selectNodes(root, xpath).first;&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;&#x2F;span&gt;&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;There are some other helper functions returning the node&#x27;s text, converting it to integer, etc. but I think they are not that interesting. Now that I have my data model which is built from my JVLT file, the next thing is to make a user interface somehow where the vocabulary can be shown an the user&#x27;s knowledge can be tested&#x2F;improved. This will be the topic of some future posts, as soon as I have time to experiment more with this new language.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
