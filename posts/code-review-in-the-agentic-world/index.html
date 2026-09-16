@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="robots" content="index, follow">
+        <title>Code review in the Agentic world</title>
+        
+        <meta name="author" content="Daniel Vigovszky">
+             
+        
+        <meta name="description" content="">
+           
+        
+        <link rel="canonical" href="https:&#x2F;&#x2F;blog.vigoo.dev&#x2F;posts&#x2F;code-review-in-the-agentic-world&#x2F;">
+        
+        
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <link rel="stylesheet" href="https://iosevka-webfonts.github.io/iosevka-term/iosevka-term.css" />
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+    </head>
+<body>
+    
+    <header class="hdr">
+        <h1><a href="/">vigoo&#x27;s software development blog</a></h1>
+        <nav>
+            <menu>
+                <li><a href="/">Home</a></li>
+                <li><a href="/tags">Tags</a></li>
+                <li><a href="/archive">Archive</a></li>
+                <li><a href="/about">About</a></li>
+            </menu>
+        </nav>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Code review in the Agentic world</h1>
+            
+            <p class="posted-on">Posted on September 15, 2026</p>
+        </header>
+
+        <h2 id="bottleneck">Bottleneck</h2>
+<p>As everyone nowadays, I am experiencing our usual code review process to be more and more a bottleneck. As several parallel tasks are being developed even by a single developer, it is impossible to keep up with the large number of opened PRs with manual review - even though it is helped by agents - and the non-merged pull requests are often hurting productivity on the follow-up work; some of those unmerged changes are prerequisites to follow-up tasks, or just change some common code that is going to be an extra work to be rebased later. Sometimes the changes in unmerged PRs are relevant for even just <em>planning</em> some of the next steps. One thing you can do then is to show the open PRs to the agent working on the planning session, convincing it to treat them as <em>done</em> and available and not something that's coming later. All this friction is reducing the performance gain we otherwise get from using coding agents.</p>
+<p>Things like stacking PRs can help a bit in some long-running epics where follow-up tasks are strictly depending on each other, and where it does not really matter if they get merged one by one or all together - but it's not helping with many relatively independent small tasks, and they can also leads to a lot of pain if more than one such big long-running stack is going on simultaneously. And that seems to be inevitable even with such a small team as ours.</p>
+<h2 id="why-we-ask-for-code-reviews">Why we ask for code reviews?</h2>
+<p>Why did we make code reviews a mandatory part of our development process? There are a few reasons:</p>
+<ul>
+<li>Most importantly to increase the <strong>quality and correctness of the code</strong> being written. By having additional developers checking what was written, they could often point out details that were missed, edge cases, architectural and styling issues and so on.</li>
+<li>Even if not explicitly defined, <strong>code ownership</strong> exists. Often there are modules primarily written by one developer - this person knows the most of it and asking for their review keeps this ownership alive and also makes sure the change is aligned with their original vision.</li>
+<li>Similar to the previous one, the developed feature may have a <strong>product owner</strong> who wrote the original specification, and any divergence from the original specs may need the their review and approval.</li>
+<li>Regardless of ownership or prior knowledge, reviewing each other's work makes people <strong>up-to-date</strong> about code changes, features and the overall progress of the project.</li>
+</ul>
+<p>Submitting a pull-request alone only partially satisfied these requirements. A well written summary in the PR description, <em>self review comments</em> by the author pointing out interesting details, explicitly asking specific team members in comments about some parts; these were all part of the best practices.</p>
+<h3 id="how-did-it-change">How did it change?</h3>
+<p>These practices are all either not making sense or increasing becoming the bottleneck in today's world of <em>agentic coding</em>. You don't have time to write a detailed description yourself, and because the code was written by the agent anyway, so you generate the description as well. The generated PR description is much harder to understand for humans than a hand-written one, in worst case it even requires another agent to just make any sense of it.</p>
+<p>Others will review the PRs using agents too; it's inevitable as the tools are there, and the amount of changes to review is just growing. Depending on how overloaded each participant is, it may end up just copy-pasting agent output to each other in an interface originally designed for human interaction. Even without that concern, if the review is mostly done by an agent, how different it is from just asking more <em>agentic reviews</em> locally?</p>
+<p>If you take your time to interpret and rephrase all the findings yourself, you just get even more behind and frustrated - as well as the PR author, waiting for feedback to unlock the next phases, as I explained in the first section.</p>
+<h2 id="reducing-the-load">Reducing the load</h2>
+<p>I propose a system with the overall goal to <strong>reduce the review load</strong> on developers while trying to keep all the above identified original goals of why the review system is in place. The system assumes that every member of the team uses coding agents for implementation, verification and review.</p>
+<h3 id="self-review-and-ci">Self review and CI</h3>
+<p>A piece of work is done when the developer is confident enough that it's a good enough implementation of the task. This <strong>confidence</strong> must come from a mix of <em>self-reviewing</em> the agent's work, integrating <em>adversary reviews</em>, <em>bug-finder loops</em> and similar techniques to the <em>agentic coding</em> session, making sure all the newly written code is tested and testable, and finally, a <em>draft PR</em> is open and all CI checks are green. Details of these techniques are out of scope for this proposal.</p>
+<p>The part of making the CI green can (and should) also be part of the <em>agentic coding</em> sessions. Telling the agent to periodically check CI and make all the necessary fixes is OK - but <strong>marking the PR ready</strong> (non-draft) must mean the <strong>human author</strong> is 100% sure the change is ready for that (not necessarily for merging yet, as I will describe below).</p>
+<p>Owning your changes is no different from the pre-AI era - everything the agent does in your name is your responsibility.</p>
+<p>At this point traditionally we would broadcast the PR link to our team immediately, and then wait for review. The first diversion from the old ways is that at this point the changeset was already checked by multiple <em>entities</em>, one being human, others agents. So the quality and correctness point <em>may be</em> already satisfied.</p>
+<p>This is a decision point where the developer can <strong>choose to not ask for any further review</strong> and just merge the PR without causing any friction for the others. More precisely, there is a choice to:</p>
+<ul>
+<li>Just merge the PR, no further action needed</li>
+<li>Ask one or more team members for a (partial or full) review</li>
+<li>Either merging or waiting for review, additional <strong>async communication</strong> can be triggered about the changeset, advertising new features or interesting code changes and so on.</li>
+</ul>
+<h3 id="asking-for-a-review">Asking for a review</h3>
+<p>When should you ask for a review, instead of just merging it?</p>
+<p>There are several possible reasons:</p>
+<ul>
+<li>Not being confident enough about the implementation</li>
+<li>The changeset touches areas which are (implicitly or explicitly) having an <em>owner</em> who needs to know about and approve the changes</li>
+<li>The result diverges from the original plan significantly. Note that changes to the <em>chunking</em> of work does not belong here. If a follow-up changeset will come soon after (in the same milestone), it is not a good enough reason for asking for a review.</li>
+<li>Some (mostly user-facing) behavior needs validation (by multiple team members or the product owner, etc.)</li>
+</ul>
+<p>If any of the above is true, the PR (already green, non-draft, passing all the requirements of the previous section) should be sent to the team member(s) you need review from, preferable with an explicit explanation of why the review is needed. The asked review may be <strong>partial</strong> - for example just approve changes to a given module out of the many that has been changed, the author taking responsibility for the correctness of the rest.</p>
+<h3 id="interesting-parts">Interesting parts</h3>
+<p>It is frequent that you <em>don't</em> need a review, or at least not from all team members, but there are still some details about the changeset that you want others to know about. These can be collected and communicated asynchronously, there is no need for the PR to be kept open for this. Everyone can schedule their own time to catch up on this <strong>stream of interesting parts</strong> notifications. They should be pointing to concrete code in the repository with some description of what to look for.</p>
+<p>This stream of updates, selected by the authors, is what could keep people <strong>up-to-date</strong> with important changes of the codebase without getting lost in the sea of irrelevant details.</p>
+<h3 id="walkthroughs">Walkthroughs</h3>
+<p>The agents are good in generating <strong>walkthroughs</strong> about a changeset - these are user-friendly, easily readable, good looking and often interactive pages summarizing the changes, focusing on the important aspects. Walkthroughs are useful both when an actual <em>code review is needed</em>, and also can be part of the <em>interesting parts stream</em>.</p>
+<p>Especially with user-facing changes, demonstrating the UX of a new feature as part of the walkthrough helps the reviewers to know what to look for in the changeset, and the other team members to keep up-to-date with the evolution of the product.</p>
+<h2 id="responsibility">Responsibility</h2>
+<p>This of course puts a bigger responsibility on the person who decides to <strong>not</strong> ask for a review. In a small team where members are having high trust towards each other, it should not be a problem. What if the system gets abused and people start merging everything without review (and/or without advertising the interesting parts and so on)?</p>
+<p>I believe this does not require any defined process - as all changes are still done through commits and PRs linking to issues etc, all information can be retrospectively gathered and whenever someone identifies a merged changeset that shouldn't have been merged, it can be discussed and resolved.</p>
+<p>Other options could be to tie the freedom of choosing to merge your own work without further review to some measurable factors, such as the developer's level, time spent in the team, or some way of demonstrating knowledge and skill of working with agents on the project.</p>
+<p>In the end the goal is to reduce the bottleneck caused by code reviews while keeping the code quality and team awareness high.</p>
+
+
+    </article>
+
+    </main>    
+
+        
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]').classList.add("active");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+    });
+    </script>
+</body>
+</html>
