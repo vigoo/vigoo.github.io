@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#39;s software development blog - .net</title>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/net/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2013-10-25T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/net/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Cloning WPF flow document fragments</title>
+        <published>2013-10-25T00:00:00+00:00</published>
+        <updated>2013-10-25T00:00:00+00:00</updated>
+        
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/cloning-wpf-flow-document-fragments/"/>
+        <id>https://blog.vigoo.dev/posts/cloning-wpf-flow-document-fragments/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/cloning-wpf-flow-document-fragments/">&lt;p&gt;Today I had to write such an ugly hack to fix a bug that I decided to start writing a blog where I can show it to the world :)&lt;/p&gt;
+&lt;p&gt;The software I&#39;m working on has some sort of context sensitive help panel, which is implemented using dynamically generated &lt;a rel=&quot;external&quot; href=&quot;http://msdn.microsoft.com/en-us/library/aa970909.aspx&quot;&gt;flow documents&lt;/a&gt;. The software loads a large set of flow document sections from a XAML file runtime, and later builds documents from a subset of them.&lt;/p&gt;
+&lt;p&gt;For some reason (which belong to a separate post), it is not possible to reuse these flow document elements in multiple flow documents, not even if there is only one at a time. To work around this, I was cloning these sections before adding them to the document.&lt;/p&gt;
+&lt;p&gt;As WPF elements are not &lt;em&gt;cloneable&lt;/em&gt;, I was using the method recommended many places, for example &lt;a rel=&quot;external&quot; href=&quot;http://stackoverflow.com/questions/32541/how-can-you-clone-a-wpf-object&quot;&gt;in this StackOverflow post&lt;/a&gt;: saving the object tree to an in-memory XAML stream, and loading it back.&lt;/p&gt;
+&lt;p&gt;This worked quite well.. until we discovered a bug, which I still cannot explain. In some cases which were easily reproducible for any developer, but the code running in those cases being exactly the same as in other, working cases, the clone method simply stopped working.&lt;/p&gt;
+&lt;p&gt;Stopped working here means that the following code:&lt;/p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot; &gt;&lt;code data-lang=&quot;csharp&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;var&lt;/span&gt;&lt;span&gt; xaml = XamlWriter.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;Save&lt;/span&gt;&lt;span&gt;(block);&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;would write out the correct object hierarchy, but without any properties (no attributes, no content properties, nothing but the element names)! In the same time the objects in the memory were untouched and still had all the relevant properties set.&lt;/p&gt;
+&lt;p&gt;I also tried to write my own XAML serializer based on the code found &lt;a rel=&quot;external&quot; href=&quot;http://go4answers.webhost4life.com/Example/xaml-serialization-replacement-75133.aspx&quot;&gt;at this site&lt;/a&gt;, but this was only good to find out that the problem lies deep within the &lt;code&gt;MarkupWriter&lt;/code&gt; class, which is the same what the &lt;code&gt;XamlWriter&lt;/code&gt; uses internally. When the &lt;code&gt;XamlWriter&lt;/code&gt; failed, my own code could not find any properties using the returned &lt;a rel=&quot;external&quot; href=&quot;http://msdn.microsoft.com/en-us/library/system.windows.markup.primitives.markupobject.aspx&quot;&gt;MarkupObject&lt;/a&gt;:&lt;/p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot; &gt;&lt;code data-lang=&quot;csharp&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;MarkupObject&lt;/span&gt;&lt;span&gt; markupObj = MarkupWriter.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetMarkupObjectFor&lt;/span&gt;&lt;span&gt;(obj);&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For the same object, in the working scenarios it returned a markup object with a working &lt;code&gt;Properties&lt;/code&gt; collection.&lt;/p&gt;
+&lt;p&gt;So here is the final &lt;em&gt;&quot;solution&quot;&lt;/em&gt; which I&#39;m not really proud of, but solved the problem. Maybe with some modifications it is useful for someone struggling with the framework:&lt;/p&gt;
+&lt;pre class=&quot;giallo&quot; style=&quot;color: #383A42; background-color: #FAFAFA;&quot; &gt;&lt;code data-lang=&quot;csharp&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;summary&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;/// Horrible ugly clone hack to issues where XamlWriter/XamlReader based&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;/// clone method did not work.&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;/&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;summary&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;public static class&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; CloneHelper&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;{&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;    public static&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; Block&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt; Clone&lt;/span&gt;&lt;span&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;t&lt;/span&gt;&lt;span&gt;&amp;gt;(&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;this&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; T&lt;/span&gt;&lt;span&gt; block)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        where&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; T&lt;/span&gt;&lt;span&gt; :&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; Block&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        var&lt;/span&gt;&lt;span&gt; result = (&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;T&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;DeepClone&lt;/span&gt;&lt;span&gt;(block);&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        return&lt;/span&gt;&lt;span&gt; result;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;    private static object&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt; DeepClone&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;object&lt;/span&gt;&lt;span&gt; obj)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        if&lt;/span&gt;&lt;span&gt; (obj !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;        {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;            // Replacing ResourceDictionary and Style values with null. &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;            // In this particular use case it is correct to do&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;            if&lt;/span&gt;&lt;span&gt; (obj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;() == typeof(&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;ResourceDictionary&lt;/span&gt;&lt;span&gt;) ||&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                obj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;() == typeof(&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;Style&lt;/span&gt;&lt;span&gt;))&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;            {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                return&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;            }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;            else&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;            {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                // Value types and some special cases where we don&amp;#39;t want to clone&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                if&lt;/span&gt;&lt;span&gt; (obj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;().IsValueType ||&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    obj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;() == typeof (&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;Cursor&lt;/span&gt;&lt;span&gt;) ||&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    obj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;() == typeof (&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;XmlLanguage&lt;/span&gt;&lt;span&gt;))&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                    return&lt;/span&gt;&lt;span&gt; obj;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                else&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                    // If it is cloneable, use it&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                    var&lt;/span&gt;&lt;span&gt; cloneable = obj as&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; ICloneable&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                    if&lt;/span&gt;&lt;span&gt; (cloneable !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        return&lt;/span&gt;&lt;span&gt; cloneable.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;Clone&lt;/span&gt;&lt;span&gt;();&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                    else&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                        // Creating the clone with reflection&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        var&lt;/span&gt;&lt;span&gt; typ = obj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;();&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        var&lt;/span&gt;&lt;span&gt; clone = Activator.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;CreateInstance&lt;/span&gt;&lt;span&gt;(typ);                     &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                        // Property names which are known locally set &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                        // dependency properties&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        var&lt;/span&gt;&lt;span&gt; usedNames = new&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; HashSet&lt;/span&gt;&lt;span&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;string&lt;/span&gt;&lt;span&gt;&amp;gt;();                        &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                        // Copying locally set dependency properties from the &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                        // source to the target&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        var&lt;/span&gt;&lt;span&gt; dobjSource = obj as&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; DependencyObject&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        var&lt;/span&gt;&lt;span&gt; dobjTarget = clone as&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; DependencyObject&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        if&lt;/span&gt;&lt;span&gt; (dobjSource !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt; &amp;amp;&amp;amp; dobjTarget !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                        {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                            var&lt;/span&gt;&lt;span&gt; locallySetProperties = &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                dobjSource.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetLocalValueEnumerator&lt;/span&gt;&lt;span&gt;();&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                            while&lt;/span&gt;&lt;span&gt; (locallySetProperties.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;MoveNext&lt;/span&gt;&lt;span&gt;())&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                            {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;                                DependencyProperty&lt;/span&gt;&lt;span&gt; dp = &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                    locallySetProperties.Current.Property;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                if&lt;/span&gt;&lt;span&gt; (!dp.ReadOnly)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                    dobjTarget.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;SetValue&lt;/span&gt;&lt;span&gt;(dp, dobjSource.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetValue&lt;/span&gt;&lt;span&gt;(dp));&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                    usedNames.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;Add&lt;/span&gt;&lt;span&gt;(dp.Name);&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                            }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                        }                        &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                        // Getting all the public, non-static properties of the source&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        foreach&lt;/span&gt;&lt;span&gt; (&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;var&lt;/span&gt;&lt;span&gt; pi&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt; in&lt;/span&gt;&lt;span&gt; typ.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetProperties&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                            BindingFlags.Instance | &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                            BindingFlags.Public | &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                            BindingFlags.FlattenHierarchy))&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                        {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                            // If it is not a dependency property &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                            // and not the default property...&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                            if&lt;/span&gt;&lt;span&gt; (pi.CanRead &amp;amp;&amp;amp;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                !usedNames.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;Contains&lt;/span&gt;&lt;span&gt;(pi.Name) &amp;amp;&amp;amp;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                !&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;IsDependencyProperty&lt;/span&gt;&lt;span&gt;(dobjSource, pi) &amp;amp;&amp;amp;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                pi.Name !=&lt;/span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; &amp;quot;Item&amp;quot;&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                            {                                    &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                var&lt;/span&gt;&lt;span&gt; val = pi.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetValue&lt;/span&gt;&lt;span&gt;(obj,&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;);&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                                // ..and it is writeable, then we recursively clone &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                                // the value and set the property:&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                if&lt;/span&gt;&lt;span&gt; (pi.CanWrite)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                {                                        &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                    pi.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;SetValue&lt;/span&gt;&lt;span&gt;(clone,&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt; DeepClone&lt;/span&gt;&lt;span&gt;(val),&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;);&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                else&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                                    // ..otherwise if it is a readonly list property, &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                                    // go through each item,  clone it and add to &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;                                    // the clone&amp;#39;s list property&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                    if&lt;/span&gt;&lt;span&gt; (pi.PropertyType&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                          .&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetInterfaces&lt;/span&gt;&lt;span&gt;()&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                          .&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;Contains&lt;/span&gt;&lt;span&gt;(typeof (&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;IList&lt;/span&gt;&lt;span&gt;)))&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                    {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                        var&lt;/span&gt;&lt;span&gt; source = val as&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; IList&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                        var&lt;/span&gt;&lt;span&gt; target = pi.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetValue&lt;/span&gt;&lt;span&gt;(clone,&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;) as&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; IList&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                        if&lt;/span&gt;&lt;span&gt; (source !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt; &amp;amp;&amp;amp; target !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                        {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                                            foreach&lt;/span&gt;&lt;span&gt; (&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;var&lt;/span&gt;&lt;span&gt; item&lt;/span&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt; in&lt;/span&gt;&lt;span&gt; source)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                target.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;Add&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;DeepClone&lt;/span&gt;&lt;span&gt;(item));&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                        }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                    }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                            }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                        }                        &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                        return&lt;/span&gt;&lt;span&gt; clone;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;            }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;        }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        else&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;        {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;            return&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;        }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    }    &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    ///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;summary&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    /// Tries to determine if a property is a dependency property, by reflection and &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    /// naming convention&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    ///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;/&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;summary&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    ///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;param&lt;/span&gt;&lt;span style=&quot;color: #986801;font-style: italic;&quot;&gt; name&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;=&lt;/span&gt;&lt;span style=&quot;color: #50A14F;font-style: italic;&quot;&gt;&amp;quot;dobj&amp;quot;&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;Dependency object&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    ///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;param&lt;/span&gt;&lt;span style=&quot;color: #986801;font-style: italic;&quot;&gt; name&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;=&lt;/span&gt;&lt;span style=&quot;color: #50A14F;font-style: italic;&quot;&gt;&amp;quot;pi&amp;quot;&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;Property info&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    ///&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt; &amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;returns&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;Returns &lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;c&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;true&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;lt;/&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;c&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt; if the given property seems to be a &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A0A1A7;font-style: italic;&quot;&gt;    ///          CLR access property for a dependency property.&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;lt;/&lt;/span&gt;&lt;span style=&quot;color: #E45649;font-style: italic;&quot;&gt;returns&lt;/span&gt;&lt;span style=&quot;font-style: italic;&quot;&gt;&amp;gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;    private static bool&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt; IsDependencyProperty&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;DependencyObject&lt;/span&gt;&lt;span&gt; dobj,&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt; PropertyInfo&lt;/span&gt;&lt;span&gt; pi)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        if&lt;/span&gt;&lt;span&gt; (dobj !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;        {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;            var&lt;/span&gt;&lt;span&gt; dpProp = dobj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;().&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetProperty&lt;/span&gt;&lt;span&gt;(pi.Name +&lt;/span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; &amp;quot;Property&amp;quot;&lt;/span&gt;&lt;span&gt;, &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                    BindingFlags.Static |&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                    BindingFlags.Public |&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                    BindingFlags.FlattenHierarchy);&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;            if&lt;/span&gt;&lt;span&gt; (dpProp !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt; &amp;amp;&amp;amp; dpProp.PropertyType == typeof (&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;DependencyProperty&lt;/span&gt;&lt;span&gt;))&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                return&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; true&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;            else&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;            {&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                var&lt;/span&gt;&lt;span&gt; dpField = dobj.&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetType&lt;/span&gt;&lt;span&gt;().&lt;/span&gt;&lt;span style=&quot;color: #4078F2;&quot;&gt;GetField&lt;/span&gt;&lt;span&gt;(pi.Name +&lt;/span&gt;&lt;span style=&quot;color: #50A14F;&quot;&gt; &amp;quot;Property&amp;quot;&lt;/span&gt;&lt;span&gt;, &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                      BindingFlags.Static | &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                      BindingFlags.Public | &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                                                      BindingFlags.FlattenHierarchy);&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                if&lt;/span&gt;&lt;span&gt; (dpField !=&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; null&lt;/span&gt;&lt;span&gt; &amp;amp;&amp;amp; &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    dpField.FieldType == typeof (&lt;/span&gt;&lt;span style=&quot;color: #C18401;&quot;&gt;DependencyProperty&lt;/span&gt;&lt;span&gt;) &amp;amp;&amp;amp; &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;                    dpField.IsInitOnly &amp;amp;&amp;amp; dpField.IsStatic)&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;                    return&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; true&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;            }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;        }        &lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span style=&quot;color: #A626A4;&quot;&gt;        return&lt;/span&gt;&lt;span style=&quot;color: #986801;&quot;&gt; false&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    }&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;</content>
+        
+    </entry>
+</feed>
