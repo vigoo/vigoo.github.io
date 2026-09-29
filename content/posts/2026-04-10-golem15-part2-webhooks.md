@@ -37,7 +37,7 @@ Webhooks are built on top of [Golem Promises](https://learn.golem.cloud/develop/
 
 What's new is that we can now export these promises as webhook URLs that make it very easy to complete them from a third party system.
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 const webhook = createWebhook();
 const url = webhook.getUrl();
@@ -76,7 +76,7 @@ let url = webhook.url()
 let payload = webhook.wait()
 let text = payload.text()
 ```
-{% end %}
+{% </codetabs> %}
 
 ### Calling the webhook
 The webhook URL simply awaits a POST request with an arbitrary body. This body is what the `payload`'s helper methods are returning as raw byte array, string or parsed JSON.
@@ -102,7 +102,7 @@ httpApi:
 
 The `<suffix>` part is the agent's type name in `kebab-case` by default, so for example `my-workflow` if our agent type is `MyWorkflow`. It can be customized by setting **webhook suffix** on our mount point:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @agent({
   mount: '/workflow/{id}',
@@ -138,4 +138,4 @@ pub(all) struct Workflow {
   // ...
 }
 ```
-{% end %}
+{% </codetabs> %}

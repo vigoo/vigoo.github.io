@@ -148,7 +148,7 @@ As demonstrated above, `increment_by` has been automatically exported as a **too
 ### Metadata
 For every agent and agent method, we can attach a **description** and a **prompt**:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @description("Increments the counter by the number provided in the `n` parameter")
 @prompt("Increment by a given number")
@@ -171,7 +171,7 @@ def incrementBy(n: Int): Future[Int]
 #derive.prompt_hint("Increment by a given number")
 pub fn Counter::increment(self : Self, n: UInt32) -> UInt32 {
 ```
-{% end %}
+{% </codetabs> %}
 
 Both are optional, and both are added to the MCP metadata.
 
@@ -182,7 +182,7 @@ It's not strictly related to the MCP feature, and not even new in **Golem 1.5**,
 #### Unstructured text
 Any method parameter or return type can be defined as **unstructured text**. Optionally a set of allowed **language codes** can be attached to the type:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 myMethod(
   anyText: UnstructuredText,
@@ -229,12 +229,12 @@ pub fn MyAgent::my_method(
   ...
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 #### Unstructured binary
 Similarly to **unstructured text**, we can also use **unstructured binary** parameters and return types, and optionally define the allowed _MIME types_ for them:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 myMethod(
   anyBinary: UnstructuredBinary,
@@ -285,14 +285,14 @@ pub fn MyAgent::my_method(
   ...
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 #### Multimodal
 Finally there is a special parameter type called **multimodal**, which is a special way to define methods (tools) that can work on multiple types of input. The default multimodal type just allows pasting either text or binary, but it is fully customizable with the above defined language and MIME type constraints, and can also include structured data.
 By using multimodal types, and not just modelling the same input using custom data types, Golem can map these definitions better to MCP concepts.
 
 The simplest version just accepts either an arbitrary text, or an arbitrary binary:
-{% codetabs() %}
+{% <codetabs> %}
 
 ```typescript
 textOrBinary(input: Multimodal) { ... }
@@ -309,11 +309,11 @@ pub fn MyAgent::text_or_binary(
   input : @types.Multimodal[TextOrBinary],
 ) -> String { ... }
 ```
-{% end %}
+{% </codetabs> %}
 
 We can add a third option in the form of a structured data type to this:
 
-{% codetabs() %}
+{% <codetabs> %}
 
 ```typescript
 type MyStructuredType = { ...}
@@ -345,11 +345,11 @@ pub fn MyAgent::text_or_binary_or_structured(
   input : @types.Multimodal[CustomModality[MyStructuredType]],
 ) -> String { ... }
 ```
-{% end %}
+{% </codetabs> %}
 
 Or we can fully customize the multimodal behavior by defining our own variant type it maps to:
 
-{% codetabs() %}
+{% <codetabs> %}
 
 ```typescript
 export type TextOrImage =
@@ -421,7 +421,7 @@ pub fn MyAgent::fully_custom(
   input : @types.Multimodal[TextOrImage],
 ) -> String { ... }
 ```
-{% end %}
+{% </codetabs> %}
 
 #### Remarks
 None of these special data types are MCP specific - using them in our agent code is not constraining them to be only called through MCP, they can still be invoked through agent-to-agent communication, mapped to HTTP APIs and so on.

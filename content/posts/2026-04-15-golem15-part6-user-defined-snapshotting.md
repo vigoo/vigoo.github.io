@@ -40,7 +40,7 @@ Note that the load/save snapshot functions are not really new in Golem 1.5 - we 
 
 The following example shows how the manually implemented save/load pair would look like for the default template's `CounterAgent`:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @agent()
 class CounterAgent extends BaseAgent {
@@ -164,12 +164,12 @@ impl @agents.Snapshottable for CounterAgent with load_snapshot(
   Ok(())
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 ### Recovery configuration
 Defining the pair of snapshotting functions is enough to use these for **updating agents** but it does not enable **snapshot-based recovery**. We can configure that through the agent annotation:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @agent({ snapshotting: { periodic: '5s' } })
 class CounterAgent extends BaseAgent {
@@ -193,14 +193,14 @@ trait CounterAgent extends BaseAgent {
 pub struct CounterAgent {
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 The options can be `disabled`, `enabled` to use the server-side default (which is set to disabled by default), `every(N)` meaning snapshot after every _Nth_ oplog entry, or `periodic(5s)` to make a snapshot every 5 seconds.
 
 ### Default implementation
 Having snapshot-based recovery is really useful but we realized that writing these manual serialization functions may be too painful. In **Golem 1.5** each supported language has a mechanism to opt-in for a **default snapshotting implementation** while still allowing defining a fully custom pair of methods like we've seen above.
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 class CounterAgent extends BaseAgent {
   // For TypeScript, simply NOT defining loadSnapshot and saveSnapshot will 
@@ -251,7 +251,7 @@ struct Counter {
 // If an agent derives ToJson/FromJson and has no manual Snapshottable instance,
 // the SDK provides a default implementation
 ```
-{% end %}
+{% </codetabs> %}
 
 ### Observability
 Using the default snapshotting implementation, or implementing one by hand that uses the `application/json` content type has one more nice feature: when observing the **oplog** of an agent for debugging purposes, we can see the snapshot entries with the serialized JSON state!

@@ -36,7 +36,7 @@ In **Golem 1.5** this is no longer the case - no custom scripting language, no Y
 
 First we have to define a **mount point** for our agent:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @agent({
   mount: '/task-agents/{name}',
@@ -64,7 +64,7 @@ pub(all) struct Tasks {
   // ...
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 In the mount path we can use placeholders like `{name}` that identifies our agent - it maps directly to our agent constructor's `name` parameter. If there are multiple agent parameters, they all have to be mapped in the mount path.
 
@@ -72,7 +72,7 @@ In the mount path we can use placeholders like `{name}` that identifies our agen
 
 Once we have our mount we can export individual agent methods as various **endpoints**:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @endpoint({ post: "/tasks" })
 async createTask(request: CreateTaskRequest): Promise<Task> {
@@ -124,7 +124,7 @@ pub fn Tasks::complete_task(self: Self, id: UInt32) -> Option[Task] {
   // ...
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 Endpoint paths are relative to the mount point, and they can also use placeholders mapped to parameters. Unmapped parameters are set from the request body. Query parameters are also supported in the `path` patterns.
 
@@ -132,7 +132,7 @@ Endpoint paths are relative to the mount point, and they can also use placeholde
 
 Custom headers can also be mapped to function parameters:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @endpoint({
     get: '/example',
@@ -162,7 +162,7 @@ pub fn ExampleAgent::example(
   // ...
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 Additionally, endpoint decorators support CORS and authentication. For CORS, we can add something like `cors = ["*"]` to the decorator (syntax slightly varies by language).
 We can turn on **authentication** on the mount level or per individual endpoints. When authentication is enabled, agent constructors and methods optionally can receive a `Principal` parameter that contains information about the authenticated user.

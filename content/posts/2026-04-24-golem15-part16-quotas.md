@@ -98,7 +98,7 @@ Let's see how we can use these resources from code!
 #### Initialization
 The first step is to acquire a **quota token interface** for every resource our agent is going to need. This can be done in the agent's constructor, or the first time the token is needed, but should be done only once:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 import { acquireQuotaToken } from "golem-ts-sdk";
 
@@ -117,7 +117,7 @@ val token = QuotaToken("api-calls", BigInt(1))
 ```moonbit
 let token = @quota.QuotaToken::new("api-calls", 1UL)
 ```
-{% end %}
+{% </codetabs> %}
 
 The parameter (`1`) is the **expected amount asked per reservation**. For a simple rate limiting use case, where we associate 1 API call with 1 token, this can be 1.
 
@@ -125,7 +125,7 @@ The parameter (`1`) is the **expected amount asked per reservation**. For a simp
 For a simple rate limiting case, we can **reserve** one token for each API call (of course we could also weight different API calls differently, by associating different token counts to them):
 
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 import { withReservation } from "golem-ts-sdk";
 
@@ -155,7 +155,7 @@ let result = @quota.with_reservation(token, 1UL, fn(reservation) {
   (1, response)
 })
 ```
-{% end %}
+{% </codetabs> %}
 
 #### Rate-limiting LLMs
 The same mechanism can be used to rate-limit for example LLMs, but not based on just the requests, but on the actual tokens consumed. Instead of reserving just one token, we reserve the number of maximum tokens we expect the request will consume (and in most LLM APIs we can enforce this). Then in the `response` we read how much actual tokens our request used, and **commit** that (returning the final number the `withReservation` helper is a way to commit, but there is also an explicit `commit` call we can use).
@@ -163,7 +163,7 @@ The same mechanism can be used to rate-limit for example LLMs, but not based on 
 #### Splitting and merging
 Quota tokens can be **split**, **merged** and **transformed** between agents. The following example splits off 200 units from our agent's available tokens for a given resource, and sends it to another agent. 
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 const childToken: QuotaToken = token.split(200n);
 
@@ -190,11 +190,11 @@ let child_token: QuotaToken = self.token.split(200UL)
 let child_agent = SummarizerAgent::new_phantom()
 child_agent.summarize(text, child_token)
 ```
-{% end %}
+{% </codetabs> %}
 
 In addition to this, we could return the split tokens after the remote call, and merge them back into the original agent's tokens:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 token.merge(returnedToken)
 ```
@@ -207,4 +207,4 @@ token.merge(returnedToken)
 ```moonbit
 token.merge(returned_token)
 ```
-{% end %}
+{% </codetabs> %}

@@ -259,6 +259,7 @@ let mut component = MoonBitComponent::empty_from_wit(
 
 Then we define the MoonBit bindings based on this WIT, and add our implementation as a MoonBit source string:
 
+{% raw %}
 ```rust
 component
   .define_bindgen_packages()
@@ -277,6 +278,7 @@ component
   .write_world_stub(&stub_mbt)
   .context("Writing world stub")?;
 ```
+{% endraw %}
 
 And finally build the WASM component:
 

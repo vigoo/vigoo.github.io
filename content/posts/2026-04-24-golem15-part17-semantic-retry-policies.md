@@ -220,7 +220,7 @@ The Golem SDK provide the same runtime query and modification capabilities. We c
 
 The following example uses the Golem SDK to define and use a custom retry policy for a given HTTP request:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 import {
   Policy, Predicate, NamedPolicy, Props, Duration,
@@ -317,7 +317,7 @@ with_named_policy!(policy, fn() {
 })
 ```
 
-{% end %}
+{% </codetabs> %}
 
 ### Extensionability
 Any future retry-capable host functionality we add to Golem can be integrated into this retry policy system, and with the ability of querying the policies runtime, third party, user-level retry functionalities can also be built on top of it.

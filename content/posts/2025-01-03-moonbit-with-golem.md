@@ -734,8 +734,8 @@ templates:
       release:
         sourceWit: wit
         generatedWit: wit-generated
-        componentWasm: ../target/release/{{ componentName }}.wasm
-        linkedWasm: ../target/release/{{ componentName }}-linked.wasm
+        componentWasm: ../target/release/{% raw %}{{ componentName }}{% endraw %}.wasm
+        linkedWasm: ../target/release/{% raw %}{{ componentName }}{% endraw %}-linked.wasm
 ```
 
 These directories are relative to the components subdirectories (for example `archive`) so what we say here is that once all the components are built, they al will be put in the root `target/release` directory.
@@ -752,10 +752,10 @@ Then we specify the **build steps**, described in the previous section:
             - interface
             - world
         - command: moon build --target wasm
-        - command: wasm-tools component embed wit-generated target/wasm/release/build/gen/gen.wasm -o ../target/release/{{ componentName }}.module.wasm --encoding utf16
+        - command: wasm-tools component embed wit-generated target/wasm/release/build/gen/gen.wasm -o ../target/release/{% raw %}{{ componentName }}{% endraw %}.module.wasm --encoding utf16
           mkdirs:
             - ../target/release
-        - command: wasm-tools component new ../target/release/{{ componentName }}.module.wasm -o ../target/release/{{ componentName }}.wasm
+        - command: wasm-tools component new ../target/release/{% raw %}{{ componentName }}{% endraw %}.module.wasm -o ../target/release/{% raw %}{{ componentName }}{% endraw %}.wasm
 ```
 
 Finally, we can define additional directories to be cleaned by the `golem app clean` command, and we can even define custom commands to be executed with `golem app xxx`:

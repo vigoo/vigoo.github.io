@@ -55,7 +55,7 @@ The generated libraries follow the same conventions as our **agent-to-agent** co
 
 The following example demonstrates how to call the default template's simple _counter agent_ from arbitrary Rust and TypeScript applications using the generated bridges:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 import {
   CounterAgent,
@@ -84,7 +84,7 @@ CounterAgent::configure(
 let c1 = CounterAgent::get("c1").await?;
 let value = c1.increment().await?;
 ```
-{% end %}
+{% </codetabs> %}
 
 In the configuration call we have to specify which Golem server to connect to - `Local` is the default local `golem server run` instance, but it can also connect to our hosted `Cloud` or to any custom deployment. The second parameter is the application name (can be found in the `app:` key of `golem.yaml`), and the third is the environment name (there can be multiple environments on the same server for an application, for example staging and prod).
 

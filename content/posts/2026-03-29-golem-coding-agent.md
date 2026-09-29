@@ -368,7 +368,7 @@ We can set default values for our secrets in the application's manifest file:
 secretDefaults:
   local:
     - path: ["openaiApiKey"]
-      value: "{{ OPENAI_API_KEY }}"
+      value: "{% raw %}{{ OPENAI_API_KEY }}{% endraw %}"
 ```
 
 Let's try this out with our REPL:

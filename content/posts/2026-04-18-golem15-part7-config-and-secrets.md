@@ -33,7 +33,7 @@ To solve these issues, the new Golem release introduces **code-first configurati
 ### Configuration
 Configuration types are record types which can be nested, and are injected specially to the agent's constructor:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 type DbConfig = {
   host: string,
@@ -175,7 +175,7 @@ pub fn ExampleAgent::use_config(self : Self) -> Unit {
   }
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 Once we define these configuration **requirements** in code, we can no longer deploy our agent without satisfying them first! 
 
@@ -199,7 +199,7 @@ It is also possible to use the manifest's `preset` feature to define reusable bi
 
 To define parts of the agent configuration as being secrets, wrap them in `Secret`. The following example extends our previous `DbConfig` type with a secret `password` field:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 type DbConfig = {
   host: string,
@@ -231,7 +231,7 @@ pub(all) struct DbConfig {
   password : @config.Secret[String]
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 Secret values are stored **per environment** and not per agent deployment. If an environment does not have a secret yet, its initial value can be automatically set at deploy time by using the `secretDefaults` section of the application manifest:
 
@@ -239,10 +239,10 @@ Secret values are stored **per environment** and not per agent deployment. If an
 secretDefaults:
   local:
     - path: [db, password]
-      value: "{{ DB_PASSWORD }}"   # env var substitution supported
+      value: "{% raw %}{{ DB_PASSWORD }}{% endraw %}"   # env var substitution supported
 ```
 
-Just like in previous versions for environment variables, the `{{ X }}` format can be used to set a secret value to an environment variable's value **from the user's system**.
+Just like in previous versions for environment variables, the `{% raw %}{{ X }}{% endraw %}` format can be used to set a secret value to an environment variable's value **from the user's system**.
 
 Alternatively secrets can be created using CLI commands:
 
@@ -262,7 +262,7 @@ Deleting a secret can make running agents fail at runtime, if they use it.
 
 To access a secret's current value, use `get` on the `Secret` field — unlike regular config fields, this fetches the latest value each time:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 const password = config.database.password.get();
 ```
@@ -275,6 +275,6 @@ val password = config.database.password.get
 ```moonbit
 let password = config.database.password.get!()
 ```
-{% end %}
+{% </codetabs> %}
 
 This way our `password` always gets the latest secret stored in the current environment.

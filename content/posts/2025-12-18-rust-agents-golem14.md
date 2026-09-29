@@ -376,14 +376,14 @@ components:
   libdb:backend:
     templates: rust
     env:
-      GOOGLE_API_KEY: "{{ GOOGLE_API_KEY }}"
-      GOOGLE_SEARCH_ENGINE_ID: "{{ GOOGLE_SEARCH_ENGINE_ID }}"
+      GOOGLE_API_KEY: "{% raw %}{{ GOOGLE_API_KEY }}{% endraw %}"
+      GOOGLE_SEARCH_ENGINE_ID: "{% raw %}{{ GOOGLE_SEARCH_ENGINE_ID }}{% endraw %}"
     dependencies:
       - type: wasm
         url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0-dev.1/golem_web_search_google-dev.wasm
 ```
 
-Using the `{{ X }}` syntax for the environment variables allow the `golem` CLI tool to read them from the environment during deployment, so we don't accidentally commit our keys in our repo. See the [official Google page](https://developers.google.com/custom-search/v1/introduction) to learn how to define an API key and a search engine ID.
+Using the `{% raw %}{{ X }}{% endraw %}` syntax for the environment variables allow the `golem` CLI tool to read them from the environment during deployment, so we don't accidentally commit our keys in our repo. See the [official Google page](https://developers.google.com/custom-search/v1/introduction) to learn how to define an API key and a search engine ID.
 
 #### Processing results (B)
 

@@ -121,7 +121,7 @@ Let's see what exactly gets exported by the plugin for the three different signa
 ### Traces
 OpenTelemetry **spans** are created for a few built-in operations, such as agent invocation, RPC calls, outgoing HTTP requests. Users can also define custom spans using the SDK's:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 import { startSpan, currentContext } from 'golem:api/context@1.5.0';
 
@@ -190,7 +190,7 @@ span.finish()
   },
 )
 ```
-{% end %}
+{% </codetabs> %}
 
 Note that trace and span IDs are properly propagated from inbound HTTP requests through the [code-first routes](/posts/golem15-part1-code-first-routes), and outgoing HTTP requests are also having the standard trace headers. This is a feature independent from the OTLP plugin.
 
@@ -215,7 +215,7 @@ const result = dc.traceSync(
 ### Logs
 When log exporting is enabled, any log entry (standard output/err or using the dedicated log interfaces) are being forwarded to the OTLP collector.
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 console.log("Hello from TypeScript!");
 console.debug("This is a debug log entry");
@@ -234,7 +234,7 @@ Logging.log(LogLevel.Debug, "", "This is a debug log entry")
 println("Hello from MoonBit!")
 @log.debug("This is a debug log entry")
 ```
-{% end %}
+{% </codetabs> %}
 
 ### Metrics
 When metrics are enabled, the plugin will send the following metrics to the OTLP collector:

@@ -41,11 +41,58 @@ h1 {
     h4 {
         font-family: $iosevka;
         font-display: block;
+        font-size: 1.05rem;
     }
 
     h5 {
         font-family: $iosevka;
         font-display: block;
+    }
+
+    blockquote {
+        position: relative;
+        overflow: hidden;
+        margin: 1.75rem 0;
+        padding: 1.35rem 1.75rem 1.35rem 4.5rem;
+        border-left: 0.35rem solid $main-link-color;
+        border-radius: 0 0.65rem 0.65rem 0;
+        background: #fbfaf7;
+        color: #25343f;
+        font-family: Georgia, "Times New Roman", serif;
+        line-height: 1.6;
+        text-align: left;
+
+        &::before {
+            position: absolute;
+            top: 0.15rem;
+            left: 1rem;
+            color: rgba(30, 108, 185, 0.14);
+            content: "“";
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 5.5rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        > * {
+            position: relative;
+        }
+
+        > p {
+            margin-top: 0;
+            font-style: italic;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        ul,
+        ol {
+            margin-bottom: 0;
+            padding-left: 1.4rem;
+            font-style: normal;
+        }
     }
 
     > table {
@@ -71,6 +118,18 @@ h1 {
 
         tbody tr:nth-child(even) {
             background-color: rgba(44, 30, 55, 0.03);
+        }
+    }
+}
+
+@media (max-width: 700px) {
+    .post blockquote {
+        padding-right: 1rem;
+        padding-left: 3.25rem;
+
+        &::before {
+            left: 0.65rem;
+            font-size: 4.5rem;
         }
     }
 }

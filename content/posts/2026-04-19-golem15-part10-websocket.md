@@ -112,7 +112,7 @@ In **MoonBit** we can directly use the low level WIT interface through the gener
 
 The following example shows how an agent method can initiate and run a WebSocket connection:
 
-{% codetabs() %}
+{% <codetabs> %}
 ```typescript
 @agent()
 class ExampleAgent extends BaseAgent {
@@ -228,7 +228,7 @@ pub fn ExampleAgent::run(self : Self) -> Unit raise @common.AgentError {
   conn.drop()
 }
 ```
-{% end %}
+{% </codetabs> %}
 
 ### Durability
 Golem agents are durable, surviving failures and restarts. But what about these WebSocket connections? In **Golem 1.5** we have limited support for recovering WebSocket connections in case of a restart. 

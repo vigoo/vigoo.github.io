@@ -78,7 +78,7 @@ Then we can provide additional configuration **per agent**. For `InboxAgent` we 
 agents:
   InboxAgent:
     env:
-      OPENAI_API_KEY: "{{ OPENAI_API_KEY }}"
+      OPENAI_API_KEY: "{% raw %}{{ OPENAI_API_KEY }}{% endraw %}"
       MODEL: gpt-4.1-mini
     files:
       - sourcePath: ./prompts/inbox-system.md
@@ -105,7 +105,7 @@ agents:
   EscalationAgent:
     env:
       JIRA_BASE_URL: https://acme.atlassian.net
-      JIRA_TOKEN: "{{ JIRA_TOKEN }}"
+      JIRA_TOKEN: "{% raw %}{{ JIRA_TOKEN }}{% endraw %}"
       MODEL: claude-3-7-sonnet
     files:
       - sourcePath: ./prompts/escalation-system.md

@@ -4,14 +4,14 @@
         {% block head %}
         <meta charset="UTF-8">
         <meta name="robots" content="index, follow">
-        <title>{% if page.title %}{{ page.title }}{% else %}{{ config.title }}{% endif %}</title>
-        {% if page.author %}
+        <title>{% if page?.title %}{{ page.title }}{% else %}{{ config.title }}{% endif %}</title>
+        {% if page?.author %}
         <meta name="author" content="{{ page.author }}">
         {% elif config.author %}
         <meta name="author" content="{{ config.author }}">
         {% else %}
         {% endif %}     
-        {% if page.description %}
+        {% if page?.description %}
         <meta name="description" content="{{ page.description }}">
         {% else %}
         <meta name="description" content="{{ config.description }}">
