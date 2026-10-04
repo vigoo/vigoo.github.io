@@ -34,4 +34,4 @@ There are two possibilities to set which conditionals are enabled:
 
 2. On the user interface, using *View* menu's *Enabled conditions...* menu item:
 
-![](/images/enabled-conditions-dialog.png)
+<img src="/images/enabled-conditions-dialog.webp" alt="The D editor's Enabled conditions dialog with the FIRST and SECOND conditions checked" width="537" height="430" loading="lazy" decoding="async">

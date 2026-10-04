@@ -288,4 +288,4 @@ cp target/native-image/kubectl-lp ~/bin
 
 Then use `kubectl lp` to access our custom functions:
 
-![kubectl-example](/images/blog-ziok8s-kubectlplugin.png)
+<img src="/images/blog-ziok8s-kubectlplugin.webp" alt="The kubectl lp plugin printing usage, version and a table of Kubernetes resources" width="1108" height="1092" loading="lazy" decoding="async">

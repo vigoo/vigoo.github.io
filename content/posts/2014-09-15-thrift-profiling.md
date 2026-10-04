@@ -30,7 +30,7 @@ Without touching anything, returning 5499 dummy users on localhost took **5.272 
 
 The client side of the call looked like this:
 
-<a href="/images/profile1.png" class="zimg"><img width="600" src="/images/profile1.png" alt="profile1"></a>
+<a href="/images/profile1.webp" class="zimg"><img src="/images/profile1.webp" alt="Call graph of the initial Thrift get_users test run, dominated by Python object construction" width="600" height="644" loading="lazy" decoding="async"></a>
 
 Here we can see that the call has two major phases:
 
@@ -84,7 +84,7 @@ The test call now ran in **3.624 seconds**.
 
 And the new profiling results with this change:
 
-<a href="/images/profile2.png" class="zimg"><img width="600" src="/images/profile2.png" alt="profile2"></a>
+<a href="/images/profile2.webp" class="zimg"><img src="/images/profile2.webp" alt="Call graph with cached configuration, shifting time into the Thrift call path" width="600" height="678" loading="lazy" decoding="async"></a>
 
 The left-hand side of the call graph remained the same, but `recv_test_get_users` is now only 2.35% of the overall time which is ~0.08 seconds (to be compared with the 1.6 seconds with the original deserializer!)
 
@@ -96,7 +96,7 @@ The test call now ran in **3.328 seconds**!
 
 Let's see the call graph of this stage:
 
-<a href="/images/profile3.png" class="zimg"><img width="600" src="/images/profile3.png" alt="profile3"></a>
+<a href="/images/profile3.webp" class="zimg"><img src="/images/profile3.webp" alt="Call graph after caching the Thrift model, with serialization and socket reads remaining" width="600" height="695" loading="lazy" decoding="async"></a>
 
 ### Optimizing result processing
 
@@ -124,7 +124,7 @@ So the simple fix was to create a `_rows_to_model` helper function which does th
 
 Running my test code once again showed that the optimization makes sense. Now it ran in **2.448 seconds**, with the following call graph:
 
-<a href="/images/profile4.png" class="zimg"><img width="600" src="/images/profile4.png" alt="profile4"></a>
+<a href="/images/profile4.webp" class="zimg"><img src="/images/profile4.webp" alt="Call graph of the optimized path, dominated by the HTTP request and transport flush" width="600" height="923" loading="lazy" decoding="async"></a>
 
 ### Further optimizations
 
@@ -145,7 +145,7 @@ cProfile.runctx('self._call_processor(op_data)', globals(), locals(), 'callstats
 
 The server-side call took **1.691 seconds** and looked like this:
 
-<a href="/images/profile5.png" class="zimg"><img width="600" src="/images/profile5.png" alt="profile5"></a>
+<a href="/images/profile5.webp" class="zimg"><img src="/images/profile5.webp" alt="Call graph of the final run, with the process mostly sleeping" width="600" height="773" loading="lazy" decoding="async"></a>
 
 As expected, 60% of this was the 1 second sleep. The rest of the calls are data conversion with no obvious point to improve.
 

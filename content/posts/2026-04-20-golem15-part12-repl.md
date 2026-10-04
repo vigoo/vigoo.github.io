@@ -79,6 +79,7 @@ $ golem repl --script-file test.rs --language rust --yes
 ### What about Scala and MoonBit?
 Unfortunately we don't have any REPL implementation for Scala and MoonBit in **Golem 1.5**. This means we cannot use Scala or MoonBit syntax in the interactive REPL or in test scripts, but the TypeScript and Rust REPLs have full support for any agent, even if implemented in another language.
 
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
 
 <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>

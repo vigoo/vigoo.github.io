@@ -13,7 +13,7 @@ To make it better I wrote a small library called [ScalaFXML](https://github.com/
 
 The following image shows how our sample application will look like:
 
-![](/images/unit-conversion-shot.png)
+<img src="/images/unit-conversion-shot.webp" alt="The running unit converter converting ten inches to 254 millimeters" width="437" height="251" loading="lazy" decoding="async">
 
 The _From_ fiels is editable, and the result in the _To_ field is filled as you type using _data binding_. The _Close_ button's only purpose is to demonstrate event handlers.
 
@@ -179,7 +179,7 @@ What I wanted is to be able to define the controller class exactly like this whi
 
 With [ScalaFXML](https://github.com/vigoo/scalafxml) the process is really simple. First we create the FXML, for example with the [JavaFX Scene Builder](http://www.oracle.com/technetwork/java/javafx/tools/index.html):
 
-![](/images/unit-conversion-scenebuilder.png)
+<img src="/images/unit-conversion-scenebuilder.webp" alt="JavaFX Scene Builder editing the unit converter's GridPane layout" width="1031" height="594" loading="lazy" decoding="async">
 
 In the FXML we give the `from`, `to`, and `types` identifiers to our controls using the `fx:id` attribute, for example:
 

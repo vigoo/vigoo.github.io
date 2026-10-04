@@ -682,11 +682,11 @@ If the `tags` in the response is empty, or anything else fails, we call `analysi
 
 At this point we can build and deploy our application, and start playing with it:
 
-![](/images/libdb-golem-rust-1.png)
+<img src="/images/libdb-golem-rust-1.webp" alt="REPL session discovering Rust libraries in the mp3 topic and querying the puremp3 decoder details" width="709" height="726" loading="lazy" decoding="async">
 
 and the log stream:
 
-![](/images/libdb-golem-rust-2.png)
+<img src="/images/libdb-golem-rust-2.webp" alt="Agent logs registering discovered Rust libraries and topics in the catalog" width="955" height="553" loading="lazy" decoding="async">
 
 ### Catalog agent
 
@@ -895,7 +895,7 @@ We need to add CORS Preflight endpoints to our route to make the scripts work. I
 
 Once we added all of them and redeployed, our frontend works as expected!
 
-![](/images/libdb-golem-rust-3.png)
+<img src="/images/libdb-golem-rust-3.webp" alt="Library Discovery web UI listing the discovered JavaScript libraries under the javascript topic" width="1020" height="736" loading="lazy" decoding="async">
 
 ## Conclusion
 

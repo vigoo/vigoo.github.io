@@ -13,7 +13,7 @@ I have recently published a set of libraries, [**zio-aws**](https://github.com/v
 
 The CLI tool we build will get an arbitrary string as an input, and search for it in various AWS resources. Once it has a match, it has to traverse a graph of these resources and finally pretty-print all the gathered information to the console.
 
-<img src="/images/awsquery-1.png"/>
+<img src="/images/awsquery-1.webp" alt="ZIO Query walking the ECS resource tree in a terminal: clusters, services, task definitions and instances" width="780" height="505" loading="lazy" decoding="async">
 
 The provided input could mean any of the following:
 

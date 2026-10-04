@@ -376,7 +376,7 @@ One way to do this composition is to use `wasm-tools compose`, but it is more co
 
 The following diagram demonstrates how the component's in the example are interacting with each other:
 
-![](/images/w2w-comm.png)
+<img src="/images/w2w-comm.webp" alt="Diagram of worker-to-worker communication in Golem: composed WASM templates deployed as workers exchanging WASM RPC" width="1234" height="833" loading="lazy" decoding="async">
 
 ## Conclusion
 

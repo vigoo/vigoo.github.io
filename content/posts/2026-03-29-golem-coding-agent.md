@@ -1058,6 +1058,7 @@ With Golem providing the durable agent infrastructure, the generated client libr
 
 I am publishing the code for this [on GitHub](https://github.com/vigoo/gca) but today it's not that easy to try it out - as I said I had to make some Golem fixes to make everything work, and some of those fixes have not even merged to `main` yet. But **Golem 1.5** is going to be released soon, in April, 2026. Within a few weeks you can do the same by just downloading the official Golem binaries!
 
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
 
 <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>

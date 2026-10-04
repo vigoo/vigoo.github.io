@@ -1,4 +1,5 @@
 title = "vigoo's software development blog"
+description = "Blog posts about projects, ideas and experiments of Daniel Vigovszky (vigoo)"
 author = "Daniel Vigovszky"
 
 base_url = "https://blog.vigoo.dev"
@@ -11,6 +12,8 @@ taxonomies = [{ name = "tags", feed = true }]
 [markdown]
 
 [markdown.highlighting]
-theme = "one-light"
+style = "class"
+light_theme = "one-light"
+dark_theme = "one-dark-pro"
 
 [extra]

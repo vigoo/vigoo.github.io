@@ -291,12 +291,12 @@ On the following screenshots we can see how this default stack shows traces, log
 
 **Traces**:
 
-![](/images/golem15-otlp-jaeger.png)
+<img src="/images/golem15-otlp-jaeger.webp" alt="Jaeger trace view of a Golem agent invocation showing its two spans" width="1500" height="310" loading="lazy" decoding="async">
 
 **Metrics**:
 
-![](/images/golem15-otlp-prometheus.png)
+<img src="/images/golem15-otlp-prometheus.webp" alt="Grafana graph of the golem_invocation_count_total Prometheus metric per agent" width="788" height="649" loading="lazy" decoding="async">
 
 **Logs**:
 
-![](/images/golem15-otlp-loki.png)
+<img src="/images/golem15-otlp-loki.webp" alt="Grafana Loki showing OTLP-exported Golem agent logs with the agent ID as service name" width="1600" height="896" loading="lazy" decoding="async">

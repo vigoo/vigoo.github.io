@@ -23,7 +23,7 @@ This is not very interesting so far, but when you introduce dependencies on Grad
 
 Let's see an example scenario with _4 gradle-haskell projects_.
 
-<a href="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" class="zimg"><img width="600" src="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" alt="gradle-haskell-plugin"></a>
+<a href="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" class="zimg"><img src="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" alt="Diagram of the gradle-haskell-plugin module structure" width="600" height="429" loading="lazy" decoding="async"></a>
 
 The project called _Haskell project_ depends on two other projects, which taking into accound the transitive dependencies means it depends on _three other haskell projects_. Each project has its own haskell source and _cabal file_. Building this suite consists of the following steps:
 

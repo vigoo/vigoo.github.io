@@ -44,7 +44,7 @@ Let's start *Code* now!
 ### Installing the extension
 Open the *command palette* (F1, or ⇧⌘P) and type `ext install bari`
 
-<a href="/images/baricode1.png" class="zimg"><img width="600" src="/images/baricode1.png" alt="bari-code-1"></a>
+<a href="/images/baricode1.webp" class="zimg"><img src="/images/baricode1.webp" alt="Installing the bari extension from the Visual Studio Code marketplace view" width="600" height="86" loading="lazy" decoding="async"></a>
 
 ### Loading the project
 After that restart the editor. Have your bari-built project available somewhere. As we are going to develop bari itself, let's clone its repository:
@@ -53,7 +53,7 @@ After that restart the editor. Have your bari-built project available somewhere.
     
 Then open the result `bari` directory with *Code*. This should look like the following:
 
-<a href="/images/baricode2.png" class="zimg"><img width="800" src="/images/baricode2.png" alt="bari-code-2"></a>
+<a href="/images/baricode2.webp" class="zimg"><img src="/images/baricode2.webp" alt="Visual Studio Code with the bari suite loaded in the explorer" width="800" height="564" loading="lazy" decoding="async"></a>
 
 The *bari plugin* automatically detected that the opened folder has a `suite.yaml` in its root, and loaded it. That's why we can see the two sections on the statusbar's right side: `full` and `debug`. The first one is the [selected target product](https://github.com/vigoo/bari/wiki/Product) and the second one is the [selected goal](https://github.com/vigoo/bari/wiki/Goal). All the *bari commands* provided by the extension will be executed with these settings. 
 
@@ -62,31 +62,31 @@ To change the active product or goal, you can click on the statusbar or use the 
 
 Let's change the *goal* to `debug-mono`, as we are working on a non-Windows environment:
 
-<a href="/images/baricode3.png" class="zimg"><img width="800" src="/images/baricode3.png" alt="bari-code-3"></a>
+<a href="/images/baricode3.webp" class="zimg"><img src="/images/baricode3.webp" alt="Choosing a bari build configuration from the quick pick menu" width="800" height="560" loading="lazy" decoding="async"></a>
 
 ### Generating the solution
 The next step before starting coding is to actually **generate** the solution and projects files (and fetch the dependencies, etc.) so *OmniSharp* can load it and provide code completion, analysis, etc. features. 
 
 To do so, just use the *command palette* and choose `bari: Regenerate solution`, which [runs the `bari vs` command](https://github.com/vigoo/bari/wiki/VsCommand) with the correct parameters. The command's output is displayed in an *output panel* called `bari`. This looks like the following:
 
-<a href="/images/baricode4.png" class="zimg"><img width="800" src="/images/baricode4.png" alt="bari-code-4"></a>
+<a href="/images/baricode4.webp" class="zimg"><img src="/images/baricode4.webp" alt="The bari output panel resolving NuGet package references" width="800" height="562" loading="lazy" decoding="async"></a>
 
 There's nothing else left than pointing *OmniSharp* to the generated solution, with the following command:
 
-<a href="/images/baricode5.png" class="zimg"><img width="800" src="/images/baricode5.png" alt="bari-code-5"></a>
+<a href="/images/baricode5.webp" class="zimg"><img src="/images/baricode5.webp" alt="The command palette searching for OmniSharp commands" width="800" height="126" loading="lazy" decoding="async"></a>
 
 It will automatically find the generated `.sln` file, just select the correct one:
 
-<a href="/images/baricode6.png" class="zimg"><img width="800" src="/images/baricode6.png" alt="bari-code-6"></a>
+<a href="/images/baricode6.webp" class="zimg"><img src="/images/baricode6.webp" alt="Selecting between the test-plugin and full-withtests solutions" width="800" height="130" loading="lazy" decoding="async"></a>
 
 In a few seconds (and with a few warnings for this project), *OmniSharp* works. To see what it can do, [check this page](https://code.visualstudio.com/Docs/languages/csharp). A simple example is to jump to a given class or interface with ⌘P:
 
-<a href="/images/baricode7.png" class="zimg"><img width="600" src="/images/baricode7.png" alt="bari-code-7"></a>
+<a href="/images/baricode7.webp" class="zimg"><img src="/images/baricode7.webp" alt="Workspace symbol search finding IUserOutput" width="600" height="118" loading="lazy" decoding="async"></a>
 
 ### Working on the project
 You can work on the project and build it from *Code* or run its tests using the `bari: Build` and `bari: Test` commands. The build output will be shown just like in the *solution generation step*. 
 
-<a href="/images/baricode8.png" class="zimg"><img width="600" src="/images/baricode8.png" alt="bari-code-8"></a>
+<a href="/images/baricode8.webp" class="zimg"><img src="/images/baricode8.webp" alt="The bari command palette listing build, test and solution commands" width="598" height="211" loading="lazy" decoding="async"></a>
 
 Whenever the suite definition itself must be modified, you can jump there with the `bari: Open suite.yaml` command and then just regenerate the solution as it was shown above.
 

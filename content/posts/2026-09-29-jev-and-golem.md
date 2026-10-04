@@ -15,7 +15,7 @@ Two weeks ago [TypeSafe AI introduced Jev](https://typesafe.ai/blog/introducing-
 
 A simple use case I came up with for this experiment is to use **Jev** as a filter and router among Golem agents. We are going to build a log ingress that maintains a sliding window of logs, and for each log line it asks Jev to classify it based on a configurable set of categories (for example security incident, service outage, data loss, performance degradation or none of these). Then we wait a bit more to acquire the surroundings of a matched log, and we forward it, together with a configurable amount of surrounding logs, to one or more other agents corresponding to the categories the classifier selected. This per-category agent then summarizes the event using an LLM and stores it in an event log.
 
-![Conceptual flow from HTTP log ingress through Jev classification to per-category incident registries](/images/jev-golem-concept.svg)
+<img src="/images/jev-golem-concept.svg" alt="Conceptual flow from HTTP log ingress through Jev classification to per-category incident registries" width="1600" height="600" loading="lazy" decoding="async">
 
 ## Building it
 
@@ -62,7 +62,7 @@ From this the agent created, deployed and tested a fully working Golem applicati
 
 So instead of focusing on how it built it, let's start from the end result. The resulting architecture looks like this:
 
-![Architecture of the Jev and Golem log incident processing demo](/images/jev-golem-architecture.svg)
+<img src="/images/jev-golem-architecture.svg" alt="Architecture of the Jev and Golem log incident processing demo" width="1600" height="880" loading="lazy" decoding="async">
 
 ### Understanding the components
 

@@ -127,11 +127,11 @@ If we start the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspe
 npx @modelcontextprotocol/inspector node build/index.js
 ```
 
-![](/images/golem15-mcp1.png)
+<img src="/images/golem15-mcp1.webp" alt="MCP Inspector configured to connect to the Golem MCP server over Streamable HTTP" width="377" height="518" loading="lazy" decoding="async">
 
 then click on the _quick auth flow_ and _connect_, we can go to the _Tools_ page and see our counter incrementation tool:
 
-![](/images/golem15-mcp2.png)
+<img src="/images/golem15-mcp2.webp" alt="MCP Inspector listing the CounterAgent increment_by tool after a successful run" width="1498" height="834" loading="lazy" decoding="async">
 
 We can pass the `Counter` agent's constructor parameter, `name` and the `increment_by` method's `n` parameter, and invoke it through an MCP tool.
 

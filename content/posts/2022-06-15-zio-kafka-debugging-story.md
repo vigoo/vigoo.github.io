@@ -15,7 +15,7 @@ We only have to know about the first component of this data pipeline, which is a
 - It also computes and aggregates a log schema in memory for each of these files
 - It is using Kafka transactions to achieve [exactly-once delivery](https://www.baeldung.com/kafka-exactly-once). This means that the processed records are not committed when they are written to the Avro files - there is a periodic event triggered every 30 seconds and at each rebalance that uploads the Avro files to S3, and _then_ it emits Kafka messages to downstream containing references to the uploaded files and their aggregated schema, and it commits all the offsets of all the input Kafka topic's _transactionally_.
 
-![](/images/blog-zio-kafka-debugging-1.png)
+<img src="/images/blog-zio-kafka-debugging-1.webp" alt="Diagram of the ZIO Kafka service decoding uploads, storing files in S3 and transactionally committing offsets" width="960" height="425" loading="lazy" decoding="async">
 
 ## Stream restarting mode in zio-kafka
 When we first implemented this using zio-kafka and started to test it we have seen a lot of errors like 
@@ -24,7 +24,7 @@ When we first implemented this using zio-kafka and started to test it we have se
 
 _Group generation ID_ is a counter that gets incremented at each rebalance. The problem was that zio-kafka by default provides a continuous stream for partitions that survives rebalances. So we have a single stream per Kafka partition and after a rebalance we end up with some of them revoked and their streams stopped, some new streams created, but the ones that remained assigned are not going to be recreated. 
 
-![](/images/blog-zio-kafka-debugging-2.png)
+<img src="/images/blog-zio-kafka-debugging-2.webp" alt="Kafka partitions with messages assigned to consumer generations across a rebalance" width="701" height="538" loading="lazy" decoding="async">
 
 This works fine without using transactions, but it means your stream can contain messages from multiple generations. I first tried to solve this by detecting generation switches downstream but quickly realized this cannot work. It's too late to commit the previous generation when there are already records from the new generation; we have to do it before the rebalance finishes.
 
@@ -32,7 +32,7 @@ To solve this I introduced a new _mode_ in zio-kafka back in February 2022, with
 
 This adds a new mode to zio-kafka's core run loop which guarantees that every rebalance stops all the partition streams and create new ones every time. 
 
-![](/images/blog-zio-kafka-debugging-3.png)
+<img src="/images/blog-zio-kafka-debugging-3.webp" alt="Rebalance diagram showing a stale message from the old generation arriving after partition reassignment" width="714" height="538" loading="lazy" decoding="async">
 
 With this approach the library user can build the following logic on top of the "stream of partition streams" API of zio-kafka:
 

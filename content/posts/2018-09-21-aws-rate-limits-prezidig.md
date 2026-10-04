@@ -71,7 +71,7 @@ But I knew that I cannot safely do this while the model we are building itself i
 
 I believe the following GitHub diff captures the core change of this step:
 
-<img src="/images/prezidig-img-1.png" width="800"/>
+<img src="/images/prezidig-img-1.webp" alt="GitHub diff of Model.scala replacing the Future-based children API with a plain list" width="800" height="408" loading="lazy" decoding="async">
 
 Of course I had to change all the subtypes of Model, and I went through the code looking for
 
@@ -84,7 +84,7 @@ and got rid of them. Except for the caching constructs, because I planned to ref
 
 Once I felt the model is safe enough, I went to the next big change, making everything asynchronous.
 
-<img src="/images/prezidig-img-2.png" width="800"/>
+<img src="/images/prezidig-img-2.webp" alt="Diff changing the fetch method's return type from Seq[M] to Future[List[M]]" width="800" height="14" loading="lazy" decoding="async">
 
 This took some hours, to be honest. But really, the core idea is only that the result must be a `Future[T]`, not `T`.
 
@@ -213,7 +213,7 @@ But now it was obvious that there are some circular references. And by simply dr
 
 Let me show you *the drawing*:
 
-<img src="/images/prezidig-img-3.png" width="800"/>
+<img src="/images/prezidig-img-3.webp" alt="Hand-drawn diagram of the ECS resource dependencies from load balancers to Route 53 and CloudFront" width="800" height="776" loading="lazy" decoding="async">
 
 So everything refers back to everything, not a surprise that this chained-together code cannot finish.
 
@@ -264,7 +264,7 @@ This can be achieved easily by some standard patterns like treating AWS as an en
 
 Let’s see the designed solution on a drawing:
 
-<img src="/images/prezidig-img-4.png" width="800"/>
+<img src="/images/prezidig-img-4.webp" alt="Diagram of the AWS throttling design: mirrors calling the AWS actor, which fans out to worker actors" width="800" height="505" loading="lazy" decoding="async">
 
 **Note**: the *classic Akka* has built-in support for this routing and circuit breaking, but I prefer *Akka-typed* because of its type safety, where there are no official reusable higher level components like this yet. The one I implemented here is quite specific, later could be refactored to be built from more reusable typed actor components.
 

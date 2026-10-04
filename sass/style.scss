@@ -1,17 +1,98 @@
-@import url("https://fonts.googleapis.com/css?family=Poppins:400,700,900");
-@import url("https://fonts.googleapis.com/css2?family=Fira+Code&display=swap");
+// ---------------------------------------------------------------------------
+// Theme colors — edit these to play with the look.
+// Every color below is derived from the accent; the header gradient uses the
+// header-specific values at the bottom of each block.
+// ---------------------------------------------------------------------------
 
-$iosevka:
-    "Iosevka Term Web", "Victor Mono", "Spline Sans Mono", "Fira Mono",
+@mixin theme-light {
+    --bg: #ffffff;
+    --text: #000000;
+    --muted: rgb(160, 160, 160);
+
+    // The original light palette (as committed to master)
+    --accent: rgb(30, 108, 185);
+    --accent-strong: rgb(30, 108, 185);
+    --accent-soft: rgba(30, 108, 185, 0.14);
+    --accent-contrast: #ffffff;
+
+    --tag-bg: rgb(158, 102, 33);
+    --tag-bg-hover: rgb(202, 143, 72);
+    --tag-fg: #ffffff;
+
+    --header-gradient: linear-gradient(to bottom, #19111f, #2c1e37);
+    --header-fg: #d1cddc;
+    --quote-bg: #fbfaf7;
+    --quote-fg: #25343f;
+    --border-soft: rgba(44, 30, 55, 0.12);
+    --border-strong: #2c1e37;
+    --row-alt: rgba(44, 30, 55, 0.03);
+    --tabs-border: #e0e0e0;
+    --tab-fg: #666666;
+    --mark-bg: rgba(254, 252, 232, 0.9);
+
+    color-scheme: light;
+}
+
+@mixin theme-dark {
+    // "Espresso" — warm dark brown with amber accents
+    --bg: #1c1714;
+    --text: #d6cfc7;
+    --muted: #948b81;
+
+    --accent: #e0a458;
+    --accent-strong: #ecc990;
+    --accent-soft: rgba(224, 164, 88, 0.13);
+    --accent-contrast: #1c1714;
+
+    --tag-bg: rgba(224, 164, 88, 0.16);
+    --tag-bg-hover: rgba(224, 164, 88, 0.32);
+    --tag-fg: #ecc990;
+
+    --header-gradient: linear-gradient(to bottom, #14100d, #1c1714);
+    --header-fg: #d6cfc7;
+    --quote-bg: #262019;
+    --quote-fg: #cbc2b6;
+    --border-soft: rgba(214, 207, 199, 0.16);
+    --border-strong: #d6cfc7;
+    --row-alt: rgba(214, 207, 199, 0.05);
+    --tabs-border: #3a332c;
+    --tab-fg: #a89d90;
+    --mark-bg: rgba(58, 51, 44, 0.9);
+
+    color-scheme: dark;
+}
+
+:root {
+    @include theme-light;
+}
+
+// Explicit choice wins; the media query is the no-JS / system default.
+:root[data-theme="dark"] {
+    @include theme-dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        @include theme-dark;
+    }
+}
+
+// Cross-document view transitions (progressive enhancement)
+@view-transition {
+    navigation: auto;
+}
+
+$iosevka: "Iosevka Term Web", "Victor Mono", "Spline Sans Mono", "Fira Mono",
     "Fira Sans", "JetBrains Mono", "Helvetica Neue", "Lexend Deca", sans-serif;
-$poppins: "Poppins", "Poppins", "helvetica neue", helvetica, arial, sans-serif;
-$main-link-color: rgb(30, 108, 185);
+$poppins: "Poppins", "helvetica neue", helvetica, arial, sans-serif;
+
+$content-width: 48rem;
 
 body {
-    //font-family: "Iosevka Term Web","Victor Mono","Spline Sans Mono","Fira Mono","Fira Sans","JetBrains Mono","Helvetica Neue","Lexend Deca",sans-serif;
     font-family: $poppins;
-    font-display: block;
     margin: 0px;
+    background-color: var(--bg);
+    color: var(--text);
 }
 
 h1 {
@@ -21,32 +102,36 @@ h1 {
 .post {
     h1 {
         font-family: $iosevka;
-        font-display: block;
         font-size: xx-large;
         margin-bottom: 1rem;
     }
 
     h2 {
         font-family: $iosevka;
-        font-display: block;
         font-size: x-large;
     }
 
     h3 {
         font-family: $iosevka;
-        font-display: block;
         font-size: large;
     }
 
     h4 {
         font-family: $iosevka;
-        font-display: block;
         font-size: 1.05rem;
     }
 
     h5 {
         font-family: $iosevka;
-        font-display: block;
+    }
+
+    a {
+        color: var(--accent);
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
     }
 
     blockquote {
@@ -54,10 +139,10 @@ h1 {
         overflow: hidden;
         margin: 1.75rem 0;
         padding: 1.35rem 1.75rem 1.35rem 4.5rem;
-        border-left: 0.35rem solid $main-link-color;
+        border-left: 0.35rem solid var(--accent);
         border-radius: 0 0.65rem 0.65rem 0;
-        background: #fbfaf7;
-        color: #25343f;
+        background: var(--quote-bg);
+        color: var(--quote-fg);
         font-family: Georgia, "Times New Roman", serif;
         line-height: 1.6;
         text-align: left;
@@ -66,7 +151,7 @@ h1 {
             position: absolute;
             top: 0.15rem;
             left: 1rem;
-            color: rgba(30, 108, 185, 0.14);
+            color: var(--accent-soft);
             content: "“";
             font-family: Georgia, "Times New Roman", serif;
             font-size: 5.5rem;
@@ -107,17 +192,17 @@ h1 {
             padding: 0.5rem 0.85rem;
             text-align: left;
             vertical-align: top;
-            border-bottom: 1px solid rgba(44, 30, 55, 0.12);
+            border-bottom: 1px solid var(--border-soft);
         }
 
         thead th {
             font-family: $iosevka;
             font-weight: 800;
-            border-bottom: 2px solid #2c1e37;
+            border-bottom: 2px solid var(--border-strong);
         }
 
         tbody tr:nth-child(even) {
-            background-color: rgba(44, 30, 55, 0.03);
+            background-color: var(--row-alt);
         }
     }
 }
@@ -136,28 +221,63 @@ h1 {
 
 .about {
     section {
-        width: 60%;
+        width: 66%;
     }
 
-    background-image: url("/images/vigoofej2020.jpg");
+    background-image: url("/images/vigoofej2020.webp");
     background-repeat: no-repeat;
     background-position-x: right;
     background-position-y: top;
     background-size: 30%;
 }
 
-menu {
-    padding-left: 2rem;
-    padding-right: 2rem;
+@media (max-width: 700px) {
+    .about {
+        background-image: none;
+
+        section {
+            width: 100%;
+        }
+    }
+}
+
+.hdr {
+    background-image: var(--header-gradient);
+    color: var(--header-fg);
+
+    h1,
+    .site-title {
+        font-family: $iosevka;
+        font-size: 1.5rem;
+        margin: 0;
+        padding-top: 16px;
+    }
+
+    a {
+        color: var(--header-fg);
+        text-decoration: none;
+    }
+}
+
+.hdr-inner {
+    width: max(70%, min(100% - 2rem, #{$content-width}));
+    margin-left: auto;
+    margin-right: auto;
+}
+
+nav ul {
+    padding: 0 0 0.75rem;
+    margin: 0;
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    align-items: center;
 
     li {
         list-style-type: none;
         padding: 0.5rem;
 
         a {
-            color: black;
             font-weight: bold;
             font-variant-caps: titling-caps;
             text-decoration: none;
@@ -170,33 +290,81 @@ menu {
     }
 }
 
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem;
+    margin: 0.25rem;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--header-fg);
+    cursor: pointer;
+
+    svg {
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+
+    .icon-sun {
+        display: none;
+    }
+
+    &:hover {
+        color: var(--accent);
+    }
+}
+
+:root[data-theme="dark"] .theme-toggle {
+    .icon-sun {
+        display: block;
+    }
+
+    .icon-moon {
+        display: none;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .theme-toggle {
+        .icon-sun {
+            display: block;
+        }
+
+        .icon-moon {
+            display: none;
+        }
+    }
+}
+
 .post-tag {
     display: inline;
     padding-left: 0.5rem;
     padding-right: 0.5rem;
     padding-bottom: 0.2rem;
     padding-top: 0.2rem;
+    white-space: nowrap;
 
     font-weight: bold;
     font-size: small;
 
-    background-color: rgb(158, 102, 33);
-    color: white;
+    background-color: var(--tag-bg);
+    color: var(--tag-fg);
     border-radius: 16px;
 
     a {
-        color: #ffffff;
+        color: var(--tag-fg);
         text-decoration: none;
     }
 
     &:hover {
-        background-color: rgb(202, 143, 72);
+        background-color: var(--tag-bg-hover);
     }
 }
 
 .post-list {
-    a {
-        color: $main-link-color;
+    h3 a {
+        color: var(--accent);
         text-decoration: none;
 
         &:hover {
@@ -204,9 +372,9 @@ menu {
         }
     }
 
+    h1,
     h2 {
         font-family: $iosevka;
-        font-display: block;
     }
 
     li {
@@ -217,7 +385,6 @@ menu {
         h3 {
             display: inline;
             font-family: $iosevka;
-            font-display: block;
             font-weight: normal;
         }
 
@@ -229,17 +396,11 @@ menu {
 
         .post-word-count {
             display: inline;
-            color: rgb(160, 160, 160);
+            color: var(--muted);
             font-style: italic;
             font-size: small;
             margin-left: 0.5rem;
-        }
-
-        .post-tag {
-            a {
-                color: #ffffff;
-                text-decoration: none;
-            }
+            white-space: nowrap;
         }
     }
 }
@@ -254,46 +415,33 @@ menu {
         .post-tag {
             padding: 8px;
             font-size: medium;
-            background-color: white;
+            background-color: var(--accent-soft);
+            color: var(--accent);
 
             a {
-                color: $main-link-color;
+                color: var(--accent);
             }
         }
     }
 }
 
-.hdr {
-    background-image: linear-gradient(to bottom, #19111f, #2c1e37);
-    color: #d1cddc;
-
-    h1 {
-        width: 70%;
-        padding-top: 16px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    a {
-        color: #d1cddc;
-        text-decoration: none;
-    }
-}
-
 main {
-    width: 70%;
+    // Fluid like the original design (70%), but never narrower than the
+    // comfortable reading width on small screens.
+    width: max(70%, min(100% - 2rem, #{$content-width}));
     margin-left: auto;
     margin-right: auto;
 
-    article {
-        text-align: justify;
+    // The About page gets more room for its side photo
+    &:has(.about) {
+        width: min(100% - 2rem, max(70%, 64rem));
     }
 
     .all-posts-link {
         display: block;
         padding-top: 2rem;
         padding-left: 2rem;
-        color: $main-link-color;
+        color: var(--accent);
         font-size: larger;
         text-decoration: none;
 
@@ -303,10 +451,22 @@ main {
     }
 }
 
+.ftr {
+    width: max(70%, min(100% - 2rem, #{$content-width}));
+    margin-left: auto;
+    margin-right: auto;
+    padding: 2rem 0 1.5rem;
+    font-size: small;
+    color: var(--muted);
+
+    a {
+        color: var(--muted);
+    }
+}
+
 pre {
     font-size: medium;
     font-family: "Fira Code", monospace;
-    font-display: block;
     padding-left: 1rem;
     overflow: auto;
 
@@ -335,13 +495,29 @@ pre {
         // If you want your highlights to take the full width.
         display: block;
         // The default background colour of a mark is bright yellow
-        background-color: rgba(254, 252, 232, 0.9);
+        background-color: var(--mark-bg);
     }
+}
+
+// Required base CSS for giallo class-based syntax highlighting
+.giallo-l {
+    display: inline-block;
+    min-height: 1lh;
+    width: 100%;
+}
+
+.giallo-ln {
+    display: inline-block;
+    user-select: none;
+    margin-right: 0.4em;
+    padding: 0.4em;
+    min-width: 3ch;
+    text-align: right;
+    opacity: 0.8;
 }
 
 code {
     font-family: "Fira Code", monospace;
-    font-display: block;
 }
 
 .zola-anchor {
@@ -359,7 +535,7 @@ code {
     .code-tabs-nav {
         display: flex;
         gap: 0;
-        border-bottom: 2px solid #e0e0e0;
+        border-bottom: 2px solid var(--tabs-border);
     }
 
     .code-tab-btn {
@@ -370,26 +546,18 @@ code {
         font-family: $iosevka;
         font-size: 0.9rem;
         font-weight: bold;
-        color: #666;
+        color: var(--tab-fg);
         border-bottom: 2px solid transparent;
         margin-bottom: -2px;
         transition: color 0.2s, border-color 0.2s;
 
         &:hover {
-            color: $main-link-color;
+            color: var(--accent);
         }
 
         &.active {
-            color: $main-link-color;
-            border-bottom-color: $main-link-color;
-        }
-    }
-
-    .code-tab-content {
-        display: none;
-
-        &.active {
-            display: block;
+            color: var(--accent);
+            border-bottom-color: var(--accent);
         }
     }
 }

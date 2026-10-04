@@ -1,17 +1,20 @@
 {% extends "index.html" %}
 {% block main %}
 <section class="post-list">
-    <h2>Blog posts</h2>
+    <h1>Blog posts</h1>
     {% set all_posts = get_section(path="posts/_index.md") %}
-    {% set yearly_posts = all_posts.pages | group_by(attribute="year") %}
-
-    {% for year, posts in yearly_posts %}
-        <h3>{{ year }}</h3>
-        <ul>
-        {% for page in posts %}
+    {# pages are sorted by date descending, so emitting a heading on year
+       changes gives newest years first — group_by would iterate in map order #}
+    {% set prev_year = 0 %}
+    {% for page in all_posts.pages %}
+        {% if page.year != prev_year %}
+            {% if prev_year != 0 %}</ul>{% endif %}
+            <h2>{{ page.year }}</h2>
+            <ul>
+            {% set_global prev_year = page.year %}
+        {% endif %}
         {% include "partials/post-list-item.html" %}
-        {% endfor %}
-        </ul>    
     {% endfor %}
+    </ul>
 </section>
 {% endblock %}

@@ -36,7 +36,7 @@ Next we create a new *golem application*:
 golem app new manyworkers rust
 ```
 
-![](/images/2025-03-28/1.png)
+<img src="/images/2025-03-28/1.webp" alt="Golem CLI creating the manyworkers Rust application" width="1100" height="143" loading="lazy" decoding="async">
 
 Golem comes with a set of **components templates** for all supported languages. One of these templates is a simple _shopping cart_ implementation in Rust, where each Golem worker (running instance of this component) represents a single shopping cart, keeping its contents in memory.
 
@@ -55,7 +55,7 @@ golem app build
 golem app deploy
 ```
 
-![](/images/2025-03-28/2.png)
+<img src="/images/2025-03-28/2.webp" alt="Golem CLI creating the demo:cart9 durable component and listing its exported shopping cart API" width="1100" height="318" loading="lazy" decoding="async">
 
 To see the interface of this example, let's query one using `component get`:
 
@@ -63,7 +63,7 @@ To see the interface of this example, let's query one using `component get`:
 golem component get demo:cart0
 ```
 
-![](/images/2025-03-28/3.png)
+<img src="/images/2025-03-28/3.webp" alt="Component metadata of demo:cart0 with its WASM exports" width="1100" height="289" loading="lazy" decoding="async">
 
 Before spawning our thousands of workers, we try out this exported interface by creating a single worker of `demo:cart0` called `test` and calling a few methods in it:
 
@@ -71,23 +71,23 @@ Before spawning our thousands of workers, we try out this exported interface by 
  golem worker invoke demo:cart0/test initialize-cart '"user1"'
 ```
 
-![](/images/2025-03-28/4.png)
+<img src="/images/2025-03-28/4.webp" alt="Invoking initialize-cart on the demo:cart0 worker through the Golem CLI" width="1100" height="137" loading="lazy" decoding="async">
 
 ```nu
 golem worker invoke demo:cart0/test add-item '{ product-id: "p1", name: "Example product", price: 1000.0, quantity: 2 }'
 ```
 
-![](/images/2025-03-28/5.png)
+<img src="/images/2025-03-28/5.webp" alt="Invoking add-item on the demo:cart0 worker through the Golem CLI" width="1100" height="99" loading="lazy" decoding="async">
 
 ```nu
 golem worker invoke demo:cart0/test get-cart-contents
 ```
 
-![](/images/2025-03-28/6.png)
+<img src="/images/2025-03-28/6.webp" alt="Invoking get-cart-contents on the demo:cart0 worker, returning the stored cart" width="1100" height="105" loading="lazy" decoding="async">
 
 For some more context, we can also check the size of the compiled WASM files (we were doing a debug build so they are relatively large) for these components:
 
-![](/images/2025-03-28/7.png)
+<img src="/images/2025-03-28/7.webp" alt="Worker metadata of the demo:cart0 test worker showing status and memory usage" width="1100" height="418" loading="lazy" decoding="async">
 
 We can also query metadata of the created worker to get the same size information, and it also going to tell us the amount of **memory** the instance allocates on startup:
 
@@ -95,7 +95,7 @@ We can also query metadata of the created worker to get the same size informatio
 golem worker get demo:cart0/test
 ```
 
-![](/images/2025-03-28/9.png)
+<img src="/images/2025-03-28/9.webp" alt="File listing of the twelve demo cart debug WASM components, each 3.1 megabytes" width="1100" height="510" loading="lazy" decoding="async">
 
 And we can query the test worker's _oplog_ to get an idea of how much additional memory it allocated dynamically runtime:
 
@@ -103,7 +103,7 @@ And we can query the test worker's _oplog_ to get an idea of how much additional
 golem worker oplog demo:cart0/test --query memory
 ```
 
-![](/images/2025-03-28/8.png)
+<img src="/images/2025-03-28/8.webp" alt="Invocation log of the demo:cart0 worker showing repeated durable grow memory operations" width="1100" height="329" loading="lazy" decoding="async">
 
 ### Spawning many workers
 
@@ -132,7 +132,7 @@ After that, we have 10000 "running" workers (all idle, waiting for a next invoca
 golem worker list demo:cart5
 ```
 
-![](/images/2025-03-28/10.png)
+<img src="/images/2025-03-28/10.webp" alt="Cart contents of a thousand demo cart workers listed by the Golem CLI" width="1100" height="732" loading="lazy" decoding="async">
 
 Of course only some of these workers (the last accessed ones) are really in the locally running executor's memory. Whenever a worker that's not in memory is going to be accessed, it is loaded and its state is transparently restored before it gets the request. Golem is tracking the resource usage of its running components and if there is not enough memory to load the new component, an old one is going to be dropped out.
 
@@ -140,6 +140,6 @@ Of course only some of these workers (the last accessed ones) are really in the 
 
 To demonstrate this, we can just invoke workers randomly from the 10000 we've created:
 
-![](/images/2025-03-28/11.png)
+<img src="/images/2025-03-28/11.webp" alt="Invoking get-cart-contents on several durable shopping cart workers in sequence" width="1100" height="383" loading="lazy" decoding="async">
 
 Thanks to the durable execution model, every one of the 10000 workers react just as if it was running.
