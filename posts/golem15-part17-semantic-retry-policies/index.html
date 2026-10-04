@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 17: Semantic retry policies</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/golem15-part17-semantic-retry-policies/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Golem 1.5 features - Part 17: Semantic retry policies">
+        <meta property="og:description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/golem15-part17-semantic-retry-policies/">
+        
+        
+        <meta property="article:published_time" content="2026-04-24T16:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Golem 1.5 features - Part 17: Semantic retry policies",
+            "datePublished": "2026-04-24T16:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/golem15-part17-semantic-retry-policies/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/golem15-part17-semantic-retry-policies/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem","durable-execution","agents","golem-1.5"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 17: Semantic retry policies</h1>
+            <p class="posted-on">Posted on <time datetime="2026-04-24">April 24, 2026</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="retry-policies">Retry policies</h2>
+<p>Previous Golem versions had a simple, global retry policy describing a few retries with exponential backoff. This retry policy applied to everything - in case a Golem application failed with an error (for example a Rust panic) it recreated the instance according to this policy a few times before it marked the agent to be permanently failed. This in theory could make transient errors auto-resolved but it did not allow much control to the user (although the parameters of this global policy could be overridden) and the exact behavior depended heavily on how exactly (and <em>when</em>) the application crashes with an error.</p>
+<p><strong>Golem 1.5</strong> improves this in two ways:</p>
+<ul>
+<li>introducing automatic inline retries in many scenarios</li>
+<li>a fully redesigned, customizable and composable retry policy model</li>
+</ul>
+<h3 id="inline-retries">Inline retries</h3>
+<p>In many cases throwing away the agent instance, and recreating its state from scratch is not necessary for a retry. Golem now transparently retries all these transient issues with HTTP requests etc. immediately, providing a much faster and reliable retry mechanism.</p>
+<p>Another part of this change is better classification of what <em>can</em> be retried and what not. We no longer retry things that are known to be deterministically fail again.</p>
+<h3 id="retry-policies-1">Retry policies</h3>
+<p>The new retry policies are much more flexible and customizable than the single global configuration we had before. Just like with <a href="/posts/golem15-part7-config-and-secrets">secrets</a> and <a href="/posts/golem15-part17-semantic-retry-policies">resource quotas</a>, retry policies are also defined <strong>per-environment</strong>. An environment can have an arbitrary number of <strong>named</strong> retry policies defined. Each has a <strong>predicate</strong> and a <strong>policy</strong> - the predicate is an expression that decides whether the policy should be applied for a given failure case or not. If it gets chosen (evaluation order can be controlled with a priority field), the applied retry strategy is described by the <strong>policy</strong>.</p>
+<h4 id="policies">Policies</h4>
+<p>The policy is a highly composable structure, with the following base nodes controlling <em>delays</em>:</p>
+<table><thead><tr><th>Policy</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>periodic</code></td><td>Fixed delay between each attempt</td></tr>
+<tr><td><code>exponential</code></td><td><code>baseDelay × factor^attempt</code> — exponentially growing delays</td></tr>
+<tr><td><code>fibonacci</code></td><td>Delays follow the Fibonacci sequence starting from <code>first</code> and <code>second</code></td></tr>
+<tr><td><code>immediate</code></td><td>Retry immediately (zero delay)</td></tr>
+<tr><td><code>never</code></td><td>Never retry — give up on first failure</td></tr>
+</tbody></table>
+<p>These can be combined with various combinators:</p>
+<table><thead><tr><th>Combinator</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>countBox</code></td><td>Limits the total number of retry attempts</td></tr>
+<tr><td><code>timeBox</code></td><td>Limits retries to a wall-clock duration</td></tr>
+<tr><td><code>clamp</code></td><td>Clamps computed delay to a <code>[minDelay, maxDelay]</code> range</td></tr>
+<tr><td><code>addDelay</code></td><td>Adds a constant offset on top of the computed delay</td></tr>
+<tr><td><code>jitter</code></td><td>Adds random noise (±factor × delay) to avoid thundering herds</td></tr>
+<tr><td><code>filteredOn</code></td><td>Apply the inner policy only when a predicate matches; otherwise give up</td></tr>
+<tr><td><code>andThen</code></td><td>Run the first policy until it gives up, then switch to the second</td></tr>
+<tr><td><code>union</code></td><td>Retry if <em>either</em> sub-policy wants to; pick the shorter delay</td></tr>
+<tr><td><code>intersect</code></td><td>Retry only while <em>both</em> sub-policies want to; pick the longer delay</td></tr>
+</tbody></table>
+<h4 id="predicates">Predicates</h4>
+<p>Predicates are boolean expressions evaluated against the <strong>error context properties</strong>. They can be composed with <code>and</code>, <code>or</code>, and <code>not</code>:</p>
+<table><thead><tr><th>Predicate</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>propEq</code> / <code>propNeq</code></td><td>Equality / inequality comparison</td></tr>
+<tr><td><code>propGt</code> / <code>propGte</code> / <code>propLt</code> / <code>propLte</code></td><td>Numeric comparisons</td></tr>
+<tr><td><code>propExists</code></td><td>True if the named property exists in the context</td></tr>
+<tr><td><code>propIn</code></td><td>True if the property value is in a given set</td></tr>
+<tr><td><code>propMatches</code></td><td>Glob pattern matching on the text representation</td></tr>
+<tr><td><code>propStartsWith</code> / <code>propContains</code></td><td>Prefix / substring matching</td></tr>
+<tr><td><code>true</code> / <code>false</code></td><td>Constant predicates</td></tr>
+</tbody></table>
+<h4 id="available-properties">Available properties</h4>
+<p>The <strong>properties</strong> are what predicates can refer to to evaluate if a policy applies to a failure case. Golem defines the following ones:</p>
+<table><thead><tr><th>Property</th><th>Set by</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>verb</code></td><td>All</td><td>text</td><td>HTTP method, <code>"invoke"</code>, <code>"resolve"</code>, <code>"trap"</code>, etc.</td></tr>
+<tr><td><code>noun-uri</code></td><td>All</td><td>text</td><td>Target URI (e.g. <code>https://…</code>, <code>worker://…</code>, <code>kv://…</code>)</td></tr>
+<tr><td><code>uri-scheme</code></td><td>All with URI</td><td>text</td><td>Scheme part of the URI</td></tr>
+<tr><td><code>uri-host</code></td><td>All with URI</td><td>text</td><td>Hostname</td></tr>
+<tr><td><code>uri-port</code></td><td>When port present</td><td>integer</td><td>Port number</td></tr>
+<tr><td><code>uri-path</code></td><td>All with URI</td><td>text</td><td>Path portion</td></tr>
+<tr><td><code>status-code</code></td><td>HTTP responses</td><td>integer</td><td>HTTP response status code</td></tr>
+<tr><td><code>error-type</code></td><td>HTTP errors</td><td>text</td><td>Error classification string</td></tr>
+<tr><td><code>function</code></td><td>RPC</td><td>text</td><td>Target function name</td></tr>
+<tr><td><code>target-component-id</code></td><td>RPC</td><td>text</td><td>Component ID of the target worker</td></tr>
+<tr><td><code>target-agent-type</code></td><td>RPC</td><td>text</td><td>Agent type name of the target</td></tr>
+<tr><td><code>db-type</code></td><td>RDBMS</td><td>text</td><td>Database type (from URI scheme)</td></tr>
+<tr><td><code>trap-type</code></td><td>WASM traps</td><td>text</td><td><code>"deterministic"</code> or <code>"transient"</code></td></tr>
+</tbody></table>
+<h3 id="defining-policies">Defining policies</h3>
+<p>Retry policies can be defined in the application manifest under the <code>retryPolicyDefaults</code> section, keyed by environment name. These retry policies are default values set when the application is deployed, and they can be manipulated live while agents are already using them.</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">r</span><span class="z-l-11 z-d-9">etryPolicyDefaults</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  m</span><span class="z-l-11 z-d-9">y-environment</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    #</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Never retry client errors (4xx)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    n</span><span class="z-l-11 z-d-9">o-retry-4xx</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">riority</span><span>:</span><span class="z-l-6 z-d-8"> 20</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">redicate</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        a</span><span class="z-l-11 z-d-9">nd</span><span>:</span></span>
+<span class="giallo-l"><span>          -</span><span class="z-l-11 z-d-9"> p</span><span class="z-l-11 z-d-9">ropGte</span><span>:</span><span> {</span><span class="z-l-11 z-d-9"> p</span><span class="z-l-11 z-d-9">roperty</span><span>:</span><span class="z-l-4 z-d-5"> s</span><span class="z-l-4 z-d-5">tatus-code</span><span>,</span><span class="z-l-11 z-d-9"> v</span><span class="z-l-11 z-d-9">alue</span><span>:</span><span class="z-l-6 z-d-8"> 400</span><span> }</span></span>
+<span class="giallo-l"><span>          -</span><span class="z-l-11 z-d-9"> p</span><span class="z-l-11 z-d-9">ropLt</span><span>:</span><span> {</span><span class="z-l-11 z-d-9"> p</span><span class="z-l-11 z-d-9">roperty</span><span>:</span><span class="z-l-4 z-d-5"> s</span><span class="z-l-4 z-d-5">tatus-code</span><span>,</span><span class="z-l-11 z-d-9"> v</span><span class="z-l-11 z-d-9">alue</span><span>:</span><span class="z-l-6 z-d-8"> 500</span><span> }</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">olicy</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">never</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    #</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Aggressive retry for known-transient HTTP errors</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    h</span><span class="z-l-11 z-d-9">ttp-transient</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">riority</span><span>:</span><span class="z-l-6 z-d-8"> 10</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">redicate</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        p</span><span class="z-l-11 z-d-9">ropIn</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          p</span><span class="z-l-11 z-d-9">roperty</span><span>:</span><span class="z-l-4 z-d-5"> s</span><span class="z-l-4 z-d-5">tatus-code</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          v</span><span class="z-l-11 z-d-9">alues</span><span>:</span><span> [</span><span class="z-l-6 z-d-8">502</span><span>,</span><span class="z-l-6 z-d-8"> 503</span><span>,</span><span class="z-l-6 z-d-8"> 504</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">olicy</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        c</span><span class="z-l-11 z-d-9">ountBox</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          m</span><span class="z-l-11 z-d-9">axRetries</span><span>:</span><span class="z-l-6 z-d-8"> 5</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            j</span><span class="z-l-11 z-d-9">itter</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              f</span><span class="z-l-11 z-d-9">actor</span><span>:</span><span class="z-l-6 z-d-8"> 0.15</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                c</span><span class="z-l-11 z-d-9">lamp</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                  m</span><span class="z-l-11 z-d-9">inDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">100ms</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                  m</span><span class="z-l-11 z-d-9">axDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">5s</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                  i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                    e</span><span class="z-l-11 z-d-9">xponential</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                      b</span><span class="z-l-11 z-d-9">aseDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">200ms</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                      f</span><span class="z-l-11 z-d-9">actor</span><span>:</span><span class="z-l-6 z-d-8"> 2.0</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    #</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Catch-all: moderate retry for everything else</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    c</span><span class="z-l-11 z-d-9">atch-all</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">riority</span><span>:</span><span class="z-l-6 z-d-8"> 0</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">redicate</span><span>:</span><span class="z-l-6 z-d-8"> true</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      p</span><span class="z-l-11 z-d-9">olicy</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        c</span><span class="z-l-11 z-d-9">ountBox</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          m</span><span class="z-l-11 z-d-9">axRetries</span><span>:</span><span class="z-l-6 z-d-8"> 3</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            e</span><span class="z-l-11 z-d-9">xponential</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              b</span><span class="z-l-11 z-d-9">aseDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">100ms</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              f</span><span class="z-l-11 z-d-9">actor</span><span>:</span><span class="z-l-6 z-d-8"> 3.0</span></span></code></pre>
+<p>When the agent encounters an error, policies are evaluated in <strong>descending priority order</strong>. In this example:</p>
+<ol>
+<li>First check <code>no-retry-4xx</code> (priority 20) — if it's a 4xx error, give up immediately</li>
+<li>Then check <code>http-transient</code> (priority 10) — if it's a 502/503/504, retry aggressively</li>
+<li>Fall through to <code>catch-all</code> (priority 0) — retry moderately for anything else</li>
+</ol>
+<h3 id="default-retry-policy">Default retry policy</h3>
+<p>When no user-defined retry policies are set, a default catch-all policy is activated which behaves the same way as the old global retry policy did.</p>
+<ul>
+<li><strong>Name</strong>: <code>"default"</code></li>
+<li><strong>Priority</strong>: <code>0</code> (lowest — any user-defined policy with priority ≥ 1 overrides it)</li>
+<li><strong>Predicate</strong>: <code>true</code> (matches everything)</li>
+<li><strong>Policy</strong>: Up to <strong>3 retries</strong>, exponential backoff with factor 3.0, delays clamped to [100ms, 1s], with 15% jitter</li>
+</ul>
+<p>In the new policy system, this would be defined like the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">n</span><span class="z-l-11 z-d-9">ame</span><span>:</span><span class="z-l-4 z-d-5"> d</span><span class="z-l-4 z-d-5">efault</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">p</span><span class="z-l-11 z-d-9">riority</span><span>:</span><span class="z-l-6 z-d-8"> 0</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">p</span><span class="z-l-11 z-d-9">redicate</span><span>:</span><span class="z-l-6 z-d-8"> true</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">p</span><span class="z-l-11 z-d-9">olicy</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  c</span><span class="z-l-11 z-d-9">ountBox</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    m</span><span class="z-l-11 z-d-9">axRetries</span><span>:</span><span class="z-l-6 z-d-8"> 3</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      j</span><span class="z-l-11 z-d-9">itter</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        f</span><span class="z-l-11 z-d-9">actor</span><span>:</span><span class="z-l-6 z-d-8"> 0.15</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          c</span><span class="z-l-11 z-d-9">lamp</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            m</span><span class="z-l-11 z-d-9">inDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">100ms</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            m</span><span class="z-l-11 z-d-9">axDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">1s</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            i</span><span class="z-l-11 z-d-9">nner</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              e</span><span class="z-l-11 z-d-9">xponential</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                b</span><span class="z-l-11 z-d-9">aseDelay</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">100ms</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                f</span><span class="z-l-11 z-d-9">actor</span><span>:</span><span class="z-l-6 z-d-8"> 3.0</span></span></code></pre><h3 id="live-editing-policies">Live-editing policies</h3>
+<p>As mentioned above, the default policies created by <code>golem deploy</code> can be modified on the fly using the CLI (or the REST API). This can be useful to react to production issues by tweaking retry behaviors without having to redeploy anything.</p>
+<p>The following examples show how the CLI can be used to manipulate these policies:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">#</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Create a new policy</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem</span><span class="z-l-4 z-d-5"> retry-policy</span><span class="z-l-4 z-d-5"> create</span><span class="z-l-4 z-d-5"> http-transient</span><span class="z-l-2 z-d-1"> \</span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">  -</span><span class="z-l-6 z-d-8">-priority</span><span class="z-l-6 z-d-8"> 10</span><span class="z-l-2 z-d-1"> \</span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">  -</span><span class="z-l-6 z-d-8">-predicate</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">{ propIn: { property: &quot;status-code&quot;, values: [502, 503, 504] } }</span><span class="z-l-4 z-d-5">&#39;</span><span class="z-l-2 z-d-1"> \</span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">  -</span><span class="z-l-6 z-d-8">-policy</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">{ countBox: { maxRetries: 5, inner: { exponential: { baseDelay: &quot;200ms&quot;, factor: 2.0 } } } }</span><span class="z-l-4 z-d-5">&#39;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">#</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> List all policies in the current environment</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem</span><span class="z-l-4 z-d-5"> retry-policy</span><span class="z-l-4 z-d-5"> list</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">#</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Get a specific policy by name</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem</span><span class="z-l-4 z-d-5"> retry-policy</span><span class="z-l-4 z-d-5"> get</span><span class="z-l-4 z-d-5"> http-transient</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">#</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Update an existing policy (e.g. raise its priority)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem</span><span class="z-l-4 z-d-5"> retry-policy</span><span class="z-l-4 z-d-5"> update</span><span class="z-l-4 z-d-5"> http-transient</span><span class="z-l-6 z-d-8"> -</span><span class="z-l-6 z-d-8">-priority</span><span class="z-l-6 z-d-8"> 15</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">#</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Delete a policy</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem</span><span class="z-l-4 z-d-5"> retry-policy</span><span class="z-l-4 z-d-5"> delete</span><span class="z-l-4 z-d-5"> http-transient</span></span></code></pre><h4 id="sdk-support">SDK support</h4>
+<p>The Golem SDK provide the same runtime query and modification capabilities. We can query retry policies, modify or create new ones, and have temporary overrides to them that are only affecting the running agent.</p>
+<p>The following example uses the Golem SDK to define and use a custom retry policy for a given HTTP request:</p>
+<div class="code-tabs">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  Policy</span><span>,</span><span class="z-l-11 z-d-9"> Predicate</span><span>,</span><span class="z-l-11 z-d-9"> NamedPolicy</span><span>,</span><span class="z-l-11 z-d-9"> Props</span><span>,</span><span class="z-l-11 z-d-9"> Duration</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  withRetryPolicy</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">@golemcloud/golem-ts-sdk</span><span class="z-l-4 z-d-5">&#39;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> policy</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> NamedPolicy</span><span>.</span><span class="z-l-3 z-d-3">named</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &#39;</span><span class="z-l-4 z-d-5">http-transient</span><span class="z-l-4 z-d-5">&#39;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">  Policy</span><span>.</span><span class="z-l-3 z-d-3">exponential</span><span>(</span><span class="z-d-10">Duration</span><span>.</span><span class="z-l-3 z-d-3">milliseconds</span><span>(</span><span class="z-l-6 z-d-8">200</span><span>)</span><span>,</span><span class="z-l-6 z-d-8"> 2</span><span class="z-l-6 z-d-8">.</span><span class="z-l-6 z-d-8">0</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">clamp</span><span>(</span><span class="z-d-10">Duration</span><span>.</span><span class="z-l-3 z-d-3">milliseconds</span><span>(</span><span class="z-l-6 z-d-8">100</span><span>)</span><span>,</span><span class="z-d-10"> Duration</span><span>.</span><span class="z-l-3 z-d-3">seconds</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">withJitter</span><span>(</span><span class="z-l-6 z-d-8">0</span><span class="z-l-6 z-d-8">.</span><span class="z-l-6 z-d-8">15</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">onlyWhen</span><span>(</span><span class="z-d-10">Predicate</span><span>.</span><span class="z-l-3 z-d-3">oneOf</span><span>(</span><span class="z-d-10">Props</span><span>.</span><span class="z-l-11 z-d-9">statusCode</span><span>,</span><span> [</span><span class="z-l-6 z-d-8">502</span><span>,</span><span class="z-l-6 z-d-8"> 503</span><span>,</span><span class="z-l-6 z-d-8"> 504</span><span>]</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">maxRetries</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"><span>  .</span><span class="z-l-3 z-d-3">priority</span><span>(</span><span class="z-l-6 z-d-8">10</span><span>)</span></span>
+<span class="giallo-l"><span>  .</span><span class="z-l-3 z-d-3">appliesWhen</span><span>(</span><span class="z-d-10">Predicate</span><span>.</span><span class="z-l-3 z-d-3">eq</span><span>(</span><span class="z-d-10">Props</span><span>.</span><span class="z-l-11 z-d-9">uriScheme</span><span>,</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">https</span><span class="z-l-4 z-d-5">&#39;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Scoped usage — policy is restored when the block exits</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">withRetryPolicy</span><span>(</span><span class="z-d-9">policy</span><span>,</span><span> (</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> HTTP calls in this block use the custom retry policy</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  makeHttpRequest</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-d-10">retry</span><span>::</span><span>*</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> std</span><span>::</span><span class="z-d-10">time</span><span>::</span><span class="z-l-2 z-d-10">Duration</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> policy</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> NamedPolicy</span><span>::</span><span class="z-l-3 z-d-3">named</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">http-transient</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">    Policy</span><span>::</span><span class="z-l-3 z-d-3">exponential</span><span>(</span><span class="z-d-10">Duration</span><span>::</span><span class="z-l-3 z-d-3">from_millis</span><span>(</span><span class="z-l-6 z-d-8">200</span><span>)</span><span>,</span><span class="z-l-6 z-d-8"> 2</span><span class="z-l-6 z-d-8">.</span><span class="z-l-6 z-d-8">0</span><span>)</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-3 z-d-3">clamp</span><span>(</span><span class="z-d-10">Duration</span><span>::</span><span class="z-l-3 z-d-3">from_millis</span><span>(</span><span class="z-l-6 z-d-8">100</span><span>)</span><span>,</span><span class="z-d-10"> Duration</span><span>::</span><span class="z-l-3 z-d-3">from_secs</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-3 z-d-3">with_jitter</span><span>(</span><span class="z-l-6 z-d-8">0</span><span class="z-l-6 z-d-8">.</span><span class="z-l-6 z-d-8">15</span><span>)</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-3 z-d-3">only_when</span><span>(</span><span class="z-d-10">Predicate</span><span>::</span><span class="z-l-3 z-d-3">one_of</span><span>(</span><span class="z-d-10">Props</span><span>::</span><span class="z-l-6 z-d-8">STATUS_CODE</span><span>,</span><span> [</span><span class="z-l-6 z-d-8">502_</span><span class="z-l-9 z-d-10">u16</span><span>,</span><span class="z-l-6 z-d-8"> 503</span><span>,</span><span class="z-l-6 z-d-8"> 504</span><span>]</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-3 z-d-3">max_retries</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>)</span></span>
+<span class="giallo-l"><span>.</span><span class="z-l-3 z-d-3">priority</span><span>(</span><span class="z-l-6 z-d-8">10</span><span>)</span></span>
+<span class="giallo-l"><span>.</span><span class="z-l-3 z-d-3">applies_when</span><span>(</span><span class="z-d-10">Predicate</span><span>::</span><span class="z-l-3 z-d-3">eq</span><span>(</span><span class="z-d-10">Props</span><span>::</span><span class="z-l-6 z-d-8">URI_SCHEME</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">https</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Scoped usage — policy is restored when the block exits</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">with_named_policy</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-9">policy</span><span>,</span><span class="z-d-1"> |</span><span class="z-d-1">|</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> HTTP calls in this block use the custom retry policy</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    make_http_request</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>?</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> golem</span><span>.</span><span class="z-l-9 z-d-10">Guards</span><span>.</span><span>_</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> golem</span><span>.</span><span>host</span><span>.</span><span class="z-l-9 z-d-10">Retry</span><span>.</span><span>_</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> scala</span><span>.</span><span>concurrent</span><span>.</span><span>duration</span><span>.</span><span>_</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> policy</span><span class="z-d-1"> =</span><span> named</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &quot;</span><span class="z-l-4 z-d-5">http-transient</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  Policy</span><span>.exponential</span><span>(</span><span class="z-l-6 z-d-8">200</span><span>.millis, </span><span class="z-l-6 z-d-8">2.0</span><span>)</span></span>
+<span class="giallo-l"><span>    .clamp</span><span>(</span><span class="z-l-6 z-d-8">100</span><span>.millis, </span><span class="z-l-6 z-d-8">5</span><span>.seconds</span><span>)</span></span>
+<span class="giallo-l"><span>    .withJitter</span><span>(</span><span class="z-l-6 z-d-8">0.15</span><span>)</span></span>
+<span class="giallo-l"><span>    .onlyWhen</span><span>(</span><span class="z-l-9 z-d-10">Props</span><span>.statusCode.oneOf</span><span>(</span><span class="z-l-6 z-d-8">502</span><span>, </span><span class="z-l-6 z-d-8">503</span><span>, </span><span class="z-l-6 z-d-8">504</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    .maxRetries</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span></span>
+<span class="giallo-l"><span>)</span><span>.priority</span><span>(</span><span class="z-l-6 z-d-8">10</span><span>)</span></span>
+<span class="giallo-l"><span> .appliesWhen</span><span>(</span><span class="z-l-9 z-d-10">Props</span><span>.uriScheme.eq</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">https</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Scoped usage — policy is restored when the Future completes</span></span>
+<span class="giallo-l"><span>withRetryPolicy</span><span>(</span><span>policy</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  Future</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> HTTP calls in this block use the custom retry policy</span></span>
+<span class="giallo-l"><span>    makeHttpRequest</span><span>()</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> policy</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  NamedPolicy</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">named</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">http-transient</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    Policy</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">exponential</span><span>(</span><span class="z-l-9 z-d-10">Duration</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">millis</span><span>(</span><span class="z-l-6 z-d-8">200</span><span>)</span><span>,</span><span class="z-l-6 z-d-8"> 2.0</span><span>)</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">clamp</span><span>(</span><span class="z-l-9 z-d-10">Duration</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">millis</span><span>(</span><span class="z-l-6 z-d-8">100</span><span>)</span><span>,</span><span class="z-l-9 z-d-10"> Duration</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">seconds</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">with_jitter</span><span>(</span><span class="z-l-6 z-d-8">0.15</span><span>)</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">only_when</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">        Predicate</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">one_of</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">          Props</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">status_code</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>          [</span><span class="z-l-9 z-d-10">Value</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">int</span><span>(</span><span class="z-l-6 z-d-8">502</span><span>)</span><span>,</span><span class="z-l-9 z-d-10"> Value</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">int</span><span>(</span><span class="z-l-6 z-d-8">503</span><span>)</span><span>,</span><span class="z-l-9 z-d-10"> Value</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">int</span><span>(</span><span class="z-l-6 z-d-8">504</span><span>)</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>        )</span><span>,</span></span>
+<span class="giallo-l"><span>      )</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">max_retries</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  )</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">priority</span><span>(</span><span class="z-l-6 z-d-8">10</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">applies_when</span><span>(</span><span class="z-l-9 z-d-10">Predicate</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">eq</span><span>(</span><span class="z-l-9 z-d-10">Props</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">uri_scheme</span><span>(</span><span>)</span><span>,</span><span class="z-l-9 z-d-10"> Value</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">text</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">https</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">// Scoped usage — policy is restored when the block exits</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">with_named_policy</span><span>!</span><span>(</span><span class="z-l-11 z-d-9">policy</span><span>,</span><span class="z-l-8 z-d-7"> fn</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  // HTTP calls in this block use the custom retry policy</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  make_http_request</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>}</span><span>)</span></span></code></pre></div>
+<h3 id="extensionability">Extensionability</h3>
+<p>Any future retry-capable host functionality we add to Golem can be integrated into this retry policy system, and with the ability of querying the policies runtime, third party, user-level retry functionalities can also be built on top of it.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

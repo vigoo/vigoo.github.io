@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#39;s software development blog - ddoc</title>
+    <subtitle>Blog posts about projects, ideas and experiments of Daniel Vigovszky (vigoo)</subtitle>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/ddoc/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2014-07-13T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/ddoc/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Conditional blocks in Distributed Documentor</title>
+        <published>2014-07-13T00:00:00+00:00</published>
+        <updated>2014-07-13T00:00:00+00:00</updated>
+        
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/conditional-blocks-in-ddoc/"/>
+        <id>https://blog.vigoo.dev/posts/conditional-blocks-in-ddoc/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/conditional-blocks-in-ddoc/">&lt;p&gt;I&#39;ve added a new feature to &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/distributed-documentor&quot;&gt;Distributed Documentor&lt;/a&gt; today, &lt;em&gt;conditional blocks&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;The idea is that parts of the documents can be enabled when a given &lt;em&gt;condition&lt;/em&gt; is present. This is very similar to &lt;a rel=&quot;external&quot; href=&quot;http://gcc.gnu.org/onlinedocs/cpp/Ifdef.html&quot;&gt;C&#39;s ifdef blocks&lt;/a&gt;. To use it with the &lt;em&gt;MediaWiki syntax&lt;/em&gt;, put &lt;code&gt;[When:X]&lt;/code&gt; and &lt;code&gt;[End]&lt;/code&gt; commands in separate lines:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;Unconditional&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;[When:FIRST]&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;First conditional&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;[When:SECOND]&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;First and second conditional&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;[End]&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;[End]&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;[When:SECOND]&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;Second conditional&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;[End]&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;em&gt;Snippets&lt;/em&gt; can also have conditional blocks.&lt;/p&gt;
+&lt;p&gt;There are two possibilities to set which conditionals are enabled:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;Specifying it with command line arguments, such as&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt; java -jar DistributedDocumentor.jar -D FIRST -D SECOND&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is useful when exporting a documentation from command line, or to launch the documentation editor with a predefined set of enabled conditions.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;On the user interface, using &lt;em&gt;View&lt;/em&gt; menu&#39;s &lt;em&gt;Enabled conditions...&lt;/em&gt; menu item:&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;img src=&quot;/images/enabled-conditions-dialog.webp&quot; alt=&quot;The D editor&#39;s Enabled conditions dialog with the FIRST and SECOND conditions checked&quot; width=&quot;537&quot; height=&quot;430&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;
+</content>
+        
+    </entry>
+</feed>

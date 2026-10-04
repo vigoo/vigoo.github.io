@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Introducing bari</title>
+
+        
+        
+        
+        
+        <meta name="description" content="In the past two years I worked on a project called bari which now reached an usable state. bari is a build management system, trying to fix Visual Studio&#39;s bad …">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/introducing-bari/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Introducing bari">
+        <meta property="og:description" content="In the past two years I worked on a project called bari which now reached an usable state. bari is a build management system, trying to fix Visual Studio&#39;s bad …">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/introducing-bari/">
+        
+        
+        <meta property="article:published_time" content="2014-05-16T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Introducing bari",
+            "datePublished": "2014-05-16T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/introducing-bari/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/introducing-bari/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["dotnet","bari","build tools"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Introducing bari</h1>
+            <p class="posted-on">Posted on <time datetime="2014-05-16">May 16, 2014</time></p>
+        </header>
+
+        <p>In the past two years I worked on a project called <a rel="external" href="https://github.com/vigoo/bari">bari</a> which now reached an usable state. <strong>bari</strong> is a <em>build management system</em>, trying to fix Visual Studio's bad parts while keeping the good ones.</p>
+<p>Basically it tries to make .NET development more convenient, when</p>
+<ul>
+<li>The application may consist of a <em>large number of projects</em></li>
+<li>There may be several different <em>subsets</em> of these projects defining
+valuable target <em>products</em></li>
+<li><em>Custom build steps</em> may be required</li>
+<li>It is important to be able to <em>reproduce</em> the build environment as
+easily as possible</li>
+<li>The developers want to use the full power of their <em>IDE</em></li>
+</ul>
+<p>The main idea is to generate Visual Studio solutions and projects <em>on the fly</em> as needed, from a concise <em>declarative</em>  build description. I tried to optimize this build description for human readability. Let's see an example, a short section from <strong>bari</strong>'s own build definition:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span>-</span><span class="z-l-11 z-d-9"> n</span><span class="z-l-11 z-d-9">ame</span><span>:</span><span class="z-l-4 z-d-5"> b</span><span class="z-l-4 z-d-5">ari</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> e</span><span class="z-l-4 z-d-5">xecutable</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  r</span><span class="z-l-11 z-d-9">eferences</span><span>:</span></span>
+<span class="giallo-l"><span>    -</span><span class="z-l-4 z-d-5"> g</span><span class="z-l-4 z-d-5">ac://System</span></span>
+<span class="giallo-l"><span>    -</span><span class="z-l-4 z-d-5"> n</span><span class="z-l-4 z-d-5">uget://log4net</span></span>
+<span class="giallo-l"><span>    -</span><span class="z-l-4 z-d-5"> n</span><span class="z-l-4 z-d-5">uget://Ninject/3.0.1.10</span></span>
+<span class="giallo-l"><span>    -</span><span class="z-l-4 z-d-5"> n</span><span class="z-l-4 z-d-5">uget://QuickGraph</span></span>
+<span class="giallo-l"><span>    -</span><span class="z-l-4 z-d-5"> m</span><span class="z-l-4 z-d-5">odule://Bari.Core</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  c</span><span class="z-l-11 z-d-9">sharp</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    r</span><span class="z-l-11 z-d-9">oot-namespace</span><span>:</span><span class="z-l-4 z-d-5"> B</span><span class="z-l-4 z-d-5">ari.Console</span></span></code></pre>
+<p>The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.</p>
+<p>To keep build definitions short and readable, <strong>bari</strong> prefers <em>convention</em> over <em>configuration</em>. For example the directory stucture in which the source code lays defines not only the name of the modules to build, but also the way it is built. For example, in a simple <em>hello world</em> example the C# source code would be put in the <code>src/TestModule/HelloWorld/cs</code> directory, and <strong>bari</strong> would build <code>target/TestModule/HelloWorld.exe</code>.</p>
+<p><strong>bari</strong> unifies the handling of <em>project references</em> in a way that referencing projects within a suite, from the GAC, using <a rel="external" href="http://www.nuget.org">Nuget</a> or from a custom repository works exactly the same. It is also possible to write <em>custom builders</em> in Python.</p>
+<p>For more information check out <a rel="external" href="https://github.com/vigoo/bari/wiki/GettingStarted">the getting started page</a>.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

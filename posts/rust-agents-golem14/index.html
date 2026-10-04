@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Rust agents in Golem 1.4</title>
+
+        
+        
+        
+        
+        <meta name="description" content="The previous version of Golem, 1.3 made a big leap from earlier versions by introducing code-first agents. We could now write stateful, persistent entities call…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/rust-agents-golem14/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Rust agents in Golem 1.4">
+        <meta property="og:description" content="The previous version of Golem, 1.3 made a big leap from earlier versions by introducing code-first agents. We could now write stateful, persistent entities call…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/rust-agents-golem14/">
+        
+        
+        <meta property="article:published_time" content="2025-12-18T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Rust agents in Golem 1.4",
+            "datePublished": "2025-12-18T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/rust-agents-golem14/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/rust-agents-golem14/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["rust","golem"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Rust agents in Golem 1.4</h1>
+            <p class="posted-on">Posted on <time datetime="2025-12-18">December 18, 2025</time></p>
+        </header>
+
+        <p>The <a rel="external" href="https://blog.vigoo.dev/posts/golem-code-first-agents/">previous version of Golem, 1.3</a> made a big leap from earlier versions by introducing <strong>code-first agents</strong>. We could now write stateful, persistent entities called agents by simply defining TypeScript classes with some annotations, while previously it required learning the WebAssembly interface definition language and using that to first define our application's public interface, then figure out how to implement that.</p>
+<p>But in Golem 1.3 we only supported this to TypeScript - we dropped support for all languages, as we wanted to only support this new experience; with Golem 1.4, <a rel="external" href="https://x.com/GolemCloud/status/2000696015142228039">launched on 22nd of December</a> we have a similar new code-first developer experience for <strong>Rust</strong>.</p>
+<p>In this post I'm showing how to write a small Golem application with the new Rust SDK.</p>
+<p>Note that even though this post is about Rust agents, everything we are going to see is possible with TypeScript agents as well, in a very similar way (with slightly even less boilerplate).</p>
+<h2 id="the-example">The example</h2>
+<p>The application we are going to develop, although not being extremely useful by itself, is small enough to fit to this post, but still contains many interesting details of how writing Rust agents in Golem 1.4 feels.</p>
+<p>Our application is going to be a graph database of <em>libraries</em> for various <em>programming languages</em>, organized into <em>topics</em>. By selecting a topic (let's say <code>json</code>) we will be able to discover libraries (Rust and JavaScript libraries) that associated with that topic - then all hits are going to be analyzed and stored. Each analyzed library is going to also add new topics, and these topics can be used to do more search for libraries, and so on.</p>
+<p>For searching libraries for a given topic, we are going to use the Google programmable search API to look for repositories on GitHub. To analyze the hits, we are going to ask OpenAI to give a short description and set of topics based on the project's README.</p>
+<p>The number of libraries and topics will be arbitrarily scalable, as well as the number of parallel topic discoveries (but limited by the 3rd party provider's limitations, of course).</p>
+<h2 id="implementation">Implementation</h2>
+<p>In general it is a good idea to design the whole architecture of an application like this in advance, and start working on it with a good understanding of what to do. I'm not going to show the overall design at this point, because introducing the parts one by one  will make it easier to explain the concepts and decisions.</p>
+<h3 id="starting-the-project">Starting the project</h3>
+<p>The only prerequisites to implement this example are:</p>
+<ul>
+<li>Golem 1.4 (the <code>golem</code> CLI application)</li>
+<li>Rust toolchain with the <code>wasm32-wasip1</code> target installed</li>
+<li><code>cargo-component 0.21.1</code></li>
+</ul>
+<p>See the Rust tab on <a rel="external" href="https://learn.golem.cloud/develop/setup">the official setup page</a> to learn how exactly set these up.</p>
+<p>Once we have them, we can create a new application using <code>golem</code> :</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>$ golem new </span></span>
+<span class="giallo-l"><span>&gt; Application name: lib-db</span></span>
+<span class="giallo-l"><span>&gt; Select language for the new component Rust</span></span>
+<span class="giallo-l"><span>&gt; Select a template for the new component: default: A simple agent implementing a counter</span></span>
+<span class="giallo-l"><span>&gt; Component Package Name: libdb:backend</span></span>
+<span class="giallo-l"><span>&gt; Add another component or create application? Create application</span></span>
+<span class="giallo-l"><span>Created application directory: lib-db</span></span>
+<span class="giallo-l"><span>Adding component libdb:backend</span></span>
+<span class="giallo-l"><span>Added new app component libdb:backend</span></span>
+<span class="giallo-l"><span>Created application lib-db</span></span></code></pre>
+<p>The application is called <code>lib-db</code>, and it consists of a single component, <code>libdb:backend</code>. Components are an organizational unit in Golem - an application can have multiple components, and each component can any number of <strong>agents</strong>. In this example we don't need to use multiple components. A possible reason could be to have different update/deploy strategies for different subsets of our agents.</p>
+<p>The <code>default</code> template we've chosen consists of a simple agent called <code>CounterAgent</code>, implementing a stateful counter identified by a name, with a single <code>increment</code> method.</p>
+<p>We can delete that, and start implementing our own agents. All agents are going to be defined in <code>components-rust/libdb-backend/src</code> - the module structure can be anything, I prefer putting each agent in its own submodule, and the shared data types (if not many) in the root module.</p>
+<h3 id="the-library-agent">The library agent</h3>
+<p>What is an agent in Golem? A stateful, durable entity, identified by its constructor parameters, exposing methods. Agents can run in parallel, but each agent itself executes their invoked methods sequentially. They also scale horizontally as each agent is put on one executor of the whole Golem cluster, based on some internal sharing logic.</p>
+<p>One good candidate for an agent in our example application is a <strong>library</strong>. A library is an entity identified by its name and programming language, and it holds state - was it already analyzed? If it was, it has some data - description, set of topics.</p>
+<p>As the agent state is not publicly visible, we also need to expose a method to query it.</p>
+<p>Let's see how this looks like in Rust!</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span>{</span><span>agent_definition</span><span>,</span><span> agent_implementation</span><span>}</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> http</span><span>::</span><span class="z-l-2 z-d-10">Uri</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> std</span><span>::</span><span class="z-d-10">collections</span><span>::</span><span class="z-l-2 z-d-10">HashSet</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> Library</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">reference</span><span>:</span><span class="z-l-2 z-d-10"> LibraryReference</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> get_details</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Result</span><span>&lt;</span><span class="z-l-2 z-d-10">LibraryDetails</span><span>,</span><span class="z-l-2 z-d-10"> String</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> LibraryImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    reference</span><span>:</span><span class="z-l-2 z-d-10"> LibraryReference</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    state</span><span>:</span><span class="z-l-2 z-d-10"> LibraryState</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">enum</span><span class="z-l-9 z-d-10"> LibraryState</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    Unknown</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    Analysed</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        repository</span><span>:</span><span class="z-l-2 z-d-10"> Uri</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        description</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        topics</span><span>:</span><span class="z-l-2 z-d-10"> HashSet</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    Failed</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        message</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> Library</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> LibraryImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">reference</span><span>:</span><span class="z-l-2 z-d-10"> LibraryReference</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            reference</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            state</span><span>:</span><span class="z-l-2 z-d-10"> LibraryState</span><span>::</span><span class="z-l-2 z-d-10">Unknown</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> get_details</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Result</span><span>&lt;</span><span class="z-l-2 z-d-10">LibraryDetails</span><span>,</span><span class="z-l-2 z-d-10"> String</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        match</span><span> &amp;</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>state </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">            LibraryState</span><span>::</span><span class="z-l-2 z-d-10">Failed</span><span> {</span><span class="z-l-11 z-d-9"> message</span><span> }</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Err</span><span>(</span><span class="z-l-11 z-d-9">message</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">            LibraryState</span><span>::</span><span class="z-l-2 z-d-10">Analysed</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                description</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                topics</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                repository</span><span>,</span></span>
+<span class="giallo-l"><span>            }</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Ok</span><span>(</span><span class="z-l-2 z-d-10">LibraryDetails</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                description</span><span>:</span><span class="z-l-11 z-d-9"> description</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                name</span><span>:</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>reference</span><span>.</span><span>name</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                language</span><span>:</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>reference</span><span>.</span><span>language</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                repository</span><span>:</span><span class="z-l-11 z-d-9"> repository</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                topics</span><span>:</span><span class="z-l-11 z-d-9"> topics</span><span>.</span><span class="z-l-3 z-d-3">iter</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">cloned</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">collect</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>            }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">            LibraryState</span><span>::</span><span class="z-l-2 z-d-10">Unknown</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Err</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Library not yet analyzed</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span><span> </span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>And some common data types used in the above snippet:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-l-2 z-d-10">Schema</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">derive</span><span class="z-l-6">(</span><span class="z-l-2 z-d-10">Debug</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Clone</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Hash</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> PartialEq</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Eq</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Schema</span><span class="z-l-6">)</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> enum</span><span class="z-l-9 z-d-10"> Language</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    Rust</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    JavaScript</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">derive</span><span class="z-l-6">(</span><span class="z-l-2 z-d-10">Debug</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Clone</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Hash</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> PartialEq</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Eq</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Schema</span><span class="z-l-6">)</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> struct</span><span class="z-l-9 z-d-10"> LibraryReference</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    language</span><span>:</span><span class="z-l-2 z-d-10"> Language</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> Display</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> LibraryReference</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> fmt</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>,</span><span class="z-l-11 z-d-9"> f</span><span>:</span><span> &amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-2 z-d-10"> Formatter</span><span>&lt;</span><span>&#39;</span><span class="z-l-9 z-d-10">_</span><span>&gt;</span><span>)</span><span> -&gt;</span><span class="z-d-10"> std</span><span>::</span><span class="z-d-10">fmt</span><span>::</span><span class="z-l-2 z-d-10">Result</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        write!</span><span>(</span><span class="z-l-11 z-d-9">f</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5"> [</span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">:?</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">]</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>name</span><span>,</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>language</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">derive</span><span class="z-l-6">(</span><span class="z-l-2 z-d-10">Debug</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Clone</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Schema</span><span class="z-l-6">)</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> struct</span><span class="z-l-9 z-d-10"> LibraryDetails</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    language</span><span>:</span><span class="z-l-2 z-d-10"> Language</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    repository</span><span>:</span><span class="z-l-2 z-d-10"> Uri</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    description</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    topics</span><span>:</span><span class="z-l-2 z-d-10"> HashSet</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>In these snippets we only have three Golem-specific details:</p>
+<ul>
+<li>Data types used anywhere in the agent's interface must derive <code>Schema</code></li>
+<li>The agent must be implemented as a pair of a <code>trait</code> and an implementation, with two macros: <code>agent_definition</code> and <code>agent_implementation</code> applied</li>
+</ul>
+<p>That's all that is required - our application can be built with <code>golem build</code> and deployed with <code>golem deploy</code>, assuming we have a locally started Golem server (<code>golem server run</code>).</p>
+<p>Let's do that, and try it out with <code>golem repl</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>&gt;&gt;&gt; let testr = library({ name: &quot;test-r&quot;, language: rust})</span></span>
+<span class="giallo-l"><span>()</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt; testr.get-details()</span></span>
+<span class="giallo-l"><span>err(&quot;Library not yet analysed&quot;)</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt; let desertrs = library({ name: &quot;desert-rust&quot;, language: rust})</span></span>
+<span class="giallo-l"><span>()</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt; desertrs.get-details()</span></span>
+<span class="giallo-l"><span>err(&quot;Library not yet analysed&quot;)</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt; let golem-ts-sdk = library({ name: &quot;golem-ts-sdk&quot;, language: java-script})</span></span>
+<span class="giallo-l"><span>()</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt; golem-ts-sdk.get-details()</span></span>
+<span class="giallo-l"><span>err(&quot;Library not yet analysed&quot;)</span></span>
+<span class="giallo-l"><span>&gt;&gt;&gt;</span></span></code></pre>
+<p>Of course every agent is initialized with <code>LibraryState::Unknown</code> so we can't see anything interesting yet. If we get out of the REPL, and check <code>golem agent list</code>, we can see that it indeed created three different agents in our server:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>Selected app: lib-db, env: local, server: local - builtin (http://localhost:9881)</span></span>
+<span class="giallo-l"><span>+----------------+-----------------------------+-----------+--------+-------------+--------------------------+</span></span>
+<span class="giallo-l"><span>| Component name | Agent name                  | Component | Status | Pending     | Created at               |</span></span>
+<span class="giallo-l"><span>|                |                             | revision  |        | invocations |                          |</span></span>
+<span class="giallo-l"><span>+----------------+-----------------------------+-----------+--------+-------------+--------------------------+</span></span>
+<span class="giallo-l"><span>| libdb:backend  | library({name:&quot;desert-      |         0 |   Idle |           0 | 2025-12-18T14:53:14.531Z |</span></span>
+<span class="giallo-l"><span>|                | rust&quot;,language:rust})       |           |        |             |                          |</span></span>
+<span class="giallo-l"><span>+----------------+-----------------------------+-----------+--------+-------------+--------------------------+</span></span>
+<span class="giallo-l"><span>| libdb:backend  | log()                       |         0 |   Idle |           0 | 2025-12-18T14:52:50.858Z |</span></span>
+<span class="giallo-l"><span>+----------------+-----------------------------+-----------+--------+-------------+--------------------------+</span></span>
+<span class="giallo-l"><span>| libdb:backend  | library({name:&quot;test-        |         0 |   Idle |           0 | 2025-12-18T14:52:50.731Z |</span></span>
+<span class="giallo-l"><span>|                | r&quot;,language:rust})          |           |        |             |                          |</span></span>
+<span class="giallo-l"><span>+----------------+-----------------------------+-----------+--------+-------------+--------------------------+</span></span>
+<span class="giallo-l"><span>| libdb:backend  | library({name:&quot;golem-ts-    |         0 |   Idle |           0 | 2025-12-18T14:53:38.352Z |</span></span>
+<span class="giallo-l"><span>|                | sdk&quot;,language:java-script}) |           |        |             |                          |</span></span>
+<span class="giallo-l"><span>+----------------+-----------------------------+-----------+--------+-------------+--------------------------+</span></span></code></pre>
+<p>One thing to notice - although we defined our data types and method names in the normal convention of Rust - pascal case for the type names, snake case for the method names and fields - when using the REPL and other Golem CLI commands, we have to use a <code>kebab-cased</code> version of everything. This is a limitation of Golem 1.4 that's going to be removed in the next version. For now, because of how it builds on WebAssembly components under the hood, we need to accept this, but at least the REPL provides auto-completion to make it easier to discover these transformed names.</p>
+<h3 id="the-topic-agent">The topic agent</h3>
+<p>The second entity in our system is going to be a <strong>topic</strong>. Let's just define a topic as something identified by a (lowercase) string, and has two methods: one to get the known list of libraries implementing this topic, and another to start <strong>discovering</strong> more libraries for this topic.</p>
+<p>We want to keep this discovery process on-demand, otherwise we would create an exponentially growing system trying to explore the whole GitHub.</p>
+<p>We can create another submodule and just sketch an initial version of this agent:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> Topic</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> discover_libraries</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> get_libraries</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Result</span><span>&lt;</span><span class="z-l-2 z-d-10">HashSet</span><span>&lt;</span><span class="z-l-2 z-d-10">LibraryReference</span><span>&gt;</span><span>,</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> TopicImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    libraries</span><span>:</span><span class="z-l-2 z-d-10"> HashSet</span><span>&lt;</span><span class="z-l-2 z-d-10">LibraryReference</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    failures</span><span>:</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> Topic</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> TopicImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span class="z-l-11 z-d-9"> name</span><span>.</span><span class="z-l-3 z-d-3">to_lowercase</span><span>(</span><span>)</span><span class="z-d-1"> !=</span><span class="z-l-11 z-d-9"> name</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">            panic!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Topic names must be lowercase</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>        </span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            name</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            libraries</span><span>:</span><span class="z-l-2 z-d-10"> HashSet</span><span>::</span><span class="z-l-3 z-d-3">new</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            failures</span><span>:</span><span class="z-l-2 z-d-10"> Vec</span><span>::</span><span class="z-l-3 z-d-3">new</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> discover_libraries</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        todo!</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> get_libraries</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Result</span><span>&lt;</span><span class="z-l-2 z-d-10">HashSet</span><span>&lt;</span><span class="z-l-2 z-d-10">LibraryReference</span><span>&gt;</span><span>,</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>failures</span><span>.</span><span class="z-l-3 z-d-3">is_empty</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">            Ok</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>libraries</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-l-8 z-d-7"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">            Err</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>failures</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span><span>        </span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>With out two main entities defined, we can finally switch to implement the topic discovery and library analysis!</p>
+<h3 id="topic-discovery">Topic discovery</h3>
+<p>The <code>discover_libraries</code> method that we left unimplemented so far need to do some Google search calls to find links to libraries on GitHub, and then for each hit, spawn a <strong>Library agent</strong> that is going to analyze that library and in case the analysis was successful, register it to belong to our <strong>topic</strong>.</p>
+<p>At this point we could write some code in <code>discover_libraries</code> implementing this - do requests to Google, process the response, loop on paginated results, etc. But this is a slow process, and as I mentioned earlier, <strong>agents are single-threaded and their invocations are sequential</strong>. If we would do it this way, the topic agent would be unresponsive during the discovery process, we could not even query it's status (for example invoking  <code>get_libraries</code> on it would just be enqueued to be executed <em>after</em> the discovery method returned).</p>
+<p>There are two ways to solve this in Golem - forking and spawning child agents. In this example we are going to define a new agent, <strong>TopicDiscovery</strong>, which is going to be responsible for the long-running process of searching for libraries, while the Topic agents remain responsible.</p>
+<p>When defining a new agent, we need to think about two things: its identity (constructor parameters) and its methods. In this case we have only one really good choice for the agent identity - we could say that each <strong>topic</strong> can have maximum 1 <strong>topic discovery</strong>. To achieve this, we can make the topic discovery agent also be identified by <strong>the topic name</strong>.</p>
+<p>If we would choose something with smaller cardinality, for example we would make the <strong>TopicDiscovery</strong> a singleton with no constructor parameters, then we could not run searches for multiple topics in parallel. If we would just assign a random ID (Golem has a built-in feature for that called <strong>phantom agents</strong>) then we would be able to run multiple searches for the <em>same topic</em> in parallel, which also would not make much sense.</p>
+<p>So we are going to have a 1-1 mapping, and use the topic name as our discovery agent's identity, and we are going to add a <strong>single run method</strong> to it. This is going to be long-running, but it does not matter because there isn't anything else to be called on this agent.</p>
+<p>Let's first define the "skeleton" of this agent without an actual implementation:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> TopicDiscovery</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> TopicDiscoveryImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    name</span><span>:</span><span class="z-l-2 z-d-10"> String</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> TopicDiscoveryImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> try_run</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-d-10"> anyhow</span><span>::</span><span class="z-l-2 z-d-10">Result</span><span>&lt;</span><span class="z-l-2 z-d-10">Vec</span><span>&lt;</span><span>(</span><span class="z-l-2 z-d-10">Language</span><span>,</span><span class="z-l-2 z-d-10"> SearchResult</span><span>)</span><span>&gt;</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        todo!</span><span>(</span><span>)</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> A</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> TopicDiscovery</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> TopicDiscoveryImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            name</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        match</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span class="z-l-3 z-d-3">try_run</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">            Ok</span><span>(</span><span class="z-l-11 z-d-9">results</span><span>)</span><span> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">                todo!</span><span>(</span><span>)</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> B</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">            Err</span><span>(</span><span class="z-l-11 z-d-9">err</span><span>)</span><span> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">                todo!</span><span>(</span><span>)</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> C</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>There are two new things in this snippet we haven't seen so far:</p>
+<ul>
+<li>agent methods (and also the constructor) can be <code>async</code>. Even being single-threaded, and invocations not being able to overlap, within an invocation there are async operations that can overlap, such as RPC calls, HTTP requests, and waiting for external events (using Golem promises).</li>
+<li>we can easily add helper methods to our implementations - everything outside of the <code>agent_implementation</code> is an implementation detail of that agent</li>
+</ul>
+<p>There are three <code>todo!</code>s in the above implementation, let's discuss them one by one.</p>
+<h4 id="searching-the-web-a">Searching the web (A)</h4>
+<p>We could manually do HTTP requests to use Google's search APIs (the recommended way is using the <a rel="external" href="https://docs.rs/wstd/latest/wstd/">wstd crate's HTTP client</a>) but we have a better option. Golem comes with a large number of <strong>connectors</strong> for 3rd party providers: LLMs, embeddings, text-to-speech, speech-to-text, video generation, code snippet execution, vector databases, searching, etc. Each of these categories define a unified API for working with various third-party providers in that category.</p>
+<p>For implementing <code>try_run</code>, we are going to use the <code>golem_rust::golem_ai::golem::web_search</code> module and as a separate step, we are going to choose Google as the selected implementation for it.</p>
+<p>The first step is to enable these connectors in the <code>Cargo.toml</code> file, as they are disabled in the default template:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="toml"><span class="giallo-l"><span class="z-l-11 z-d-9">golem-rust</span><span> =</span><span> {</span><span class="z-l-11 z-d-9"> version</span><span> =</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">1.10.3</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> features</span><span> =</span><span> [</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">export_golem_agentic</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">golem_ai</span><span class="z-l-4 z-d-5">&quot;</span><span>]</span><span> }</span></span></code></pre>
+<p>Adding the <code>golem_ai</code> feature enables access to all the connectors defined in the <a rel="external" href="https://github.com/golemcloud/golem-ai">golem-ai repo</a>.</p>
+<p>Then we can use these bindings in our method implementation:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-d-10">golem_ai</span><span>::</span><span class="z-d-10">golem</span><span>::</span><span class="z-d-10">web_search</span><span>::</span><span class="z-d-10">types</span><span>::</span><span>{</span><span class="z-l-2 z-d-10">SearchParams</span><span>,</span><span class="z-l-2 z-d-10"> SearchResult</span><span>}</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-d-10">golem_ai</span><span>::</span><span class="z-d-10">golem</span><span>::</span><span class="z-d-10">web_search</span><span>::</span><span class="z-d-10">web_search</span><span>::</span><span>start_search</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-8"> LANGUAGES</span><span>:</span><span> &amp;</span><span>[</span><span class="z-l-2 z-d-10">Language</span><span>]</span><span class="z-d-1"> =</span><span> &amp;</span><span>[</span><span class="z-l-2 z-d-10">Language</span><span>::</span><span class="z-l-2 z-d-10">Rust</span><span>,</span><span class="z-l-2 z-d-10"> Language</span><span>::</span><span class="z-l-2 z-d-10">JavaScript</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> result</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> vec!</span><span>[</span><span>]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span class="z-l-11 z-d-9"> language</span><span class="z-l-8 z-d-7"> in</span><span class="z-l-6 z-d-8"> LANGUAGES</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    let</span><span class="z-l-11 z-d-9"> search</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> start_search</span><span>(</span><span>&amp;</span><span class="z-l-2 z-d-10">SearchParams</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        query</span><span>:</span><span class="z-l-3 z-d-3"> format!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5"> library for </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">:?</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>name</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> language</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        include_domains</span><span>:</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span class="z-l-3 z-d-3">vec!</span><span>[</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">github.com</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>]</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        include_images</span><span>:</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span class="z-l-6 z-d-8">false</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> everything else is undefined below</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        safe_search</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span><span class="z-l-11 z-d-9"> language</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        region</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span><span class="z-l-11 z-d-9"> max_results</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span><span class="z-l-11 z-d-9"> time_range</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        exclude_domains</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span><span class="z-l-11 z-d-9"> include_html</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span><span class="z-l-11 z-d-9"> advanced_answer</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> page</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> search</span><span>.</span><span class="z-l-3 z-d-3">next_page</span><span>(</span><span>)</span><span>?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span class="z-l-11 z-d-9"> page</span><span>.</span><span class="z-l-3 z-d-3">is_empty</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            break</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        result</span><span>.</span><span class="z-l-3 z-d-3">extend</span><span>(</span><span class="z-l-11 z-d-9">page</span><span>.</span><span class="z-l-3 z-d-3">into_iter</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span class="z-d-1">|</span><span class="z-l-11 z-d-9">r</span><span class="z-d-1">|</span><span> (</span><span class="z-l-11 z-d-9">language</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> r</span><span>)</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">Ok</span><span>(</span><span class="z-l-11 z-d-9">result</span><span>)</span></span></code></pre>
+<p>We perform a separate search query for each language we are interested in, and go through all pages of the results for each.</p>
+<p>Note that the search API (and all the others in <code>golem-ai</code>) is NOT async. This is a limitation coming from being built on the current version of the WASM component model, and it is going to be lifted in the next Golem release.</p>
+<p>This search interface is not limited to Google search - we have implementations for Brave Search, Google Custom Search, Serper.dev and Tavily AI at the moment. Before deploying our application we need to choose which provider to use, by editing the <code>golem.yaml</code> file of our component. It comes by default with commented-out sections for all these connectors. To enable Google, we need to add a <code>dependency</code> and two entries to the <code>env</code> section:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">c</span><span class="z-l-11 z-d-9">omponents</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  l</span><span class="z-l-11 z-d-9">ibdb:backend</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    t</span><span class="z-l-11 z-d-9">emplates</span><span>:</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">ust</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    e</span><span class="z-l-11 z-d-9">nv</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      G</span><span class="z-l-11 z-d-9">OOGLE_API_KEY</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{{ GOOGLE_API_KEY }}</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      G</span><span class="z-l-11 z-d-9">OOGLE_SEARCH_ENGINE_ID</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{{ GOOGLE_SEARCH_ENGINE_ID }}</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    d</span><span class="z-l-11 z-d-9">ependencies</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span class="z-l-11 z-d-9"> t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> w</span><span class="z-l-4 z-d-5">asm</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        u</span><span class="z-l-11 z-d-9">rl</span><span>:</span><span class="z-l-4 z-d-5"> h</span><span class="z-l-4 z-d-5">ttps://github.com/golemcloud/golem-ai/releases/download/v0.4.0-dev.1/golem_web_search_google-dev.wasm</span></span></code></pre>
+<p>Using the <code>{{ X }}</code> syntax for the environment variables allow the <code>golem</code> CLI tool to read them from the environment during deployment, so we don't accidentally commit our keys in our repo. See the <a rel="external" href="https://developers.google.com/custom-search/v1/introduction">official Google page</a> to learn how to define an API key and a search engine ID.</p>
+<h4 id="processing-results-b">Processing results (B)</h4>
+<p>If the search was successful, we end up having a list of <code>SearchResult</code> values - these are records defined in the web-search API. In this example we are only going to use the <code>url</code> field of it, which is the search result URL.</p>
+<p>For each result we are going to spawn a <strong>LibraryAnalysis</strong> agent. The idea is the same as with <strong>Topic</strong> vs <strong>TopicDiscovery</strong> - we want something that runs in the background, not affecting the actual Library, so it can be accessed freely while the analysis runs. Let's assume we identify a library analysis by the library reference (1-1 mapping between a library and its analysis agent), and we pass additional information, such as the GitHub repository our search revealed, to its <strong>run method</strong>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> (</span><span class="z-l-11 z-d-9">language</span><span>,</span><span class="z-l-11 z-d-9"> result</span><span>)</span><span class="z-l-8 z-d-7"> in</span><span class="z-l-11 z-d-9"> results</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> library_analysis</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> LibraryAnalysisClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-2 z-d-10">LibraryReference</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    name</span><span>:</span><span class="z-l-3 z-d-3"> extract_github_repo_name</span><span>(</span><span class="z-l-11 z-d-9">result</span><span>.</span><span>url</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    language</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  library_analysis</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-l-9 z-d-10">Some</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>name</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>,</span><span class="z-l-3 z-d-3"> extract_github_repo</span><span>(</span><span class="z-l-11 z-d-9">result</span><span>.</span><span>url</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-8 z-d-7">await</span><span>;</span><span>    </span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Before talking about the more interesting parts of this snippet, let's just quickly define what <code>extract_github_repo_name</code> and <code>extract_github_repo</code> are. Our search is constrained to only give hits within https://github.com and repository links are having the format <code>https://github.com/&lt;org&gt;/&lt;name&gt;</code>. These helper functions are just extracting <code>name</code> and the root repository URL from an arbitrary search result URL (that can point to anywhere within a repo).</p>
+<p>But more importantly, what we see here is <strong>agent-to-agent communication</strong>!</p>
+<p>Every agent we define with the <code>#[agent_definition]</code> macro automatically creates a <strong>client</strong> type - if the agent name is <code>LibraryAnalysis</code>, the client is a type called <code>LibraryAnalyisClient</code>. Each such agent client has a <code>get</code> method, with exactly the same parameters as the agent's constructor. The semantics of this get method is "upsert" - as the constructor parameters are the identity of an agent, calling this method either returns a reference to an existing agent with the given identity, or to a new one if it had not existed before. This explains why is it called <code>get</code> and not <code>new</code>.</p>
+<p>There are two more client constructor methods in each client (<code>new_phantom</code> and <code>get_phantom</code>) but we don't need them for this example.</p>
+<p>The clients returned by <code>get</code> have an <strong>async method</strong> for each <strong>agent method</strong> the agent exports, with the same parameters as in the original definition. No matter if the agent method was async or not, the method on the client is always <code>async</code> - as it represents an async remote call awaiting the method's result.</p>
+<p>So, <code>.await</code>-ing <code>run</code> in the loop means we do the analysis one by one. I did that to reduce the load on my OpenAI account which the analysis is using. We could also trigger an analysis for all libraries together, or in batches - these are standard Rust futures, so we could use crates like <a rel="external" href="https://docs.rs/futures-concurrency/latest/futures_concurrency/index.html">futures_concurrency</a> to manage them.</p>
+<h4 id="search-failures-c">Search failures (C)</h4>
+<p>If the search failed, we want to report this back to the <strong>Topic</strong> because that's the "user-facing" representation of our topic. So let's add a new agent method to the topic agent (both its trait and its impl):</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">fn</span><span class="z-l-3 z-d-3"> record_failure</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> failure</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    self</span><span>.</span><span>failures</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span class="z-l-11 z-d-9">failure</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>and then use <strong>agent-to-agent communication</strong> again to call this from our <code>Err</code> branch in the topic discovery implementation:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> topic</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> TopicClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>name</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">topic</span><span>.</span><span class="z-l-3 z-d-3">record_failure</span><span>(</span><span class="z-l-11 z-d-9">err</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>;</span></span></code></pre><h3 id="logging">Logging</h3>
+<p>Before implementing <strong>LibraryAnalysis</strong>, let's take a look at logging. Now that we can spawn multiple parallel web searches running in background agents, if we would start playing with out application (which we can't at the moment, without defining the library analysis agent first), it would be very hard to observe what is happening on each agent.</p>
+<p>In Golem each agent can emit log events - writing to the standard output is a log event, but in Rust we can also use the <a rel="external" href="https://docs.rs/log/0.4.29/log/">log crate</a> to emit log events in different log levels. This log stream is <strong>per agent</strong>. We can observe it by using for example the <code>golem agent stream</code> command:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>golem agent stream &#39;library({ name: &quot;test-r&quot;, language: rust})&#39;</span></span></code></pre>
+<p>Invocations from the Golem REPL are also automatically streaming the log events back to the REPL. We haven't seen that before in this example because we did not log anything.</p>
+<p>Golem does not have any built-in support for observing logs from a tree of agents currently. So if we want to see - after asking our application to discover a topic - logs from our topic discovery agents, and then from each library analysis agent that we spawned, we are in trouble.</p>
+<p>But we can simply solve this by building our <strong>own log aggregator</strong> in Golem itself! As we've seen, it's very easy to call an agent from another agent. We can define a <strong>log agent</strong> that receives messages, and then emits them as its own log events that we can stream with Golem's CLI.</p>
+<p>But if we would only have what we have seen so far, this would have a terrible effect on our application. The <strong>log agent</strong> would be a single instance processing log messages one by one, and every remote log method call would block until it processed the message.</p>
+<p>Fortunately the <strong>agent clients</strong> have another variant of each agent method on their interface - they can <strong>trigger</strong> an agent method invocation in a non-blocking way. This is very fast and returns immediately (as soon as the invocation is enqueued in the remote agent). It is also very safe - no message is going to be lost. Golem guarantees exactly-once calling semantics between agents, and the log agent itself is also automatically durable.</p>
+<p>(With a very large number of agents, or large log entries of course having a single log agent can be a bottleneck - it may not be able to process the messages fast enough; we are not going to solve this problem in this post)</p>
+<p>Let's define our log agent!</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-d-10">bindings</span><span>::</span><span class="z-d-10">wasi</span><span>::</span><span class="z-d-10">logging</span><span>::</span><span class="z-d-10">logging</span><span>::</span><span>{</span><span>log</span><span>,</span><span class="z-l-2 z-d-10"> Level</span><span>}</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">trait</span><span class="z-l-9 z-d-10"> Log</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> log</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>,</span><span class="z-l-11 z-d-9"> level</span><span>:</span><span class="z-l-2 z-d-10"> Level</span><span>,</span><span class="z-l-11 z-d-9"> sender</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span><span class="z-l-11 z-d-9"> message</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-2 z-d-10"> LogImpl</span><span> {</span><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> Log</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> LogImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span><span>}</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> log</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>,</span><span class="z-l-11 z-d-9"> level</span><span>:</span><span class="z-l-2 z-d-10"> Level</span><span>,</span><span class="z-l-11 z-d-9"> sender</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span><span class="z-l-11 z-d-9"> message</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        log</span><span>(</span><span class="z-l-11 z-d-9">level</span><span>,</span><span> &amp;</span><span class="z-l-11 z-d-9">sender</span><span>,</span><span> &amp;</span><span class="z-l-11 z-d-9">message</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This is a very simple agent. It has <strong>no constructor parameters</strong>, which means it is a <strong>cluster-level singleton</strong>. It has a single method, that just delegates the call to the low-level <code>log</code> function defined in the Golem Rust SDK.</p>
+<p>To make this agent nice to use, we define a helper struct called <code>Logger</code>, which we can use in our other agents to conveniently log messages.</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> struct</span><span class="z-l-9 z-d-10"> Logger</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    client</span><span>:</span><span class="z-l-2 z-d-10"> LogClient</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    sender</span><span>:</span><span class="z-l-2 z-d-10"> String</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> Logger</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">sender</span><span>:</span><span> &amp;</span><span class="z-l-9 z-d-10">str</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            client</span><span>:</span><span class="z-l-2 z-d-10"> LogClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            sender</span><span>:</span><span class="z-l-11 z-d-9"> sender</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> info</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>,</span><span class="z-l-11 z-d-9"> message</span><span>:</span><span class="z-l-8 z-d-7"> impl</span><span class="z-l-2 z-d-10"> AsRef</span><span>&lt;</span><span class="z-l-9 z-d-10">str</span><span>&gt;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">      log</span><span>(</span><span class="z-d-10">Level</span><span>::</span><span class="z-l-2 z-d-10">Info</span><span>,</span><span> &amp;</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>sender</span><span>,</span><span class="z-l-11 z-d-9"> message</span><span>.</span><span class="z-l-3 z-d-3">as_ref</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">      self</span><span>.</span><span>client</span><span>.</span><span class="z-l-3 z-d-3">trigger_log</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">        Level</span><span>::</span><span class="z-l-2 z-d-10">Info</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        self</span><span>.</span><span>sender</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        message</span><span>.</span><span class="z-l-3 z-d-3">as_ref</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>       )</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We create the remote client in the constructor, and then expose methods for each log level. In these methods we first emit the log message in our "own" agent's log stream, and then also enqueue the log message in the singleton log agent's message queue.</p>
+<p>We do this by calling <strong>trigger_log</strong> on the client, instead of <strong>log</strong> - this is the non-blocking method to trigger an invocation without awaiting its execution.</p>
+<p>With this set up, we can add a <code>Logger</code> to our other agents, for example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> TopicDiscoveryImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    logger</span><span>:</span><span class="z-l-2 z-d-10"> Logger</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>and then use it to log messages:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span class="z-l-11 z-d-9"> language</span><span class="z-l-8 z-d-7"> in</span><span class="z-l-6 z-d-8"> LANGUAGES</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">  self</span><span>.</span><span>logger</span><span>.</span><span class="z-l-3 z-d-3">debug</span><span>(</span><span class="z-l-3 z-d-3">format!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Searching for libraries in </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">language:?</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">...</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>When running our application we can observe all logs by running</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>golem agent stream &#39;log()&#39; --logs-only</span></span></code></pre><h3 id="library-analysis">Library analysis</h3>
+<p>We already seen how our <strong>library analysis agent</strong> will look like:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">trait</span><span class="z-l-9 z-d-10"> LibraryAnalysis</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">reference</span><span>:</span><span class="z-l-2 z-d-10"> LibraryReference</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> parent_topic</span><span>:</span><span class="z-l-2 z-d-10"> Option</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>,</span><span class="z-l-11 z-d-9"> repo_uri</span><span>:</span><span class="z-l-2 z-d-10"> Uri</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The agent's identity is the same as the library agent's - there is a 1-1 mapping between them. The only agent method is the long-running <code>run</code> method, that gets some details (which topic initiated the analysis, and what is the GitHub repo URL).</p>
+<p>As mentioned earlier, we also have an LLM library with implementations for various providers: Anthropic, OpenAI, OpenRouter, Amazon Bedrock, Grok and Ollama. It works the same way as I explained with the web search - we use the library through a module of <code>golem_rust</code>, and then configure the provider and its API keys in <code>golem.yaml</code>.</p>
+<p>The library analysis itself won't be very sophisticated - just serving example purposes. We are going to ask an LLM to:</p>
+<ul>
+<li>Read the repository's front page</li>
+<li>Check if it's a library of the programming language we believe it is</li>
+<li>If yes, write a short summary of what the library does</li>
+<li>Also collect a set of tags (or topics) representing what the library implements</li>
+</ul>
+<p>We ask it to return this in a structured (JSON) format. If it does not, or anything else fails, we mark the library analysis as failed.</p>
+<p>In either way, at the end we will call something in the corresponding <strong>LibraryAgent</strong> to store the analysis results.</p>
+<p>So first let's extend <strong>LibraryAgent</strong> with two new methods to store the results:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> Library</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  fn</span><span class="z-l-3 z-d-3"> analysis_failed</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> message</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> analysis_succeeded</span><span>(</span></span>
+<span class="giallo-l"><span>      &amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      repository</span><span>:</span><span class="z-l-2 z-d-10"> Uri</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      description</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      topics</span><span>:</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    )</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>  </span></span></code></pre>
+<p>The <code>analysis_failed</code> implementation just changes the state and logs a message:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">fn</span><span class="z-l-3 z-d-3"> analysis_failed</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> message</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    self</span><span>.</span><span>logger</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-3 z-d-3">error</span><span>(</span><span class="z-l-3 z-d-3">format!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Library analysis failed: </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">message</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    self</span><span>.</span><span>state </span><span class="z-d-1">=</span><span class="z-l-2 z-d-10"> LibraryState</span><span>::</span><span class="z-l-2 z-d-10">Failed</span><span> {</span><span class="z-l-11 z-d-9"> message</span><span> }</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>analysis_succeeded</code> also registers the library into the <strong>topics</strong> the LLM identified it belongs to! This way we continuously build our information graph. To register a library to a topic, we can add a simple <code>add</code> method to the <strong>TopicAgent</strong> and then trigger the invocation (to not introduce any slowdowns here):</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> analysis_succeeded</span><span>(</span></span>
+<span class="giallo-l"><span>    &amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    repository</span><span>:</span><span class="z-l-2 z-d-10"> Uri</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    description</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    topics</span><span>:</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    self</span><span>.</span><span>logger</span><span>.</span><span class="z-l-3 z-d-3">info</span><span>(</span><span class="z-l-3 z-d-3">format!</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">Library analysis based on </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">repository</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5"> succeeded with description: </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">description</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5"> and topics: </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">topics:?</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span>    )</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    for</span><span class="z-l-11 z-d-9"> topic</span><span class="z-l-8 z-d-7"> in</span><span> &amp;</span><span class="z-l-11 z-d-9">topics</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> topic</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> TopicClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-9">topic</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        topic</span><span>.</span><span class="z-l-3 z-d-3">trigger_add</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>reference</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    self</span><span>.</span><span>state </span><span class="z-d-1">=</span><span class="z-l-2 z-d-10"> LibraryState</span><span>::</span><span class="z-l-2 z-d-10">Analysed</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        repository</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        description</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        topics</span><span>:</span><span class="z-l-11 z-d-9"> topics</span><span>.</span><span class="z-l-3 z-d-3">into_iter</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">collect</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>;</span><span>        </span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>With this being ready, let's go back to our <strong>LibraryAnalysis</strong> agent's <code>run</code> method!</p>
+<p>We start by using Golem's LLM connector to ask a question:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> response</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> send</span><span>(</span><span>&amp;</span><span>[</span><span class="z-d-10">Event</span><span>::</span><span class="z-l-3 z-d-3">Message</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    Message</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        role</span><span>:</span><span class="z-d-10"> Role</span><span>::</span><span class="z-l-2 z-d-10">User</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        name</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        content</span><span>:</span><span class="z-l-3 z-d-3"> vec!</span><span>[</span></span>
+<span class="giallo-l"><span class="z-d-10">            ContentPart</span><span>::</span><span class="z-l-3 z-d-3">Text</span><span>(</span><span class="z-l-3 z-d-3">format!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Let&#39;s analyse the GitHub repository at </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">. First check if this is a library for </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">:?</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">. If it is, then come up with a list of tags describing what this library is for, and return it as a JSON array of strings. If it is not for the given language, return an empty tag array.</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> repo_uri</span><span>,</span><span class="z-l-11 z-d-10"> self</span><span>.</span><span>reference</span><span>.</span><span>language</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">            ContentPart</span><span>::</span><span class="z-l-3 z-d-3">Text</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">In addition to the array of tags, also return a short description of the library in a separate field of the result JSON object.</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">            ContentPart</span><span>::</span><span class="z-l-3 z-d-3">Text</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Always response with a JSON object with the following structure: { </span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">description</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">: </span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">short description of the library</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">, </span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">tags</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">: [</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">tag1</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">, </span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">tag2</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">, ...] }</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>        ]</span><span>,</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    )</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>    &amp;</span><span class="z-l-2 z-d-10">Config</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        model</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">gpt-3.5-turbo</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        temperature</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        max_tokens</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        stop_sequences</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        tools</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        tool_choice</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        provider_options</span><span>:</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span>     }</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> library</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> LibraryClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>reference</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">match</span><span class="z-l-11 z-d-9"> response</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>The response is either <code>Ok</code> or <code>Err</code>. If it was successful, it just contains a list of <code>ContentPart</code>s. We just naively try to concatenate those and decode as our expected JSON:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">derive</span><span class="z-l-6">(</span><span class="z-l-2 z-d-10">Debug</span><span class="z-l-6">,</span><span class="z-l-2 z-d-10"> Clone</span><span class="z-l-6">,</span><span class="z-l-6"> serde</span><span>::</span><span class="z-l-2 z-d-10">Deserialize</span><span class="z-l-6">)</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> ExpectedLlmResponse</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    description</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    tags</span><span>:</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> raw_string_content</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> response</span></span>
+<span class="giallo-l"><span>    .</span><span>content</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">iter</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">map</span><span>(</span><span class="z-d-1">|</span><span class="z-l-11 z-d-9">c</span><span class="z-d-1">|</span><span class="z-l-8 z-d-7"> match</span><span class="z-l-11 z-d-9"> c</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">        ContentPart</span><span>::</span><span class="z-l-3 z-d-3">Text</span><span>(</span><span class="z-l-11 z-d-9">s</span><span>)</span><span> =&gt;</span><span class="z-l-11 z-d-9"> s</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        _</span><span> =&gt;</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">collect</span><span>::</span><span>&lt;</span><span class="z-l-2 z-d-10">Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>&gt;</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>    .</span><span class="z-l-3 z-d-3">join</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">self</span><span>.</span><span>logger</span><span>.</span><span class="z-l-3 z-d-3">debug</span><span>(</span><span class="z-l-3 z-d-3">format!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">LLM response: </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">raw_string_content</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">match</span><span class="z-d-10"> serde_json</span><span>::</span><span class="z-l-3 z-d-3">from_str</span><span>::</span><span>&lt;</span><span class="z-l-2 z-d-10">ExpectedLlmResponse</span><span>&gt;</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-9">raw_string_content</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>If the <code>tags</code> in the response is empty, or anything else fails, we call <code>analysis_failed</code> through <code>library</code>, otherwise we call <code>analysis_succeeded</code> with the information gathered from the LLM's response.</p>
+<p>At this point we can build and deploy our application, and start playing with it:</p>
+<img src="/images/libdb-golem-rust-1.webp" alt="REPL session discovering Rust libraries in the mp3 topic and querying the puremp3 decoder details" width="709" height="726" loading="lazy" decoding="async">
+<p>and the log stream:</p>
+<img src="/images/libdb-golem-rust-2.webp" alt="Agent logs registering discovered Rust libraries and topics in the catalog" width="955" height="553" loading="lazy" decoding="async">
+<h3 id="catalog-agent">Catalog agent</h3>
+<p>The application we created so far spawns many top-level agents automatically - discovering one topic can create a lot of new topic agents, all ready to further investigate by calling <code>discover-libraries</code> on them.</p>
+<p>To see what topics and libraries we've discovered so far, we can use the <code>golem agent list</code> command - but that's just a debug tool, not suitable for using as part of our application's API. If we want to for example build a UI on top of this app, we would need a way to enumerate all the topics we currently know about.</p>
+<p>This can be very easily done by introducing a new <strong>singleton agent</strong> to just keep a catalog of all the topics and libraries in its memory. This, however, will become a bottleneck if we want to scale this application significantly. There are solutions to that, for example we could define a sharded multi-agent catalog. In this post, however, we are going to do the simple version and just define it as a singleton agent with two lists:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">trait</span><span class="z-l-9 z-d-10"> Catalog</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> get_libraries</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">LibraryReference</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> get_topics</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-2 z-d-10">String</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> register_library</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> library</span><span>:</span><span class="z-l-2 z-d-10"> LibraryReference</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> register_topic</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> topic</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The implementation is straightforward - just store the libraries and topics in two <code>Vec</code>s in the agent's internal state. We can call <code>register_library</code> from the <code>analysis_succeeded</code> method of <code>Library</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> catalog</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> CatalogClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">catalog</span><span>.</span><span class="z-l-3 z-d-3">trigger_register_library</span><span>(</span><span class="z-l-11 z-d-10">self</span><span>.</span><span>reference</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span></code></pre>
+<p>And similarly, <code>register_topic</code> from the <strong>constructor</strong> of <code>Topic</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> catalog</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> CatalogClient</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">catalog</span><span>.</span><span class="z-l-3 z-d-3">trigger_register_topic</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>;</span></span></code></pre><h2 id="public-api">Public API</h2>
+<p>At this point we are mostly done with our application's implementation, but we can only interact with it through debug tools like the Golem REPL. We could also use Golem's <a rel="external" href="https://learn.golem.cloud/rest-api/worker">REST API to invoke agents</a> but that's not a very nice way for integration our application to for example a user interface.</p>
+<p>Fortunately Golem supports <strong>defining custom APIs</strong> for applications. In Golem 1.4, this has to be done in the application manifest - defining routes in the <code>golem.yaml</code>, and mapping logic in a custom scripting language called <a rel="external" href="https://learn.golem.cloud/rib">Rib</a>.</p>
+<p>This is something that is going to be changing in the next release (a few months from now), and we are going to be able to define these APIs fully from code, in our chosen programming language. Until then, let's see how the current method looks like!</p>
+<p>In our component's <code>golem.yaml</code> file, there is a <code>httpApi</code> section:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">h</span><span class="z-l-11 z-d-9">ttpApi</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  d</span><span class="z-l-11 z-d-9">efinitions</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    l</span><span class="z-l-11 z-d-9">ibdb-backend-api</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      v</span><span class="z-l-11 z-d-9">ersion</span><span>:</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">0.0.1</span><span class="z-l-4 z-d-5">&#39;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      r</span><span class="z-l-11 z-d-9">outes</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        #</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>Here we can list endpoints, and for each endpoint include a script that can access information from the request, <strong>call an agent</strong> and use the agent's results to construct HTTP response.</p>
+<p>A simple one can be an endpoint that lists <em>all the libraries</em> by invoking the <strong>Catalog</strong> agent:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span>        -</span><span class="z-l-11 z-d-9"> m</span><span class="z-l-11 z-d-9">ethod</span><span>:</span><span class="z-l-4 z-d-5"> G</span><span class="z-l-4 z-d-5">ET</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          p</span><span class="z-l-11 z-d-9">ath</span><span>:</span><span class="z-l-4 z-d-5"> /</span><span class="z-l-4 z-d-5">libdb-backend-api/libs</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          b</span><span class="z-l-11 z-d-9">inding</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> d</span><span class="z-l-4 z-d-5">efault</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            c</span><span class="z-l-11 z-d-9">omponentName</span><span>:</span><span class="z-l-4 z-d-5"> l</span><span class="z-l-4 z-d-5">ibdb:backend</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            r</span><span class="z-l-11 z-d-9">esponse</span><span>:</span><span class="z-l-8 z-d-7"> |</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let agent = catalog();</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let libs = agent.get-libraries();</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              { status: 200, body: { libraries: libs } }</span></span></code></pre>
+<p>The language used in these scripts is the same that we were using in the Golem REPL.</p>
+<p>For more advanced cases, we may need to use pattern matching in the scripts. For example to get <em>the libraries belonging to a topic</em>, our agent method returns a Rust <code>Result</code> which we have to process in the script:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span>		-</span><span class="z-l-11 z-d-9"> m</span><span class="z-l-11 z-d-9">ethod</span><span>:</span><span class="z-l-4 z-d-5"> G</span><span class="z-l-4 z-d-5">ET</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          p</span><span class="z-l-11 z-d-9">ath</span><span>:</span><span class="z-l-4 z-d-5"> /</span><span class="z-l-4 z-d-5">libdb-backend-api/topics/{name}</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          b</span><span class="z-l-11 z-d-9">inding</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> d</span><span class="z-l-4 z-d-5">efault</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            c</span><span class="z-l-11 z-d-9">omponentName</span><span>:</span><span class="z-l-4 z-d-5"> l</span><span class="z-l-4 z-d-5">ibdb:backend</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            r</span><span class="z-l-11 z-d-9">esponse</span><span>:</span><span class="z-l-8 z-d-7"> |</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let name: string = request.path.name;</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let agent = topic(name);</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let res = agent.get-libraries();</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              match res {</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">                ok(libraries) =&gt; { status: 200, body: { libraries: some(libraries), failures: none } },</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">                err(failures) =&gt; { status: 500, body: { libraries: none, failures: some(failures) } }</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              }</span></span></code></pre>
+<p>One important trick here is that the branches of the <code>match</code> must evaluate to the same type. So we can't just use <code>body : { libraries: libraries }</code> in one branch and <code>body: { failures: failures }</code> in the other, as Rib cannot unify those two body types.</p>
+<p>We can add more endpoints to get details of a library or trigger discovery of a topic, etc. Once we've done with all that, simply running <code>golem deploy</code> again will make these endpoints available on the chosen deployment. For locally running Golem server, that's by default is <code>http://lib-db.localhost:9006</code> for this example.</p>
+<p>Deployments are also configurable in the application manifest, and there can be different environments such as local, prod, etc with different properties.</p>
+<p>Once the API is deployed we can try it out with <code>curl</code> for example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>$ curl -X GET http://lib-db.localhost:9006/libdb-backend-api/topics</span></span>
+<span class="giallo-l"><span>{&quot;status&quot;:200,&quot;topics&quot;:[&quot;mp3&quot;]}%</span></span></code></pre><h2 id="frontend">Frontend</h2>
+<h3 id="writing-the-frontend">"Writing" the frontend</h3>
+<p>Now that we have a public REST API for our application, we can build a simple web application on top of it, and host it from our Golem application itself. As the frontend itself is not the focus of this post, we are going to generate it with AI and just see how we can integrate it within our application.</p>
+<p>The first step we can do is to export an <strong>OpenAPI definition</strong> for our API, hoping that our AI tools will understand it better than Golem's own API definition language. Running the following command:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>$ golem api definition open-api libdb-backend-api</span></span>
+<span class="giallo-l"><span>Selected app: lib-db, env: local, server: local - builtin (http://localhost:9881)</span></span>
+<span class="giallo-l"><span>Exported OpenAPI spec for libdb-backend-api to libdb-backend-api.yaml</span></span></code></pre>
+<p>Then we can ask our favorite coding agent to use this to build a frontend for us. I asked for a single HTML page with embedded scripts, with no dependencies or build steps necessary, for simplicity: <a rel="external" href="https://ampcode.com/threads/T-019b313f-191c-7444-80ca-d8f46ba7fdee">see the amp thread</a>.</p>
+<p>With this we have an <code>index.html</code>, and we want to host that as part of our application.</p>
+<h3 id="hosting-the-frontend">Hosting the frontend</h3>
+<p>One thing we can do is to modify the <code>golem.yaml</code> again, and list files to be added to our <strong>agent's file system</strong>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">c</span><span class="z-l-11 z-d-9">omponents</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  l</span><span class="z-l-11 z-d-9">ibdb:backend</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    f</span><span class="z-l-11 z-d-9">iles</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span class="z-l-11 z-d-9"> s</span><span class="z-l-11 z-d-9">ourcePath</span><span>:</span><span class="z-l-4 z-d-5"> i</span><span class="z-l-4 z-d-5">ndex.html</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">argetPath</span><span>:</span><span class="z-l-4 z-d-5"> /</span><span class="z-l-4 z-d-5">index.html</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        p</span><span class="z-l-11 z-d-9">ermissions</span><span>:</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">ead-only</span></span></code></pre>
+<p>With Rust, however, it is much easier to include a single HTML file by using <code>include_bytes!</code> macro. This is compile time, so we don't need to add any files to our agent's run-time file system.</p>
+<p>We can define a new agent with the only purpose to be able to return this file:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">(</span><span class="z-l-6">ephemeral</span><span class="z-l-6">)</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">trait</span><span class="z-l-9 z-d-10"> Frontend</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> index</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-9 z-d-10">u8</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> FrontendImpl</span><span> {</span><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> Frontend</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> FrontendImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span><span>}</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> index</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-10">self</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Vec</span><span>&lt;</span><span class="z-l-9 z-d-10">u8</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> bytes</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> include_bytes!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">../index.html</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        bytes</span><span>.</span><span class="z-l-3 z-d-3">to_vec</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span></code></pre>
+<p>This agent is <strong>singleton</strong> - there is only one way to return this <code>index.html</code>, we don't need multiple agents with different parameters to do so. On the other hand we already learned that agents are executing a single request at the same time, so if we would serve our <code>index.html</code> through a single agent instance, that would be a significant performance problem.</p>
+<p>The solution for these cases in Golem is to mark the agent as <strong>ephemeral</strong>. In Rust we can do it in the parameter of the <code>agent_definition</code> macro, as shown above. Ephemeral agents are different from the default, <strong>durable agents</strong> in the following ways:</p>
+<ul>
+<li>They are faster and cheaper - their state is not persisted (but to some extent their history is still preserved in long-term storage)</li>
+<li>They are not durable - every invocation is starting from a fresh state, and cannot survive failures</li>
+<li>Invoking an ephemeral agent from an API definition (or the REPL, etc) <strong>creates a separate agent every time</strong>.</li>
+</ul>
+<p>This last feature allows us to serve an arbitrary number of <code>index.html</code> requests simultaneously, even though our agent looks like a singleton as there is no constructor parameter to distinguish these parallel instances. Golem has a built-in feature called <strong>phantom-id</strong> that is appended to the identity of these agents in this case.</p>
+<h3 id="endpoint-for-index-html">Endpoint for index.html</h3>
+<p>With this new <strong>Frontend</strong> agent we can add a new endpoint to our routes:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span>        -</span><span class="z-l-11 z-d-9"> m</span><span class="z-l-11 z-d-9">ethod</span><span>:</span><span class="z-l-4 z-d-5"> G</span><span class="z-l-4 z-d-5">ET</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          p</span><span class="z-l-11 z-d-9">ath</span><span>:</span><span class="z-l-4 z-d-5"> /</span><span class="z-l-4 z-d-5">libdb-backend-api</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          b</span><span class="z-l-11 z-d-9">inding</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> d</span><span class="z-l-4 z-d-5">efault</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            c</span><span class="z-l-11 z-d-9">omponentName</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">libdb:backend</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            r</span><span class="z-l-11 z-d-9">esponse</span><span>:</span><span class="z-l-8 z-d-7"> |</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let agent = frontend();</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              let file = agent.index();</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              {</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">                headers: { </span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">                  Content-Type: &quot;text/html; charset=utf-8&quot;</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">                },</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">                body: file</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              }</span></span></code></pre>
+<p>Let's deploy this and try out in the browser! The page gets downloaded, but it does not work - failing with CORS errors.</p>
+<h3 id="cors">CORS</h3>
+<p>We need to add CORS Preflight endpoints to our route to make the scripts work. In the current version of Golem this is a bit inconvenient, as we need to add them one by one for each endpoint we defined, for example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span>        -</span><span class="z-l-11 z-d-9"> m</span><span class="z-l-11 z-d-9">ethod</span><span>:</span><span class="z-l-4 z-d-5"> O</span><span class="z-l-4 z-d-5">PTIONS</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          p</span><span class="z-l-11 z-d-9">ath</span><span>:</span><span class="z-l-4 z-d-5"> /</span><span class="z-l-4 z-d-5">libdb-backend-api/topics/{name}</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          b</span><span class="z-l-11 z-d-9">inding</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> c</span><span class="z-l-4 z-d-5">ors-preflight</span></span></code></pre>
+<p>Once we added all of them and redeployed, our frontend works as expected!</p>
+<img src="/images/libdb-golem-rust-3.webp" alt="Library Discovery web UI listing the discovered JavaScript libraries under the javascript topic" width="1020" height="736" loading="lazy" decoding="async">
+<h2 id="conclusion">Conclusion</h2>
+<p>I hope this post shows how much more fun it is to write applications for Golem in this new release. The important thing is to think about the problem to be solved as a set of durable agents communicating with each other. You can think of a Golem application as a distributed, persistent actor system, if you are familiar with those concepts. Once the architecture is done, it's mostly just writing the application logic, without dealing with code generators, new languages (except Rib, for now), or boilerplate to set the network up. Everything is automatically persisted, the agents remain available forever, and by scaling the Golem Cluster your application scales horizontally as well.</p>
+<p>The example is available on <a rel="external" href="https://github.com/vigoo/golem-example-lib-db">GitHub</a>.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

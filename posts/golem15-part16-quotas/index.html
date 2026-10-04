@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 16: Quotas</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/golem15-part16-quotas/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Golem 1.5 features - Part 16: Quotas">
+        <meta property="og:description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/golem15-part16-quotas/">
+        
+        
+        <meta property="article:published_time" content="2026-04-24T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Golem 1.5 features - Part 16: Quotas",
+            "datePublished": "2026-04-24T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/golem15-part16-quotas/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/golem15-part16-quotas/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem","durable-execution","agents","golem-1.5"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 16: Quotas</h1>
+            <p class="posted-on">Posted on <time datetime="2026-04-24">April 24, 2026</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="quotas">Quotas</h2>
+<p>A modern application usually depends on various third party services. This is even more true today with AI agents - an agent is going to make requests to various external systems as well as LLM providers and other AI infrastructure. Most of these have costs and limits. It does matter how many and how big requests you make to your chosen model, and many APIs have built-in quotas and rate limits affecting the callers.</p>
+<p>In <strong>Golem 1.5</strong> we introduced a new, general purpose feature that tracks resource quotas in a distributed Golem application. The idea is that we can define an arbitrary set of <strong>resources</strong> with a limited availability, and enforce reserving some of this pool of available resources through <strong>quota tokens</strong>. With this token-granting we can control the parallel running agents and make sure we don't over-use the limited resources.</p>
+<p>It is possible to acquire some quota tokens and <strong>split them</strong>, passing a part of them to another Golem agent through agent-to-agent RPC calls. This is a very powerful tool to have a structured control over arbitrary external resource consumption.</p>
+<h3 id="integration">Integration</h3>
+<p>In this release we just introduce this as a general tool, available through the Golem SDKs, but it is not integrated with any libraries yet. In the future we expect to have dedicated support for quota tokens in various client libraries, but for now they have to be used as a manually implemented layer on top of the clients.</p>
+<h3 id="setting-it-up">Setting it up</h3>
+<p>Let's see some concrete examples. Just like with <a href="/posts/golem15-part7-config-and-secrets">secrets</a>, quota <strong>resources</strong> are also defined <strong>per environment</strong>, and we can define them with their initial limits in the <strong>application manifest</strong>.</p>
+<p>The following manifest snippet defines three different types of resources:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">r</span><span class="z-l-11 z-d-9">esourceDefaults</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  p</span><span class="z-l-11 z-d-9">rod</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    a</span><span class="z-l-11 z-d-9">pi-calls</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      l</span><span class="z-l-11 z-d-9">imit</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> R</span><span class="z-l-4 z-d-5">ate</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        v</span><span class="z-l-11 z-d-9">alue</span><span>:</span><span class="z-l-6 z-d-8"> 100</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        p</span><span class="z-l-11 z-d-9">eriod</span><span>:</span><span class="z-l-4 z-d-5"> m</span><span class="z-l-4 z-d-5">inute</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        m</span><span class="z-l-11 z-d-9">ax</span><span>:</span><span class="z-l-6 z-d-8"> 1000</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      e</span><span class="z-l-11 z-d-9">nforcementAction</span><span>:</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">eject</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      u</span><span class="z-l-11 z-d-9">nit</span><span>:</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">equest</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      u</span><span class="z-l-11 z-d-9">nits</span><span>:</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">equests</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    s</span><span class="z-l-11 z-d-9">torage</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      l</span><span class="z-l-11 z-d-9">imit</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> C</span><span class="z-l-4 z-d-5">apacity</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        v</span><span class="z-l-11 z-d-9">alue</span><span>:</span><span class="z-l-6 z-d-8"> 1073741824</span><span class="z-l-7 z-l-i z-d-4 z-d-i">       #</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> 1 GB</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      e</span><span class="z-l-11 z-d-9">nforcementAction</span><span>:</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">eject</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      u</span><span class="z-l-11 z-d-9">nit</span><span>:</span><span class="z-l-4 z-d-5"> b</span><span class="z-l-4 z-d-5">yte</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      u</span><span class="z-l-11 z-d-9">nits</span><span>:</span><span class="z-l-4 z-d-5"> b</span><span class="z-l-4 z-d-5">ytes</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    c</span><span class="z-l-11 z-d-9">onnections</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      l</span><span class="z-l-11 z-d-9">imit</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">ype</span><span>:</span><span class="z-l-4 z-d-5"> C</span><span class="z-l-4 z-d-5">oncurrency</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        v</span><span class="z-l-11 z-d-9">alue</span><span>:</span><span class="z-l-6 z-d-8"> 50</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      e</span><span class="z-l-11 z-d-9">nforcementAction</span><span>:</span><span class="z-l-4 z-d-5"> t</span><span class="z-l-4 z-d-5">hrottle</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      u</span><span class="z-l-11 z-d-9">nit</span><span>:</span><span class="z-l-4 z-d-5"> c</span><span class="z-l-4 z-d-5">onnection</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      u</span><span class="z-l-11 z-d-9">nits</span><span>:</span><span class="z-l-4 z-d-5"> c</span><span class="z-l-4 z-d-5">onnections</span></span></code></pre>
+<p>The <code>prod</code> is just an example environment. For each environment we can define an arbitrary number of resources, identified by a unique name. The most important in their configuration are <code>limit</code> and <code>enforcementAction</code>.</p>
+<p>We have three different <strong>limit</strong> types:</p>
+<ul>
+<li><code>Rate</code> defines a limited pool that refills by <code>value</code> in every <code>period</code>, with a maximum of <code>max</code>. This is great for example for rate-limiting API calls.</li>
+<li><code>Capacity</code> defines a fixed number of <code>value</code> tokens. It never gets refilled - if an agent takes some of it, it remains taken forever.</li>
+<li><code>Concurrency</code> defines a fixed pool of <code>value</code> tokens. The agents can never allocate more than this value at the same time, but once they stop using the tokens they get back to the pool. This is useful for limiting concurrency.</li>
+</ul>
+<p>In addition to the limits, we can select what to do when the token request cannot be satisfied:</p>
+<ul>
+<li><code>reject</code> means we return an error (with an optional hint of how much to wait). It is the agent's responsibility to handle this</li>
+<li><code>throttle</code> means Golem will suspend the agent until the resource becomes available. This is fully automatic and does not require any further logic in the user code!</li>
+<li><code>terminate</code> kills the agent with a specific failure message</li>
+</ul>
+<h3 id="dynamic-changes">Dynamic changes</h3>
+<p>The resource definitions in the application manifest are only <strong>defaults</strong> applied at deployment. With CLI commands (or REST API calls) we can modify them any time, and the changes will affect running agents immediately.</p>
+<p>For example we can increase the above defined <code>connections</code> resource's limit to 100 if we need more concurrency:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> resource</span><span class="z-l-4 z-d-5"> update</span><span class="z-l-4 z-d-5"> connections</span><span class="z-l-6 z-d-8"> -</span><span class="z-l-6 z-d-8">-limit</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">{&quot;type&quot;:&quot;concurrency&quot;,&quot;value&quot;:100}</span><span class="z-l-4 z-d-5">&#39;</span><span class="z-l-6 z-d-8"> -</span><span class="z-l-6 z-d-8">-environment</span><span class="z-l-4 z-d-5"> prod</span></span></code></pre><h3 id="code-example">Code example</h3>
+<p>Let's see how we can use these resources from code!</p>
+<h4 id="initialization">Initialization</h4>
+<p>The first step is to acquire a <strong>quota token interface</strong> for every resource our agent is going to need. This can be done in the agent's constructor, or the first time the token is needed, but should be done only once:</p>
+<div class="code-tabs">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> {</span><span class="z-l-11 z-d-9"> acquireQuotaToken</span><span> }</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">golem-ts-sdk</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> token</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> acquireQuotaToken</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">api-calls</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-6 z-d-8"> 1</span><span class="z-l-8 z-d-7">n</span><span>)</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-d-10">quota</span><span>::</span><span class="z-l-2 z-d-10">QuotaToken</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> token</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> QuotaToken</span><span>::</span><span class="z-l-3 z-d-3">new</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">api-calls</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-6 z-d-8"> 1</span><span>)</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> golem</span><span>.</span><span>host</span><span>.</span><span class="z-l-9 z-d-10">QuotaApi</span><span>.</span><span>_</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> token</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> QuotaToken</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">api-calls</span><span class="z-l-4 z-d-5">&quot;</span><span>, </span><span class="z-l-9 z-d-10">BigInt</span><span>(</span><span class="z-l-6 z-d-8">1</span><span>)</span><span>)</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> token</span><span class="z-d-1"> =</span><span class="z-d-10"> @quota</span><span>.</span><span class="z-l-9 z-d-10">QuotaToken</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">new</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">api-calls</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-6 z-d-8"> 1UL</span><span>)</span></span></code></pre></div>
+<p>The parameter (<code>1</code>) is the <strong>expected amount asked per reservation</strong>. For a simple rate limiting use case, where we associate 1 API call with 1 token, this can be 1.</p>
+<h4 id="simple-rate-limiting">Simple rate limiting</h4>
+<p>For a simple rate limiting case, we can <strong>reserve</strong> one token for each API call (of course we could also weight different API calls differently, by associating different token counts to them):</p>
+<div class="code-tabs">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> {</span><span class="z-l-11 z-d-9"> withReservation</span><span> }</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">golem-ts-sdk</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> result</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-l-3 z-d-3"> withReservation</span><span>(</span><span class="z-d-9">token</span><span>,</span><span class="z-l-6 z-d-8"> 1</span><span class="z-l-8 z-d-7">n</span><span>,</span><span class="z-l-8 z-d-7"> async</span><span> (</span><span class="z-d-9 z-d-i">reservation</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  const</span><span class="z-l-6 z-d-10"> response</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-l-3 z-d-3"> callSimpleApi</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  return</span><span> {</span><span class="z-l-11 z-d-9"> used</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> BigInt</span><span>(</span><span class="z-l-6 z-d-8">1</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> value</span><span class="z-l-2">:</span><span class="z-d-9"> response</span><span> }</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">use</span><span class="z-d-10"> golem_rust</span><span>::</span><span class="z-d-10">quota</span><span>::</span><span>with_reservation</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> result</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> with_reservation</span><span>(</span><span>&amp;</span><span class="z-l-11 z-d-9">token</span><span>,</span><span class="z-l-6 z-d-8"> 1</span><span>,</span><span class="z-d-1"> |</span><span class="z-l-11 z-d-9">_reservation</span><span class="z-d-1">|</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    let</span><span class="z-l-11 z-d-9"> response</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> call_simple_api</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    (</span><span class="z-l-6 z-d-8">1</span><span>,</span><span class="z-l-11 z-d-9"> response</span><span>)</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> result</span><span class="z-d-1"> =</span><span> withReservation</span><span>(</span><span>token, </span><span class="z-l-9 z-d-10">BigInt</span><span>(</span><span class="z-l-6 z-d-8">1</span><span>)</span><span>)</span><span> {</span><span> reservation </span><span>=&gt;</span></span>
+<span class="giallo-l"><span>  callSimpleApi</span><span>()</span><span>.map </span><span>{</span><span> response </span><span>=&gt;</span></span>
+<span class="giallo-l"><span>    (</span><span class="z-l-9 z-d-10">BigInt</span><span>(</span><span class="z-l-6 z-d-8">1</span><span>)</span><span>, response</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> result</span><span class="z-d-1"> =</span><span class="z-d-10"> @quota</span><span>.</span><span class="z-l-3 z-d-3">with_reservation</span><span>(</span><span class="z-l-11 z-d-9">token</span><span>,</span><span class="z-l-6 z-d-8"> 1UL</span><span>,</span><span class="z-l-8 z-d-7"> fn</span><span>(</span><span class="z-l-11 z-d-9">reservation</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  let</span><span class="z-l-11 z-d-9"> response</span><span class="z-d-1"> =</span><span class="z-l-3 z-d-3"> callSimpleApi</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>  (</span><span class="z-l-6 z-d-8">1</span><span>,</span><span class="z-l-11 z-d-9"> response</span><span>)</span></span>
+<span class="giallo-l"><span>}</span><span>)</span></span></code></pre></div>
+<h4 id="rate-limiting-llms">Rate-limiting LLMs</h4>
+<p>The same mechanism can be used to rate-limit for example LLMs, but not based on just the requests, but on the actual tokens consumed. Instead of reserving just one token, we reserve the number of maximum tokens we expect the request will consume (and in most LLM APIs we can enforce this). Then in the <code>response</code> we read how much actual tokens our request used, and <strong>commit</strong> that (returning the final number the <code>withReservation</code> helper is a way to commit, but there is also an explicit <code>commit</code> call we can use).</p>
+<h4 id="splitting-and-merging">Splitting and merging</h4>
+<p>Quota tokens can be <strong>split</strong>, <strong>merged</strong> and <strong>transformed</strong> between agents. The following example splits off 200 units from our agent's available tokens for a given resource, and sends it to another agent.</p>
+<div class="code-tabs">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> childToken</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> QuotaToken</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> token</span><span>.</span><span class="z-l-3 z-d-3">split</span><span>(</span><span class="z-l-6 z-d-8">200</span><span class="z-l-8 z-d-7">n</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> childAgent</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-d-10"> SummarizerAgent</span><span>.</span><span class="z-l-3 z-d-3">newPhantom</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> summary</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> childAgent</span><span>.</span><span class="z-l-3 z-d-3">summarize</span><span>(</span><span class="z-d-9">text</span><span>,</span><span class="z-d-9"> childToken</span><span>)</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> child_token</span><span>:</span><span class="z-l-2 z-d-10"> QuotaToken</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> token</span><span>.</span><span class="z-l-3 z-d-3">split</span><span>(</span><span class="z-l-6 z-d-8">200</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> child_agent</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> SummarizerAgent</span><span>::</span><span class="z-l-3 z-d-3">new_phantom</span><span>(</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> summary</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> child_agent</span><span>.</span><span class="z-l-3 z-d-3">summarize</span><span>(</span><span class="z-l-11 z-d-9">text</span><span>,</span><span class="z-l-11 z-d-9"> child_token</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>;</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> childToken</span><span>:</span><span class="z-l-9 z-d-10"> QuotaToken</span><span class="z-d-1"> =</span><span> token.split</span><span>(</span><span class="z-l-9 z-d-10">BigInt</span><span>(</span><span class="z-l-6 z-d-8">200</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> {</span></span>
+<span class="giallo-l"><span>  childAgent </span><span>&lt;-</span><span class="z-l-9 z-d-10"> SummarizerAgent</span><span>.newPhantom</span><span>()</span></span>
+<span class="giallo-l"><span>  summary </span><span>&lt;-</span><span> childAgent.summarize</span><span>(</span><span>text, childToken</span><span>)</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> yield</span><span> summary</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> child_token</span><span>:</span><span class="z-l-9 z-d-10"> QuotaToken</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> self</span><span>.</span><span class="z-l-11 z-d-9">token</span><span>.</span><span class="z-l-3 z-d-3">split</span><span>(</span><span class="z-l-6 z-d-8">200UL</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> child_agent</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> SummarizerAgent</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">new_phantom</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">child_agent</span><span>.</span><span class="z-l-3 z-d-3">summarize</span><span>(</span><span class="z-l-11 z-d-9">text</span><span>,</span><span class="z-l-11 z-d-9"> child_token</span><span>)</span></span></code></pre></div>
+<p>In addition to this, we could return the split tokens after the remote call, and merge them back into the original agent's tokens:</p>
+<div class="code-tabs">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-10">token</span><span>.</span><span class="z-l-3 z-d-3">merge</span><span>(</span><span class="z-d-9">returnedToken</span><span>)</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-11 z-d-9">token</span><span>.</span><span class="z-l-3 z-d-3">merge</span><span>(</span><span class="z-l-11 z-d-9">returned_token</span><span>)</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>token.merge</span><span>(</span><span>returnedToken</span><span>)</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-11 z-d-9">token</span><span>.</span><span class="z-l-3 z-d-3">merge</span><span>(</span><span class="z-l-11 z-d-9">returned_token</span><span>)</span></span></code></pre></div>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

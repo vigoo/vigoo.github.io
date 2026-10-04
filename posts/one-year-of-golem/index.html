@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>LambdaConf 2024-2025 - one year of Golem</title>
+
+        
+        
+        
+        
+        <meta name="description" content="I&#39;m on the last LambdaConf at the moment, and exactly a year ago I gave a talk about Golem on LambdaConf 2024. Someone asked me what happened with Golem since t…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/one-year-of-golem/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="LambdaConf 2024-2025 - one year of Golem">
+        <meta property="og:description" content="I&#39;m on the last LambdaConf at the moment, and exactly a year ago I gave a talk about Golem on LambdaConf 2024. Someone asked me what happened with Golem since t…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/one-year-of-golem/">
+        
+        
+        <meta property="article:published_time" content="2025-05-13T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "LambdaConf 2024-2025 - one year of Golem",
+            "datePublished": "2025-05-13T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/one-year-of-golem/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/one-year-of-golem/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>LambdaConf 2024-2025 - one year of Golem</h1>
+            <p class="posted-on">Posted on <time datetime="2025-05-13">May 13, 2025</time></p>
+        </header>
+
+        <p>I'm on the last LambdaConf at the moment, and exactly a year ago I gave a <a href="/posts/golem-and-the-wasm-component-model">talk about Golem on LambdaConf 2024</a>. Someone asked me what happened with Golem since then? So many things I could not properly answer. So here is a short summary of one year amount of Golem development, from LambdaConf 2024 to LambdaConf 2025.</p>
+<p>We had a Golem Hackathon on last LambdaConf, and had a fresh release of Golem for it which we called <strong>Golem 0.0.100</strong>. We've spent the summer after that to prepare the first production ready release of Golem OSS, <strong>Golem 1.0</strong>, which we released 23th of August, 2024. In the few months between the hackathon and Golem 1.0, we made Golem's oplog store more scalable, introduced <em>environment inheritance</em> between workers when they are spawned through RPC, added a worker scheduler that tracks worker memory usage and suspends workers when necessary to keep the system responsible. The stability of the executor itself has been improved significantly. We tried to make the CLI for 1.0 more user friendly, created precompiled binaries of it so users don't have to compile it themselves, and created the first usable version of <strong>Rib</strong>, our scripting language used in Golem's API gateway.</p>
+<p>Rib itself did not stop there - we continued working on it in the rest of the year and it got much better type inference, error messages, new language features such as first-class worker support, list comprehensions and aggregations and so on.</p>
+<p>Our next milestone was <strong>Golem 1.1</strong>, which has been released on the 9th of December, 2024. With this release we were no longer just targeting durable execution but realized that most applications also need components that are ephemeral - so we added support for <strong>ephemeral components</strong>, which are stateless programs getting a fresh instance for each incoming call. We added the concept of <strong>plugins</strong> in this release, although not fully complete yet, but with a vision of a future plugin ecosystem where these plugins can transform user's components and observe the living workers realtime. The API gateway got support for things like <strong>authentication</strong> and <strong>CORS</strong>, and we created tools to better observe the Golem worker's history by <strong>querying their oplog</strong> itself. This was the first release with the ability to add an <strong>initial file system</strong> for components.</p>
+<p>We were trying to make it easier for users, especially if they are not Rust developers, to use Golem. So we created precompiled, downloadable <strong>single executable Golem versions</strong> for local development.</p>
+<p>Golem 1.1 was also the first version introducing the <strong>Golem application manifest</strong>. This brings the concept of an <em>application</em>, consist of one or more components, with the ability to describe (RPC) <strong>dependencies</strong> between these components in a declarative way. This significantly simplified the way how these multi-component Golem applications are built, especially the iterative development process.</p>
+<p>For <strong>Golem 1.2</strong> we decided to make this application manifest feature a core element of Golem development. We have redesigned the CLI to be based on the application concept, with single commands to build and deploy whole, multi-component Golem applications with support for dependencies between these components and allowing them to be written in different programming languages, even within a single application.</p>
+<p>We also improved our RPC solution so it no longer requires a working Rust toolchain. Instead we are <strong>linking</strong> the RPC clients dynamically in the executor.</p>
+<p>Other improvements added in the 3-4 months of development of Golem 1.2 consisted of the first version of Golem's <strong>debugging</strong> service, which will allow interactive debug and observation of running workers once it is done. Other features helping with the debugging of Golem code are the support for <strong>reverting</strong> workers and cancel pending invocations. We have added support for special kind of workers implementing a HTTP <strong>request handler</strong> (using the wasi-http interface) that can be directly mapped in the API gateway to various endpoints, and get the whole incoming HTTP request to be processed in the worker itself. We also support now <strong>scheduling</strong> invocations (even through RPC) to be done at an arbitrary point in time instead of being executed immediately.</p>
+<p>Golem 1.2 has been released on 27th of March, 2025.</p>
+<p>In the roughly 1.5 months since then we were focusing on further improving the developer experience by updating our <strong>language support</strong> to the latest version of everything (especially the JavaScript and TypeScript, Python and Go tooling). We can now define <em>plugin installations</em> and <em>APIs</em> in the <strong>application manifest</strong> itself. We continued making the application manifest the primary way to work with Golem by further simplifying the CLI interface and enforcing that every Golem component is named the same as the WIT package it defines. We've introduced a <strong>new dependency type</strong> in the application manifest for directly depending on another WASM component, composing them build-time. This dependency type even supports downloading these WASM components from remote URLs, which is an nice way to use WASM components as language-independent libraries. The first such library we provide is <a rel="external" href="https://github.com/golemcloud/golem-llm"><strong>golem-llm</strong></a>. The dependencies can now also added using a CLI command for those who prefer this method. In addition to that, we improved the CLI's <strong>error messages</strong> significantly. Another small detail is that in Golem Cloud accounts can be now referenced by their <strong>e-mail address</strong>, which allows us to for example share a project with other accounts by using their e-mail. Another small improvement is the ability to define <strong>environment variables</strong> on a per-component level now (not just per worker). A nice new feature available for Golem programs is the ability to <strong>fork</strong> workers.</p>
+<p>Rib continued to evolve, being more and more stable and having better error reporting. It is no longer just a scripting language to be used as glue code in the API gateway, but it is also integrated into the CLI as a <strong>REPL</strong>, a convenient way to interact with Golem workers.</p>
+<p>All these DX improvements are going to be released today as <strong>Golem 1.2.2</strong>, the version to be used on the LambdaConf 2025 hackathon.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

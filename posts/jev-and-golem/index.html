@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Making decisions with Jev in Golem</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction Two weeks ago TypeSafe AI introduced Jev and for a while everyone seemed to talk about it, showing more and more interesting use cases. In this pos…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/jev-and-golem/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Making decisions with Jev in Golem">
+        <meta property="og:description" content="Introduction Two weeks ago TypeSafe AI introduced Jev and for a while everyone seemed to talk about it, showing more and more interesting use cases. In this pos…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/jev-and-golem/">
+        
+        
+        <meta property="article:published_time" content="2026-09-29T18:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Making decisions with Jev in Golem",
+            "datePublished": "2026-09-29T18:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/jev-and-golem/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/jev-and-golem/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["agents","golem","jev"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Making decisions with Jev in Golem</h1>
+            <p class="posted-on">Posted on <time datetime="2026-09-29">September 29, 2026</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>Two weeks ago <a rel="external" href="https://typesafe.ai/blog/introducing-system-one-models-and-jev">TypeSafe AI introduced Jev</a> and for a while everyone seemed to talk about it, showing more and more interesting use cases. In this post I'm not trying to find the most exciting new application for this AI model; instead I'm going to show how easy it is to introduce it to a <a rel="external" href="https://golem.cloud">Golem</a> application (just like into any other TypeScript project), and use this opportunity to talk more about Golem. Why would you use Jev in a Golem application? Why would you use Golem for something like the demo we will look into?</p>
+<h2 id="the-use-case">The use case</h2>
+<p><strong>Jev</strong> is basically a fast general purpose classifier - and it can be used for arbitrary tasks without training it first. <strong>Golem</strong> is a platform for running agents - where agents are stateful, can communicate with each other, and can use LLMs or other AI (or non-AI) services in a fault tolerant and very safe, sandboxed environment.</p>
+<p>A simple use case I came up with for this experiment is to use <strong>Jev</strong> as a filter and router among Golem agents. We are going to build a log ingress that maintains a sliding window of logs, and for each log line it asks Jev to classify it based on a configurable set of categories (for example security incident, service outage, data loss, performance degradation or none of these). Then we wait a bit more to acquire the surroundings of a matched log, and we forward it, together with a configurable amount of surrounding logs, to one or more other agents corresponding to the categories the classifier selected. This per-category agent then summarizes the event using an LLM and stores it in an event log.</p>
+<img src="/images/jev-golem-concept.svg" alt="Conceptual flow from HTTP log ingress through Jev classification to per-category incident registries" width="1600" height="600" loading="lazy" decoding="async">
+<h2 id="building-it">Building it</h2>
+<p>In the past I really enjoyed explaining step by step in blog posts like this how to build something using a given technology. I don't think it makes too much sense anymore - nobody is going to follow it step by step, and coding agents can learn the <em>how</em> from the source code (Golem itself is open-source) and the <a rel="external" href="https://blog.vigoo.dev/posts/golem15-part9-skills/">provided skills</a>.</p>
+<p>In this particular case I just took the last pre-release version of Golem (<strong>Golem 1.6</strong> is to be released within a few weeks!) and created a new Golem application using the <a rel="external" href="https://effect.website">Effect.ts</a> template provided by the <code>golem</code> CLI:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>$ golem new jev-demo</span></span>
+<span class="giallo-l"><span>? Select languages:</span></span>
+<span class="giallo-l"><span>  TypeScript</span></span>
+<span class="giallo-l"><span>&gt; Effect</span></span>
+<span class="giallo-l"><span>  Rust</span></span>
+<span class="giallo-l"><span>  Scala</span></span>
+<span class="giallo-l"><span>  MoonBit</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>? Select templates:</span></span>
+<span class="giallo-l"><span>&gt; [x] effect: A simple Effect agent implementing a durable counter</span></span>
+<span class="giallo-l"><span>  [ ] effect/streaming: A runnable Effect Durable Streams agent with HTTP routes, external streams, and forks</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"><span>Finished applying template(s) [OK]</span></span></code></pre>
+<p>Then I just gave a prompt similar to the following to a coding agent:</p>
+<blockquote>
+<p>Let's remove the counter example and build a demo. First I want you to understand how Jev can be used (https://typesafe.ai) and in addition to that, how to use it from within Effect.ts.</p>
+<p>What I want to build is the following:</p>
+<ul>
+<li>We will have a durable ingress agent that continuously receives log lines (structured json documents). The agent's state will be a circular buffer holding always just the last 100 lines (configurable through agent config).</li>
+<li>We will also have an ephemeral facade agent that takes a plain-text log and parses timestamp / content out of it and forwards to the durable ingress</li>
+<li>Every time the durable ingress gets a new line, we will call Jev to classify it among a number of watched preconfigured categories (+ none of them). If there is a match, we remember it and whenever it gets to the middle of the circular buffer OR a given TTL expired, we forward it and the whole surrounding circular buffer to an inner durable agent that's keyed by the category name.</li>
+<li>Maybe we should use a second round of jev-based filtering on the buffer before we send it and keep only the ones it flags. Not sure</li>
+<li>The per-category actors receive one "incident" with the surrounding logs, and run an LLM (using effect.ai) to summarize the incident based on the logs, then stores it in its own state keyed by timestamp. It should also have a method to query the stored incidents. As these queries cannot interleave with the LLM generation, we need some trick here, maybe use the read-only method feature to cache results, or spawn a sub-agent. Let's discover what's best.</li>
+<li>All features must be exposed via HTTP</li>
+</ul>
+<p>Let's not use stream types / durable streams yet - we want to demonstrate that capability separately.</p>
+</blockquote>
+<p>I gave some pointers to it about how I imagine our architecture but intentionally did not give it too much detail - I was curious what kind of solution it would come up with for the interleaving problem I mentioned, for example. Using read-only methods, that I hinted in the prompt, is actually not a good solution in this case but I wanted to see how it answers.</p>
+<p>From this the agent created, deployed and tested a fully working Golem application implementing my use case correctly, with basically no further interaction needed. To test it I asked the agent to download some example log archives, run Golem locally, send sections of this downloaded archive to the ingress and then examine the various incident categories through our application's HTTP API.</p>
+<h2 id="architecture">Architecture</h2>
+<p>So instead of focusing on how it built it, let's start from the end result. The resulting architecture looks like this:</p>
+<img src="/images/jev-golem-architecture.svg" alt="Architecture of the Jev and Golem log incident processing demo" width="1600" height="880" loading="lazy" decoding="async">
+<h3 id="understanding-the-components">Understanding the components</h3>
+<p>The left section contains three categories of the public HTTP API we implemented:</p>
+<ul>
+<li>It is possible to post a plain text log line</li>
+<li>Or post a structured log JSON</li>
+<li>A few GET endpoints provide access to the collected incident summaries</li>
+</ul>
+<p>In Golem we don't have to write HTTP endpoint definitions and routing separately (although we can for custom cases) - they can be directly defined on the <strong>agents</strong> that are going to be serving the requests.</p>
+<p>The middle section contains our agent types, with arrows representing the message flow between them.</p>
+<p>The right section represents the 3rd party AI providers we are going to connect to - in this example it's TypeSafe AI's Jev and OpenAI.</p>
+<h4 id="agent-types">Agent types</h4>
+<p>Before talking about all the 4 agent types on the above diagram, take a note of the labels on them: <strong>ephemeral</strong> and <strong>durable</strong>.</p>
+<p><strong>Ephemeral agents</strong> are stateless, one-shot entities, perfect for example for request handlers of an HTTP API. They are fast and an arbitrary number of them can run in parallel, but they are not fault tolerant - they are designed for short-living, retry-able units of work.</p>
+<p><strong>Durable agents</strong> are the default, and they represent one of Golem's main powers. Durable agents can run arbitrarily long and they survive crashes, redeployments, scaling and so on. Durable agents support <em>idempotency keys</em> and automatically provide agent-to-agent communication with <em>exactly-once</em> calling semantics - if an agent A calls an agent B, you can be sure that it is going to happen, and the call is not going to reach B twice even during outages. Another nice property of durable agents - which enables the fault tolerance we've just talked about - is that they can be <em>suspended</em> when they are idle. The runtime can remove them completely from memory, and still they are ready to be restored (by a new invocation, by a timer, etc) and they just continue running from where they were.</p>
+<p>An interesting feature emerges from the above properties - if it can be suspended and resumed, and "survives anything" (crashes, redeployments, etc...), we can simply store arbitrary state in an agent's memory (in regular variables) and there is no need to synchronize data into a database. This is something we are going to take advantage of in our demo!</p>
+<p>Another important property of durable agents is that their invocations are processed <em>sequentially</em> and they cannot overlap. Maybe surprisingly this no-overlap constraint also includes promises. The invocation is only considered done when all promises have been resolved (or cancelled). This is a limitation that we probably will resolve in future versions. I actually like it though, as it also makes it much easier to understand how the whole system is executing. As we will see, this limitation requires some attention in some cases to make sure things are not blocked in the invocation queues.</p>
+<h4 id="categoryincidents-agent">CategoryIncidents agent</h4>
+<p>Let's start with the <strong>CategoryIncidents</strong> agent. One <strong>instance</strong> of this agent will represent the incidents of <strong>a given category</strong> for <strong>a given log source</strong>.</p>
+<p>For example if we have a log source <code>payment-service</code> and three categories (<code>security-incident</code>, <code>data-loss</code>, <code>service-outage</code>), then the following <strong>agent IDs</strong> are going to identify different instances of the same type:</p>
+<ul>
+<li><code>CategoryIncidents("payment-service", "data-loss")</code></li>
+<li><code>CategoryIncidents("payment-service", "service-outage")</code></li>
+<li><code>CategoryIncidents("account-service", "service-outage")</code></li>
+</ul>
+<p>The agent itself is going to be a simple agent, not having any AI enabled functionalities - just storing a list of incidents in its own state, and providing HTTP bindings to query that. When using the Effect.ts SDK for Golem, we define our data types used in our agents (whether it's on the public API or to store the state, etc.) using <strong>Effect Schema</strong>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> .. more domain data types defined with Effect Schema ..</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> Incident</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  context</span><span class="z-l-2">:</span><span class="z-d-9"> IncidentContext</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  status</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Literals</span><span>(</span><span>[</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">pending</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">summarized</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">failed</span><span class="z-l-4 z-d-5">&quot;</span><span>]</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  summary</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  error</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> type</span><span class="z-l-9 z-d-10"> Incident</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-2 z-d-7"> typeof</span><span class="z-d-10"> Incident</span><span>.</span><span class="z-l-11 z-d-9">Type</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> CategoryState</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  source</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  category</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  incidents</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-9">Incident</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> type</span><span class="z-l-9 z-d-10"> CategoryState</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-2 z-d-7"> typeof</span><span class="z-d-10"> CategoryState</span><span>.</span><span class="z-l-11 z-d-9">Type</span><span>;</span></span></code></pre>
+<p>Our agent's state will store the <code>source</code> and <code>category</code> (the pair that identifies the agent) and an array of <code>Incident</code>s, each storing the log lines belonging to the incident, and the LLM-based summarization (to be explained later).</p>
+<p>The agent itself defines not only its name, identity and invokable methods, but also the public HTTP API it is bound to:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> CategoryIncidents</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> defineAgent</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  name</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">CategoryIncidents</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  description</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Durable incident store for one source and watched category</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  mode</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">durable</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  id</span><span class="z-l-2">:</span><span> {</span><span class="z-l-11 z-d-9"> source</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span><span class="z-l-11 z-d-9"> category</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  http</span><span class="z-l-2">:</span><span class="z-d-10"> Http</span><span>.</span><span class="z-l-3 z-d-3">mount</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">/categories/{source}/{category}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  snapshotting</span><span class="z-l-2">:</span><span class="z-d-10"> Snapshot</span><span>.</span><span class="z-l-3 z-d-3">define</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    schema</span><span class="z-l-2">:</span><span class="z-d-9"> CategoryState</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    policy</span><span class="z-l-2">:</span><span class="z-d-10"> Snapshot</span><span>.</span><span class="z-l-11 z-d-10">policy</span><span>.</span><span class="z-l-3 z-d-3">everyN</span><span>(</span><span class="z-l-6 z-d-8">10</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  methods</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    list</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> method</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      input</span><span class="z-l-2">:</span><span> {</span><span>}</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-9">Incident</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      http</span><span class="z-l-2">:</span><span> [</span><span class="z-d-10">Http</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">/incidents</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    receive</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> method</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      input</span><span class="z-l-2">:</span><span> {</span><span class="z-l-11 z-d-9"> incident</span><span class="z-l-2">:</span><span class="z-d-9"> IncidentContext</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Boolean</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    complete</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> method</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      input</span><span class="z-l-2">:</span><span> {</span><span class="z-l-11 z-d-9"> incidentId</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span><span class="z-l-11 z-d-9"> summary</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Boolean</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    fail</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> method</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      input</span><span class="z-l-2">:</span><span> {</span><span class="z-l-11 z-d-9"> incidentId</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span><span class="z-l-11 z-d-9"> error</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Boolean</span><span>,</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>,</span><span>    </span></span>
+<span class="giallo-l"><span>  }</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>This is just the <em>definition</em> of our agent - we need to actually <em>implement</em> each method as well. It's pretty simple, just storing data in our agent's state, backed by an Effect.ts <code>Ref</code>, for example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-10">CategoryIncidents</span><span>.</span><span class="z-l-3 z-d-3">implement</span><span>&lt;</span><span class="z-l-4 z-d-10">Ref</span><span>.</span><span class="z-l-9 z-d-10">Ref</span><span>&lt;</span><span class="z-l-9 z-d-10">CategoryState</span><span>&gt;</span><span>&gt;</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  init</span><span class="z-l-2">:</span><span> (</span><span>{</span><span class="z-d-9 z-d-i"> source</span><span>,</span><span class="z-d-9 z-d-i"> category</span><span> }</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-10"> Ref</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>&lt;</span><span class="z-l-9 z-d-10">CategoryState</span><span>&gt;</span><span>(</span><span>{</span><span class="z-d-9"> source</span><span>,</span><span class="z-d-9"> category</span><span>,</span><span class="z-l-11 z-d-9"> incidents</span><span class="z-l-2">:</span><span> [</span><span>]</span><span> }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  methods</span><span class="z-l-2">:</span><span> (</span><span class="z-d-9 z-d-i">state</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> (</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    list</span><span class="z-l-2">:</span><span> (</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-10"> Ref</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-d-9">state</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">pipe</span><span>(</span><span class="z-d-10">Effect</span><span>.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span>(</span><span>{</span><span class="z-d-9 z-d-i"> incidents</span><span> }</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-9"> incidents</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  snapshot</span><span class="z-l-2">:</span><span class="z-d-10"> Snapshot</span><span>.</span><span class="z-l-3 z-d-3">ref</span><span>&lt;</span><span class="z-l-9 z-d-10">CategoryState</span><span>&gt;</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>);</span></span></code></pre>
+<p>This agent demonstrates how the durability feature can be used to build agents corresponding to domain entities, simply storing their data in their own state. The <em>snapshotting</em> feature (appears in both the agent definition and the implementation) is optional - Golem can preserve the agent's state even without it, but our agent was right to use it as it makes recovery from suspended state much faster.</p>
+<h4 id="summarizationjob-agent">SummarizationJob agent</h4>
+<p>The behavior we want from <code>CategoryIncidents</code> is that when it <code>receive</code>s a new incident, it uses an LLM to summarize it before storing the final incident in the incident list. (We can still store the non-summarized version in the incident list temporarily, so there is no delay in incident queries). The summarization, however, is a slow operation involving sending one or more requests to a 3rd party AI API. This is one of the cases where the <strong>sequential, non-overlapping invocation processing</strong> has to be dealt with. If we simply start the (async!) summarization in the <code>receive</code> call, our agent is not going to process any other invocations until it is fully done, including the summarization. For subsequent incoming <code>receive</code> calls this is not a problem - we want to process them one by one anyway. But it also means our agent cannot create responses for the incident listing endpoint as it's bound to invoking the <code>list</code> method!</p>
+<p>Our coding agent used a simple trick to avoid this problem - spawning another agent for each <code>receive</code>ed incident, that runs in parallel to our <code>CategoryIncidents </code>agent and just sends back the summarization result to it when it is done.</p>
+<p>This agent shows us a couple of new features of Golem.</p>
+<p>First of all, the LLM call requires an API key (and an API URL and model name). We can define this required configuration using Golem's <code>defineConfig</code> function:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> SummarizationConfig</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-3 z-d-3"> defineConfig</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">SummarizationJob.Config</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  openAiApiUrl</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  openAiModel</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  openAiApiKey</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Redacted</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span> {</span><span>}</span></span></code></pre>
+<p>Then in the <em>agent definition</em> we just add it as a property:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-3 z-d-3">defineAgent</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    config</span><span class="z-l-2">:</span><span class="z-d-9"> SummarizationConfig</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>and in the <em>agent implementation</em> we can just get it from our Effect's dependencies:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> config</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-9"> SummarizationConfig</span><span>;</span></span></code></pre>
+<p>Then the implementation of our summarization agent's <code>run</code> method just uses the <code>@effect/ai-openai</code> package to call OpenAI with the configured URL, token and model, with a prompt constructed from the log lines passed to <code>run</code>.</p>
+<p>The <code>run</code> method is defined like this:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-3 z-d-3">defineAgent</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    methods</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      run</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> method</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        input</span><span class="z-l-2">:</span><span> {</span><span class="z-l-11 z-d-9"> incident</span><span class="z-l-2">:</span><span class="z-d-9"> IncidentContext</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Void</span><span>,</span></span>
+<span class="giallo-l"><span>      }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span><span>);</span></span></code></pre>
+<p>And the interesting feature that <code>defineAgent</code> provides is a fully type-safe way to <strong>invoke an agent from another agent</strong>. Here is how <code>receive</code> in the <code>CategoryIncidents</code> agent's implementation triggers the summarization:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> job</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> SummarizationJob</span><span>.</span><span class="z-l-11 z-d-10">client</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  source</span><span class="z-l-2">:</span><span class="z-d-10"> current</span><span>.</span><span class="z-l-11 z-d-9">source</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  category</span><span class="z-l-2">:</span><span class="z-d-10"> current</span><span>.</span><span class="z-l-11 z-d-9">category</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  incidentId</span><span class="z-l-2">:</span><span class="z-d-10"> incident</span><span>.</span><span class="z-l-11 z-d-9">id</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> job</span><span>.</span><span class="z-l-11 z-d-10">run</span><span>.</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span>{</span><span class="z-d-9"> incident</span><span> }</span><span>)</span><span>;</span></span></code></pre>
+<p><code>get</code> means "get or create" - the parameters passed are the constructor parameters for our <code>SummarizationJob</code> agent, and they uniquely identify an agent instance. This means there is going to be <strong>one summarization job per incident</strong>.</p>
+<p>Then we <strong>trigger</strong> the run method, passing the incident. Triggering means we put the invocation in the other agent's invocation queue (with guaranteed delivery) and then continue - so we are not blocking our sender agent with the summarization job.</p>
+<p>When the summarization is done, the other agent uses the same technique to send back the summarization result:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> categoryStore</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> CategoryIncidents</span><span>.</span><span class="z-l-11 z-d-10">client</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  source</span><span class="z-l-2">:</span><span class="z-d-10"> current</span><span>.</span><span class="z-l-11 z-d-9">source</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  category</span><span class="z-l-2">:</span><span class="z-d-10"> current</span><span>.</span><span class="z-l-11 z-d-9">category</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> categoryStore</span><span>.</span><span class="z-l-3 z-d-3">complete</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  incidentId</span><span class="z-l-2">:</span><span class="z-d-10"> current</span><span>.</span><span class="z-l-11 z-d-9">incidentId</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  summary</span><span class="z-l-2">:</span><span class="z-d-10"> result</span><span>.</span><span class="z-l-11 z-d-9">text</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>Here our agent wrote <code>.complete</code> and not <code>.complete.trigger</code> - this is the variant that awaits the remote invocation's completion. In this particular case it is not making a lot of difference, but helps a little with debugging our application's state - the summarization job's <strong>status</strong> field (in its own state) only becomes <code>completed</code> when it knows the <code>CategoryIncidents</code> agent already received the summary.</p>
+<h5 id="read-only-methods">Read-only methods</h5>
+<p>In the agent prompt I mentioned read-only methods to the agent as a possible way to deal with the problem of not being able to return an incident list while summarization is running. Read-only methods cache their values (with some configurable expiration) and if the cache is hot, it requires no actual invocation to serve the HTTP request bound to them.
+This is a useful optimisation technique but it would not solve our problem reliably here - it is not guaranteed that the cache is valid, so from time to time external requests trying to query the incident list would block on ongoing summarizations, if we would not have this separate <code>SummarizationJob</code> agent.</p>
+<h4 id="logingress-agent">LogIngress agent</h4>
+<p>The <code>LogIngress</code> agent is where we integrate <strong>Jev</strong> in our application. It is a durable agent, with one instance per log source. The agent's state is a sliding window of observed structured log lines, and observed incidents. When we detect an incident with <strong>Jev</strong> we are not immediately sending it to our <code>CategoryIncidents</code> agent. First we wait a bit for follow-up log lines. We send it either when the classified log line is in the middle of our buffer, or after a configurable TTL (to make sure we handle the matches even if no follow-up log lines are arriving).</p>
+<p>This is an example of having a more complicated in-memory state, where Golem's <strong>durable execution</strong> guarantees make this very easy to implement. Imagine writing this on a traditional runtime. We would have to persist the log lines, deal with throwing away old ones (or choose a database that supports such a construct), we would separately have to persist the candidates until we are ready to send them to the incident store agents, and so on. With Golem we don't have to do any of that - just simple in-memory state, guaranteed to never get lost:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> PendingMatch</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  id</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  category</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  probability</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  matchedAt</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  matchedSequence</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> LogIngressState</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  source</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  nextSequence</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  lines</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-9">SequencedLogLine</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  pending</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-9">PendingMatch</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> type</span><span class="z-l-9 z-d-10"> LogIngressState</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-2 z-d-7"> typeof</span><span class="z-d-10"> LogIngressState</span><span>.</span><span class="z-l-11 z-d-9">Type</span><span>;</span></span></code></pre>
+<p>Sending a pending incident to the other agent works with the same generated type-safe client interface as the one we've already seen. The interesting part of this agent is how we use <strong>Jev</strong> for routing among the agents, and how we deal with the TTL.</p>
+<p>To ask <strong>Jev</strong>, we can use the official Effect.ts library <code>"@effect/ai-typesafe"</code>. We store the classifier configuration itself in the agent's configuration:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> LogIngressConfig</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-3 z-d-3"> defineConfig</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">LogIngress.Config</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  bufferSize</span><span class="z-l-2">:</span><span class="z-d-10"> WitTypes</span><span>.</span><span class="z-l-11 z-d-9">Int32</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  contextTtlSeconds</span><span class="z-l-2">:</span><span class="z-d-10"> WitTypes</span><span>.</span><span class="z-l-11 z-d-9">Int32</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  jevApiUrl</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  jevModel</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  categories</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-9">WatchedCategory</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  typesafeApiKey</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Redacted</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span> {</span><span>}</span></span></code></pre>
+<p>We've already seen this where we specified the OpenAI API keys, model and URL. The nice thing about Golem's configuration support is not only that it provides these values through the Effect.ts SDK as a layer; it also <strong>ensures</strong> that all the configuration is present at deploy-time, and guarantees that it is type safe. In addition to that, secrets (<code>Schema.Redacted(...)</code> in Effect.ts) are treated as secrets on the Golem deployment level too. They are redacted everywhere, and Golem provides special APIs and CLI commands to <strong>rotate them</strong> without redeploying your application.</p>
+<p>In the <code>golem.yaml</code> (our application's Golem specific manifest) we can specify our agent's default configuration and the initial values for the secrets (<em>initial</em>, because they can be rotated later):</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">a</span><span class="z-l-11 z-d-9">gents</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  L</span><span class="z-l-11 z-d-9">ogIngress</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    c</span><span class="z-l-11 z-d-9">onfig</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      b</span><span class="z-l-11 z-d-9">ufferSize</span><span>:</span><span class="z-l-6 z-d-8"> 100</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      c</span><span class="z-l-11 z-d-9">ontextTtlSeconds</span><span>:</span><span class="z-l-6 z-d-8"> 30</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      j</span><span class="z-l-11 z-d-9">evApiUrl</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">https://api.typesafe.ai/v1</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      j</span><span class="z-l-11 z-d-9">evModel</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">jev-latest</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      c</span><span class="z-l-11 z-d-9">ategories</span><span>:</span></span>
+<span class="giallo-l"><span>      -</span><span class="z-l-11 z-d-9"> n</span><span class="z-l-11 z-d-9">ame</span><span>:</span><span class="z-l-4 z-d-5"> s</span><span class="z-l-4 z-d-5">ecurity-incident</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        d</span><span class="z-l-11 z-d-9">escription</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Authentication attacks, unauthorized access, suspicious activity, or security policy violations</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">hreshold</span><span>:</span><span class="z-l-6 z-d-8"> 0.65</span></span>
+<span class="giallo-l"><span>      -</span><span class="z-l-11 z-d-9"> n</span><span class="z-l-11 z-d-9">ame</span><span>:</span><span class="z-l-4 z-d-5"> s</span><span class="z-l-4 z-d-5">ervice-outage</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        d</span><span class="z-l-11 z-d-9">escription</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">A service is unavailable, unhealthy, repeatedly crashing, or failing requests</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">hreshold</span><span>:</span><span class="z-l-6 z-d-8"> 0.65</span></span>
+<span class="giallo-l"><span>      -</span><span class="z-l-11 z-d-9"> n</span><span class="z-l-11 z-d-9">ame</span><span>:</span><span class="z-l-4 z-d-5"> d</span><span class="z-l-4 z-d-5">ata-loss</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        d</span><span class="z-l-11 z-d-9">escription</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Data was deleted, corrupted, lost, or cannot be recovered</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">hreshold</span><span>:</span><span class="z-l-6 z-d-8"> 0.65</span></span>
+<span class="giallo-l"><span>      -</span><span class="z-l-11 z-d-9"> n</span><span class="z-l-11 z-d-9">ame</span><span>:</span><span class="z-l-4 z-d-5"> p</span><span class="z-l-4 z-d-5">erformance-degradation</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        d</span><span class="z-l-11 z-d-9">escription</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Latency, saturation, resource pressure, or throughput is materially worse than normal</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        t</span><span class="z-l-11 z-d-9">hreshold</span><span>:</span><span class="z-l-6 z-d-8"> 0.65</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">#</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">s</span><span class="z-l-11 z-d-9">ecretDefaults</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  l</span><span class="z-l-11 z-d-9">ocal</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    t</span><span class="z-l-11 z-d-9">ypesafeApiKey</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{{ TYPESAFE_API_KEY }}</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    o</span><span class="z-l-11 z-d-9">penAiApiKey</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{{ OPENAI_API_KEY }}</span><span class="z-l-4 z-d-5">&quot;</span></span></code></pre>
+<p>The above secret syntax tells Golem to use the <code>TYPESAFE_API_KEY</code> and <code>OPENAI_API_KEY</code> environment variables from the machine we are deploying from.</p>
+<p>Getting the above config from our agent's dependencies and using the <strong>Jev</strong> API is straightforward:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> config</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-9"> LogIngressConfig</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ... extract decisions and other properties from config</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> definition</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Decision</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> input</span><span class="z-l-2">:</span><span class="z-d-9"> LogDecisionInput</span><span>,</span><span class="z-d-9"> decisions</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> clientLayer</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> TypeSafeClient</span><span>.</span><span class="z-l-3 z-d-3">layer</span><span>(</span><span>{</span><span class="z-d-9"> apiKey</span><span>,</span><span class="z-d-9"> apiUrl</span><span> }</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">  Layer</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-d-10">FetchHttpClient</span><span>.</span><span class="z-l-11 z-d-9">layer</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> modelLayer</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> TypeSafeDecisionModel</span><span>.</span><span class="z-l-3 z-d-3">layer</span><span>(</span><span>{</span><span class="z-d-9"> model</span><span> }</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">  Layer</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-d-9">clientLayer</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> response</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> DecisionModel</span><span>.</span><span class="z-l-3 z-d-3">decide</span><span>(</span><span class="z-d-9">definition</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  input</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    timestamp</span><span class="z-l-2">:</span><span class="z-d-10"> line</span><span>.</span><span class="z-l-11 z-d-9">timestamp</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    content</span><span class="z-l-2">:</span><span class="z-d-10"> line</span><span>.</span><span class="z-l-11 z-d-9">content</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    attributes</span><span class="z-l-2">:</span><span class="z-d-10"> Record</span><span>.</span><span class="z-l-3 z-d-3">fromIterableWith</span><span>(</span><span class="z-d-10">line</span><span>.</span><span class="z-l-11 z-d-9">attributes</span><span>,</span><span> (</span><span>{</span><span class="z-d-9 z-d-i"> key</span><span>,</span><span class="z-d-9 z-d-i"> value</span><span> }</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> [</span><span class="z-d-9">key</span><span>,</span><span class="z-d-9"> value</span><span>]</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">  Effect</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-d-9">modelLayer</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span></code></pre>
+<p>We can call <code>decide</code> for each incoming log-line and get back probabilities of matching each configured category. We convert this to a list of category matches - if the list is empty, it did not match <em>any</em> of our classifier categories. Then we store the matches in our agent's in-memory state, and check if any previously pending items are now ready to be sent (when they are in the "middle" of our sliding window). Sending them is trivial - just one more agent-to-agent call using the typed client that comes free from <code>defineAgent</code>.</p>
+<p>The only new thing here is how to deal with the TTL; what if we have a match, but then nobody sends a new log line ever again - we would have the pending match pending forever. Spawning a timer purely in the JavaScript (Effect.ts) world is not an option because of the requirement that invocations cannot overlap - if we still had a pending promise at the end of <code>receive</code>, new log lines would never arrive. But we also use the <em>clients</em> defined by <code>defineAgent</code> to <strong>schedule</strong> an invocation in the future, and we can even do that on ourselves!</p>
+<p>Here is what this looks like in code:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> self</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> LogIngress</span><span>.</span><span class="z-l-11 z-d-10">client</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>{</span><span class="z-d-9"> source</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> (</span><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> match</span><span class="z-l-8 z-d-7"> of</span><span class="z-d-9"> newPending</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> self</span><span>.</span><span class="z-l-11 z-d-10">flushPending</span><span>.</span><span class="z-l-3 z-d-3">schedule</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    scheduledAt</span><span>(</span><span class="z-d-9">now</span><span class="z-l-2 z-d-1"> +</span><span class="z-d-9"> ttlSeconds</span><span class="z-l-2 z-d-1"> *</span><span class="z-l-6 z-d-8"> 1_000</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    {</span><span class="z-l-11 z-d-9"> matchId</span><span class="z-l-2">:</span><span class="z-d-10"> match</span><span>.</span><span class="z-l-11 z-d-9">id</span><span> }</span><span>,</span></span>
+<span class="giallo-l"><span>  )</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h4 id="plaintextlogfacade-agent">PlainTextLogFacade agent</h4>
+<p>The last agent from our diagram is an <strong>ephemeral agent</strong>. It has no state, and Golem spawns a fresh instance for each invocation - in our case, for each incoming POST request on the plain-text log ingress endpoint.
+In our demo there is no serious reason to have this log parsing in its own ephemeral agent - the reason I wanted to have it is to demonstrate how ephemeral agents can be used as the implementation of HTTP APIs while they can still communicate with the underlying durable agents.
+We can argue for using ephemeral agents as the plain-text parsers to avoid the computation cost of parsing the log lines on the <code>LogIngress</code> agent itself.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Adding <strong>Jev</strong> based decisions to a Golem application is trivial. You can use it to control agent loops, make routing decisions between multiple agents, and so on.
+This post used the <em>Effect.ts SDK</em> for Golem, but you can also write Golem applications in plain TypeScript, in Rust, Scala and MoonBit.</p>
+<p>The above example was built using a pre-release version of <strong>Golem 1.6</strong>. The final version is coming out soon. We did not really use any 1.6 features in it though - everything described here is possible using the current stable Golem 1.5 release, except that its Effect.ts SDK depends on an <em>older</em> version of Effect.ts with no <code>@effect/ai-typesafe</code> package, so we would have had to write our Jev client for ourselves using Effect's HTTP client API.</p>
+<p>The whole demo is available <a rel="external" href="https://github.com/vigoo/jev-demo">on GitHub</a>.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

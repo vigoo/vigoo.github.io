@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Durable Execution is not just for failures</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction When talking about Golem or other durable execution engines the most important property we are always pointing out is that by making the applicatio…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/durable-execution-is-not-just-for-failures/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Durable Execution is not just for failures">
+        <meta property="og:description" content="Introduction When talking about Golem or other durable execution engines the most important property we are always pointing out is that by making the applicatio…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/durable-execution-is-not-just-for-failures/">
+        
+        
+        <meta property="article:published_time" content="2025-03-28T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Durable Execution is not just for failures",
+            "datePublished": "2025-03-28T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/durable-execution-is-not-just-for-failures/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/durable-execution-is-not-just-for-failures/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem","durable-execution"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Durable Execution is not just for failures</h1>
+            <p class="posted-on">Posted on <time datetime="2025-03-28">March 28, 2025</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>When talking about <a rel="external" href="https://golem.cloud">Golem</a> or other <strong>durable execution engines</strong> the most important property we are always pointing out is that by making the application <em>durable</em>, it can automatically survive various failure scenarios. In case of a transient error, or some other external event such as updating or restarting the underlying servers durable programs can survive by seamlessly continuing their execution from the point where they were interrupted, without any visible (except for some latency, of course) effect for the application's users.</p>
+<p>But having this core capability has many other interesting consequences.</p>
+<p>A durable program can be dropped out of memory any time without having to explicitly save its state or shut it down in any way - and whenever it is needed it can be automatically recovered and it continues from where it left. The application developers can rely on very simple code storing everything in memory - as it is guaranteed that the in-memory state never gets lost.</p>
+<p>If a <strong>Golem worker</strong> (a running durable program) is not performing any active job at the moment - for example it is waiting to be invoked, or waiting for some scheduled event - they automatically get dropped out of the executor's memory to make space for other workers. This means we can have an (almost arbitrary) large number of "running" workers, if they are not performing CPU intensive tasks. Sure, having to continuously recover dropped out workers is affecting latency, but still, it means we can run these large number of simultaneous, stateful programs even on a locally started Golem on a developer machine.</p>
+<h2 id="demo">Demo</h2>
+<h3 id="setting-it-up">Setting it up</h3>
+<p>In this short blog post we are going to demonstrate this. We are going to start the latest version of Golem (1.2) locally, then use the CLI (and some <a rel="external" href="https://www.nushell.sh">Nushell</a> snippets) to build, deploy and run a large number of workers.</p>
+<p>First we download the latest <code>golem</code> command line application <a rel="external" href="https://learn.golem.cloud/quickstart">according to Golem's Quick Start pages</a>. With that we can start our local Golem cluster - all the core Golem services are integrated in this single <code>golem</code> binary:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> server</span><span class="z-l-4 z-d-5"> run</span></span></code></pre>
+<p>We are going to use the same <code>golem</code> CLI application to create, deploy and invoke Golem components.</p>
+<p>Next we create a new <em>golem application</em>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> app</span><span class="z-l-4 z-d-5"> new</span><span class="z-l-4 z-d-5"> manyworkers</span><span class="z-l-4 z-d-5"> rust</span></span></code></pre><img src="/images/2025-03-28/1.webp" alt="Golem CLI creating the manyworkers Rust application" width="1100" height="143" loading="lazy" decoding="async">
+<p>Golem comes with a set of <strong>components templates</strong> for all supported languages. One of these templates is a simple <em>shopping cart</em> implementation in Rust, where each Golem worker (running instance of this component) represents a single shopping cart, keeping its contents in memory.</p>
+<p>We are going to create <strong>10</strong> (identical) versions of this template, simulating that we have more than one applications running in a cluster. Even though they are going to be exactly the same to keep the post simple, from Golem's point of view it is going to be 10 different applications, compiled and deployed separately.</p>
+<p>Let's call the <code>golem component new</code> command 10 times in the newly generated application to set this up!</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-6 z-d-8">0</span><span class="z-l-8 z-d-7">..</span><span class="z-l-6 z-d-8">9</span><span class="z-l-8 z-d-7"> |</span><span class="z-l-8 z-d-7"> each</span><span> {</span><span> |</span><span class="z-d-9 z-d-i">x</span><span>|</span><span class="z-l-9 z-d-10"> golem</span><span class="z-l-4 z-d-5"> component</span><span class="z-l-4 z-d-5"> new</span><span class="z-l-4 z-d-5"> rust/example-shopping-cart</span><span class="z-l-4 z-d-5"> $&quot;</span><span class="z-l-4 z-d-5">demo:cart</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$x</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">&quot;</span><span> }</span></span></code></pre>
+<p>This command created 10 components in our application, with names <code>demo:cart0</code> to <code>demo:cart9</code>. First let's build and deploy these components:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> app</span><span class="z-l-4 z-d-5"> build</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> app</span><span class="z-l-4 z-d-5"> deploy</span></span></code></pre><img src="/images/2025-03-28/2.webp" alt="Golem CLI creating the demo:cart9 durable component and listing its exported shopping cart API" width="1100" height="318" loading="lazy" decoding="async">
+<p>To see the interface of this example, let's query one using <code>component get</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> component</span><span class="z-l-4 z-d-5"> get</span><span class="z-l-4 z-d-5"> demo:cart0</span></span></code></pre><img src="/images/2025-03-28/3.webp" alt="Component metadata of demo:cart0 with its WASM exports" width="1100" height="289" loading="lazy" decoding="async">
+<p>Before spawning our thousands of workers, we try out this exported interface by creating a single worker of <code>demo:cart0</code> called <code>test</code> and calling a few methods in it:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10"> golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> invoke</span><span class="z-l-4 z-d-5"> demo:cart0/test</span><span class="z-l-4 z-d-5"> initialize-cart</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">&quot;user1&quot;</span><span class="z-l-4 z-d-5">&#39;</span></span></code></pre><img src="/images/2025-03-28/4.webp" alt="Invoking initialize-cart on the demo:cart0 worker through the Golem CLI" width="1100" height="137" loading="lazy" decoding="async">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> invoke</span><span class="z-l-4 z-d-5"> demo:cart0/test</span><span class="z-l-4 z-d-5"> add-item</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">{ product-id: &quot;p1&quot;, name: &quot;Example product&quot;, price: 1000.0, quantity: 2 }</span><span class="z-l-4 z-d-5">&#39;</span></span></code></pre><img src="/images/2025-03-28/5.webp" alt="Invoking add-item on the demo:cart0 worker through the Golem CLI" width="1100" height="99" loading="lazy" decoding="async">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> invoke</span><span class="z-l-4 z-d-5"> demo:cart0/test</span><span class="z-l-4 z-d-5"> get-cart-contents</span></span></code></pre><img src="/images/2025-03-28/6.webp" alt="Invoking get-cart-contents on the demo:cart0 worker, returning the stored cart" width="1100" height="105" loading="lazy" decoding="async">
+<p>For some more context, we can also check the size of the compiled WASM files (we were doing a debug build so they are relatively large) for these components:</p>
+<img src="/images/2025-03-28/7.webp" alt="Worker metadata of the demo:cart0 test worker showing status and memory usage" width="1100" height="418" loading="lazy" decoding="async">
+<p>We can also query metadata of the created worker to get the same size information, and it also going to tell us the amount of <strong>memory</strong> the instance allocates on startup:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> get</span><span class="z-l-4 z-d-5"> demo:cart0/test</span></span></code></pre><img src="/images/2025-03-28/9.webp" alt="File listing of the twelve demo cart debug WASM components, each 3.1 megabytes" width="1100" height="510" loading="lazy" decoding="async">
+<p>And we can query the test worker's <em>oplog</em> to get an idea of how much additional memory it allocated dynamically runtime:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> oplog</span><span class="z-l-4 z-d-5"> demo:cart0/test</span><span class="z-l-8 z-d-7 z-d-i"> --</span><span class="z-d-9 z-d-i">query</span><span class="z-l-4 z-d-5"> memory</span></span></code></pre><img src="/images/2025-03-28/8.webp" alt="Invocation log of the demo:cart0 worker showing repeated durable grow memory operations" width="1100" height="329" loading="lazy" decoding="async">
+<h3 id="spawning-many-workers">Spawning many workers</h3>
+<p>Now that we have seen how a single worker looks like, let's spawn 1000 workers of each test component. This is going to take some time as it actually <strong>instantiates</strong> the WASM program for each to make the initial two invocations.</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-9"> j</span><span class="z-l-8 z-d-7"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    mut</span><span class="z-l-11 z-d-9"> i</span><span class="z-l-8 z-d-7"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">           golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> new</span><span class="z-l-4 z-d-5"> $&quot;</span><span class="z-l-4 z-d-5">demo:cart</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$i</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$j</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">           golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> invoke</span><span class="z-l-4 z-d-5"> $&quot;</span><span class="z-l-4 z-d-5">demo:cart</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$i</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$j</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5"> initialize-cart</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">&quot;user1&quot;</span><span class="z-l-4 z-d-5">&#39;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">           golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> invoke</span><span class="z-l-4 z-d-5"> $&quot;</span><span class="z-l-4 z-d-5">demo:cart</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$i</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$j</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5"> add-item</span><span class="z-l-4 z-d-5"> $&quot;</span><span class="z-l-4 z-d-5">{ product-id: </span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">p1</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">, name: </span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">Example product </span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$j</span><span class="z-l-4 z-d-5">)</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">(</span><span class="z-l-11 z-d-9">$i</span><span class="z-l-4 z-d-5">)</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">, price: 1000.0, quantity: 2 }</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span>           </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">           if</span><span class="z-l-11 z-d-9"> $i</span><span class="z-l-8 z-d-7"> &gt;=</span><span class="z-l-6 z-d-8"> 9</span><span> {</span><span class="z-l-8 z-d-7"> break</span><span>; </span><span>}</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">           $i</span><span class="z-l-8 z-d-7"> =</span><span class="z-l-11 z-d-9"> $i</span><span class="z-l-8 z-d-7"> +</span><span class="z-l-6 z-d-8"> 1</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    if</span><span class="z-l-11 z-d-9"> $j</span><span class="z-l-8 z-d-7"> &gt;=</span><span class="z-l-6 z-d-8"> 999</span><span> {</span><span class="z-l-8 z-d-7"> break</span><span>; </span><span>}</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    $j</span><span class="z-l-8 z-d-7"> =</span><span class="z-l-11 z-d-9"> $j</span><span class="z-l-8 z-d-7"> +</span><span class="z-l-6 z-d-8"> 1</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>After that, we have 10000 "running" workers (all idle, waiting for a next invocation). We can check by listing for example one of the component's workers:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="nushell"><span class="giallo-l"><span class="z-l-9 z-d-10">golem</span><span class="z-l-4 z-d-5"> worker</span><span class="z-l-4 z-d-5"> list</span><span class="z-l-4 z-d-5"> demo:cart5</span></span></code></pre><img src="/images/2025-03-28/10.webp" alt="Cart contents of a thousand demo cart workers listed by the Golem CLI" width="1100" height="732" loading="lazy" decoding="async">
+<p>Of course only some of these workers (the last accessed ones) are really in the locally running executor's memory. Whenever a worker that's not in memory is going to be accessed, it is loaded and its state is transparently restored before it gets the request. Golem is tracking the resource usage of its running components and if there is not enough memory to load the new component, an old one is going to be dropped out.</p>
+<h3 id="trying-it-out">Trying it out</h3>
+<p>To demonstrate this, we can just invoke workers randomly from the 10000 we've created:</p>
+<img src="/images/2025-03-28/11.webp" alt="Invoking get-cart-contents on several durable shopping cart workers in sequence" width="1100" height="383" loading="lazy" decoding="async">
+<p>Thanks to the durable execution model, every one of the 10000 workers react just as if it was running.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

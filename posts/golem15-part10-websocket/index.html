@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 10: WebSocket client</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/golem15-part10-websocket/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Golem 1.5 features - Part 10: WebSocket client">
+        <meta property="og:description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/golem15-part10-websocket/">
+        
+        
+        <meta property="article:published_time" content="2026-04-18T11:50:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Golem 1.5 features - Part 10: WebSocket client",
+            "datePublished": "2026-04-18T11:50:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/golem15-part10-websocket/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/golem15-part10-websocket/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem","durable-execution","agents","golem-1.5","websocket"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 10: WebSocket client</h1>
+            <p class="posted-on">Posted on <time datetime="2026-04-18">April 18, 2026</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="websockets">WebSockets</h2>
+<p>Golem applications are WebAssembly components and the only way they can make external requests is through the <a rel="external" href="https://github.com/WebAssembly/WASI/tree/main/proposals/http/">WASI HTTP interface</a>. This is not really visible for Golem developers - in TypeScript and Scala the standard <code>fetch</code> or <code>node:http</code> interfaces are hiding this fact, just like in Rust where higher level HTTP libraries like <code>wstd::http</code> can be used.</p>
+<p>This HTTP interface has its limitations; one such limitation is that it does not support upgrading to a WebSocket connection.</p>
+<h3 id="websocket-client-api">WebSocket client API</h3>
+<p>In <strong>Golem 1.5</strong> we introduce a new WebSocket client API that complements the WASI HTTP one for connecting to 3rd party WebSocket servers.</p>
+<p>Under the hood this API is described by the following WebAssembly interface:</p>
+<details>
+<summary>WIT definition of <code>golem:websocket@1.5.0</code></summary>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="wit"><span class="giallo-l"><span class="z-l-8 z-d-7">package</span><span class="z-l-9 z-d-10"> golem</span><span>:</span><span class="z-l-9 z-d-10">websocket</span><span>@</span><span class="z-l-6 z-d-8">1.5.0;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">interface</span><span class="z-l-9 z-d-10"> client</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  use</span><span class="z-d-10"> wasi</span><span>:</span><span class="z-d-10">io</span><span>/</span><span class="z-d-10">poll</span><span>@</span><span class="z-l-6 z-d-8">0.2.3</span><span>.</span><span>{</span><span class="z-l-9 z-d-10">pollable</span><span>}</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  variant</span><span class="z-l-9 z-d-10"> error</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    connection-failure</span><span>(</span><span class="z-l-9 z-d-10">string</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    send-failure</span><span>(</span><span class="z-l-9 z-d-10">string</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    receive-failure</span><span>(</span><span class="z-l-9 z-d-10">string</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    protocol-error</span><span>(</span><span class="z-l-9 z-d-10">string</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    closed</span><span>(</span><span class="z-l-9 z-d-10">option</span><span>&lt;</span><span class="z-l-9 z-d-10">close-info</span><span>&gt;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    other</span><span>(</span><span class="z-l-9 z-d-10">string</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  record</span><span class="z-l-9 z-d-10"> close-info</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    code</span><span>:</span><span class="z-l-9 z-d-10"> u16</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    reason</span><span>:</span><span class="z-l-9 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> A WebSocket message — text or binary</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  variant</span><span class="z-l-9 z-d-10"> message</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    text</span><span>(</span><span class="z-l-9 z-d-10">string</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    binary</span><span>(</span><span class="z-l-9 z-d-10">list</span><span>&lt;</span><span class="z-l-9 z-d-10">u8</span><span>&gt;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> A WebSocket connection resource</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  resource</span><span class="z-l-9 z-d-10"> websocket-connection</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Connect to a WebSocket server at the given URL (ws:// or wss://)</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Optional headers for auth, subprotocols, etc.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    connect</span><span>:</span><span class="z-l-8 z-d-7"> static </span><span class="z-l-8 z-d-7">func</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">      url</span><span>:</span><span class="z-l-9 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">      headers</span><span>:</span><span class="z-l-9 z-d-10"> option</span><span>&lt;</span><span class="z-l-9 z-d-10">list</span><span>&lt;</span><span class="z-l-9 z-d-10">tuple</span><span>&lt;</span><span class="z-l-9 z-d-10">string</span><span>,</span><span class="z-l-9 z-d-10"> string</span><span>&gt;</span><span>&gt;</span><span>&gt;</span></span>
+<span class="giallo-l"><span>    )</span><span> -&gt;</span><span class="z-l-9 z-d-10"> result</span><span>&lt;</span><span class="z-l-9 z-d-10">websocket-connection</span><span>,</span><span class="z-l-9 z-d-10"> error</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Send a message (text or binary)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    send</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span class="z-d-9 z-d-i">message</span><span>:</span><span class="z-l-9 z-d-10"> message</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> result</span><span>&lt;</span><span class="z-l-11 z-d-9">_</span><span>,</span><span class="z-l-9 z-d-10"> error</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Receive the next message (blocks until available)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    receive</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> result</span><span>&lt;</span><span class="z-l-9 z-d-10">message</span><span>,</span><span class="z-l-9 z-d-10"> error</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Receive the next message with a timeout in milliseconds.</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Returns none if the timeout expires before a message arrives.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    receive</span><span class="z-l-3 z-d-3">-with</span><span class="z-l-3 z-d-3">-</span><span class="z-l-3 z-d-3">timeout</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span class="z-d-9 z-d-i">timeout-ms</span><span>:</span><span class="z-l-9 z-d-10"> u64</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> result</span><span>&lt;</span><span class="z-l-9 z-d-10">option</span><span>&lt;</span><span class="z-l-9 z-d-10">message</span><span>&gt;</span><span>,</span><span class="z-l-9 z-d-10"> error</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Send a close frame with optional code and reason</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    close</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span class="z-d-9 z-d-i">code</span><span>:</span><span class="z-l-9 z-d-10"> option</span><span>&lt;</span><span class="z-l-9 z-d-10">u16</span><span>&gt;</span><span>,</span><span class="z-d-9 z-d-i"> reason</span><span>:</span><span class="z-l-9 z-d-10"> option</span><span>&lt;</span><span class="z-l-9 z-d-10">string</span><span>&gt;</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> result</span><span>&lt;</span><span class="z-l-11 z-d-9">_</span><span>,</span><span class="z-l-9 z-d-10"> error</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    ///</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Returns a pollable that resolves when a message is available to read</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    subscribe</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> pollable</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></details>
+<p>This is just an implementation detail which can be mostly hidden by higher level APIs provided by our language-specific SDKs, just like the WASI HTTP interfaces are.</p>
+<h3 id="higher-level-websocket-apis">Higher level WebSocket APIs</h3>
+<p>In <strong>TypeScript</strong> the WebSocket support is implemented through the standard browser <a rel="external" href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocket"><code>WebSocket</code></a> and <a rel="external" href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocketStream"><code>WebSocketStream</code></a> APIs.</p>
+<p>In <strong>Rust</strong> we could not override the behavior of an existing WebSocket library so the Golem Rust SDK provides its own, inspired by the popular <a rel="external" href="https://github.com/snapview/tungstenite-rs">tungstenite</a> library.</p>
+<p><strong>Scala</strong> compiles to JS on Golem, so the most straightforward approach is to use the browser <code>WebSocket</code>/<code>WebSocketStream</code> APIs. At the time of writing <a rel="external" href="https://ziohttp.com"><code>zio-http</code></a> does not support WebSockets on Scala.js, but this is something we could possibly fix!</p>
+<p>In <strong>MoonBit</strong> we can directly use the low level WIT interface through the generated bindings.</p>
+<h4 id="example">Example</h4>
+<p>The following example shows how an agent method can initiate and run a WebSocket connection:</p>
+<div class="code-tabs">
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> ExampleAgent</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> Promise</span><span>(</span><span>(</span><span class="z-d-9 z-d-i">resolve</span><span>,</span><span class="z-d-9 z-d-i"> reject</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> ws</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> WebSocket</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">wss://example.com/chat</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span class="z-d-10">      ws</span><span>.</span><span class="z-l-3 z-d-3">onopen</span><span class="z-l-2 z-d-1"> =</span><span> (</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">        console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Connected</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">        ws</span><span>.</span><span class="z-l-3 z-d-3">send</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Hello, server!</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>      }</span><span>;</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span class="z-d-10">      ws</span><span>.</span><span class="z-l-3 z-d-3">onmessage</span><span class="z-l-2 z-d-1"> =</span><span> (</span><span class="z-d-9 z-d-i">event</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> MessageEvent</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span class="z-l-2 z-d-7">typeof</span><span class="z-d-10"> event</span><span>.</span><span class="z-l-11 z-d-9">data</span><span class="z-l-2 z-d-1"> ===</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">string</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">          console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Text:</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-d-10"> event</span><span>.</span><span class="z-l-11 z-d-9">data</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-l-8 z-d-7"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">          console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Binary:</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Uint8Array</span><span>(</span><span class="z-d-10">event</span><span>.</span><span class="z-l-11 z-d-9">data</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>      }</span><span>;</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span class="z-d-10">      ws</span><span>.</span><span class="z-l-3 z-d-3">onerror</span><span class="z-l-2 z-d-1"> =</span><span> (</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-3 z-d-3"> reject</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-3 z-d-3"> Error</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">WebSocket error</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">      ws</span><span>.</span><span class="z-l-3 z-d-3">onclose</span><span class="z-l-2 z-d-1"> =</span><span> (</span><span class="z-d-9 z-d-i">event</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> CloseEvent</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">        console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-l-4 z-d-5">`</span><span class="z-l-4 z-d-5">Closed [</span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">event</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">code</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">] &quot;</span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">event</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">reason</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">`</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        resolve</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>      }</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> ExampleAgent</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> ExampleAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> Result</span><span>&lt;</span><span>(</span><span>)</span><span>,</span><span class="z-l-2 z-d-10"> WebSocketError</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> ws</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> WebsocketConnection</span><span>::</span><span class="z-l-3 z-d-3">connect</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">wss://example.com/chat</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-9 z-d-10"> None</span><span>)</span><span>?</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        println!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Connected</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">        ws</span><span>.</span><span class="z-l-3 z-d-3">send</span><span>(</span><span>&amp;</span><span class="z-d-10">WebSocketMessage</span><span>::</span><span class="z-l-3 z-d-3">Text</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Hello, server!</span><span class="z-l-4 z-d-5">&quot;</span><span>.</span><span class="z-l-3 z-d-3">to_string</span><span>(</span><span>)</span><span>)</span><span>)</span><span>?</span><span>;</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        loop</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            match</span><span class="z-l-11 z-d-9"> ws</span><span>.</span><span class="z-l-3 z-d-3">receive</span><span>(</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">                Ok</span><span>(</span><span class="z-l-2 z-d-10">WebSocketMessage</span><span>::</span><span class="z-l-3 z-d-3">Text</span><span>(</span><span class="z-l-11 z-d-9">text</span><span>)</span><span>)</span><span> =&gt;</span><span class="z-l-3 z-d-3"> println!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Text: </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">text</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">                Ok</span><span>(</span><span class="z-l-2 z-d-10">WebSocketMessage</span><span>::</span><span class="z-l-3 z-d-3">Binary</span><span>(</span><span class="z-l-11 z-d-9">data</span><span>)</span><span>)</span><span> =&gt;</span><span class="z-l-3 z-d-3"> println!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Binary: </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">data:?</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">                Err</span><span>(</span><span class="z-l-2 z-d-10">WebSocketError</span><span>::</span><span class="z-l-3 z-d-3">Closed</span><span>(</span><span class="z-l-11 z-d-9">info</span><span>)</span><span>)</span><span> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                    if</span><span class="z-l-8 z-d-7"> let</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span class="z-l-11 z-d-9">info</span><span>)</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> info</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">                        println!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Closed [</span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">] </span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">}</span><span class="z-l-2 z-d-1">\</span><span class="z-l-2 z-d-1">&quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> info</span><span>.</span><span>code</span><span>,</span><span class="z-l-11 z-d-9"> info</span><span>.</span><span>reason</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                    break</span><span>;</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">                Err</span><span>(</span><span class="z-l-11 z-d-9">err</span><span>)</span><span> =&gt;</span><span class="z-l-8 z-d-7"> return</span><span class="z-l-9 z-d-10"> Err</span><span>(</span><span class="z-l-11 z-d-9">err</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">        Ok</span><span>(</span><span>(</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> ExampleAgentImpl</span><span>()</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> ExampleAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> run</span><span>()</span><span>:</span><span class="z-l-9 z-d-10"> Future</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span><span class="z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    val</span><span class="z-l-11 z-d-9"> done</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> Promise</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span><span>()</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    val</span><span class="z-l-11 z-d-9"> ws</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> WebSocket</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">wss://example.com/chat</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onopen </span><span class="z-d-1">=</span><span> {</span><span> (</span><span class="z-d-9 z-d-i">_</span><span>:</span><span class="z-l-9 z-d-10"> Event</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span>      println</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Connected</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>      ws.send</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Hello, server!</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onmessage </span><span class="z-d-1">=</span><span> {</span><span> (</span><span class="z-d-9 z-d-i">event</span><span>:</span><span class="z-l-9 z-d-10"> MessageEvent</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span>      event.data </span><span class="z-l-8 z-d-7">match</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span class="z-d-9 z-d-i"> text</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span> =&gt;</span><span> println</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">T</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">x</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">:</span><span class="z-d-7"> $</span><span>text</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span> other        </span><span>=&gt;</span><span> println</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">B</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">r</span><span class="z-l-4 z-d-5">y</span><span class="z-l-4 z-d-5">:</span><span class="z-d-7"> $</span><span>other</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onerror </span><span class="z-d-1">=</span><span> {</span><span> (</span><span class="z-d-9 z-d-i">_</span><span>:</span><span class="z-l-9 z-d-10"> Event</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span>      done.tryFailure</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> Exception</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">WebSocket error</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    ws.onclose </span><span class="z-d-1">=</span><span> {</span><span> (</span><span class="z-d-9 z-d-i">event</span><span>:</span><span class="z-l-9 z-d-10"> CloseEvent</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span>      println</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">C</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5"> [</span><span class="z-d-7">${</span><span>event.code</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">]</span><span class="z-l-2 z-d-1"> \&quot;</span><span class="z-d-7">${</span><span>event.reason</span><span class="z-d-7">}</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>      done.trySuccess</span><span>(</span><span>()</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span>    done.future</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-9 z-d-10"> ExampleAgent</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-l-11 z-d-9">self</span><span> :</span><span class="z-l-9 z-d-10"> Self</span><span>)</span><span class="z-l-8 z-d-7"> -&gt;</span><span class="z-l-9 z-d-10"> Unit</span><span class="z-l-8 z-d-7"> raise</span><span class="z-d-10"> @common</span><span>.</span><span class="z-l-9 z-d-10">AgentError</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  let</span><span class="z-l-11 z-d-9"> conn</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> match</span><span class="z-d-10"> @websocket_client</span><span>.</span><span class="z-l-9 z-d-10">WebsocketConnection</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">connect</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">wss://example.com/chat</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span>  )</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    Ok</span><span>(</span><span class="z-l-11 z-d-9">c</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-11 z-d-9"> c</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    Err</span><span>(</span><span class="z-l-11 z-d-9">e</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-8 z-d-7"> raise</span><span class="z-d-10"> @common</span><span>.</span><span class="z-l-9 z-d-10">AgentError</span><span>:</span><span>:</span><span class="z-l-9 z-d-10">InvalidInput</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Connect failed: </span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">e</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  println</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Connected</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  match</span><span class="z-l-11 z-d-9"> conn</span><span>.</span><span class="z-l-3 z-d-3">send</span><span>(</span><span class="z-l-9 z-d-10">Text</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Hello, server!</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    Ok</span><span>(</span><span class="z-l-8 z-d-7">_</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> (</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    Err</span><span>(</span><span class="z-l-11 z-d-9">e</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-8 z-d-7"> raise</span><span class="z-d-10"> @common</span><span>.</span><span class="z-l-9 z-d-10">AgentError</span><span>:</span><span>:</span><span class="z-l-9 z-d-10">InvalidInput</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Send failed: </span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">e</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  while</span><span class="z-l-6 z-d-8"> true</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    match</span><span class="z-l-11 z-d-9"> conn</span><span>.</span><span class="z-l-3 z-d-3">receive</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Ok</span><span>(</span><span class="z-l-9 z-d-10">Text</span><span>(</span><span class="z-l-11 z-d-9">msg</span><span>)</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-3 z-d-3"> println</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Text: </span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">msg</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Ok</span><span>(</span><span class="z-l-9 z-d-10">Binary</span><span>(</span><span class="z-l-11 z-d-9">data</span><span>)</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-3 z-d-3"> println</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Binary: </span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">data</span><span>.</span><span class="z-l-3 z-d-3">length</span><span>(</span><span>)</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5"> bytes</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Err</span><span>(</span><span class="z-l-9 z-d-10">Closed</span><span>(</span><span class="z-l-9 z-d-10">Some</span><span>(</span><span class="z-l-11 z-d-9">info</span><span>)</span><span>)</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        println</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Closed [</span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">info</span><span>.</span><span class="z-l-11 z-d-9">code</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">] </span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">info</span><span>.</span><span class="z-l-11 z-d-9">reason</span><span class="z-d-7">}</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        break</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Err</span><span>(</span><span class="z-l-9 z-d-10">Closed</span><span>(</span><span class="z-l-9 z-d-10">None</span><span>)</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-8 z-d-7"> break</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Err</span><span>(</span><span class="z-l-11 z-d-9">e</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-8 z-d-7"> raise</span><span class="z-d-10"> @common</span><span>.</span><span class="z-l-9 z-d-10">AgentError</span><span>:</span><span>:</span><span class="z-l-9 z-d-10">InvalidInput</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Receive failed: </span><span class="z-d-7">\{</span><span class="z-l-11 z-d-9">e</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  conn</span><span>.</span><span class="z-l-3 z-d-3">drop</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+<h3 id="durability">Durability</h3>
+<p>Golem agents are durable, surviving failures and restarts. But what about these WebSocket connections? In <strong>Golem 1.5</strong> we have limited support for recovering WebSocket connections in case of a restart.</p>
+<p>If the connection happened in the past, and was already closed, it works as expected - the whole communication is stored in the agent's <strong>oplog</strong> and there isn't any problem recovering the agent's state.</p>
+<p>If the connection is still open, we have a problem because WebSocket connections are quite low level - there is no standard way to resume a connection. What Golem does is it assumes that the server supports transparent reconnections, and just reopens the connection and continues sending/receiving on it. For the Golem application's developer this is completely transparent, but it's the server's responsibility to support this kind of resumption.</p>
+<p>If the server does not support this kind of reconnection, then agents using these connections are no longer able to transparently survive failure scenarios. This is something we can further improve in upcoming Golem releases.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

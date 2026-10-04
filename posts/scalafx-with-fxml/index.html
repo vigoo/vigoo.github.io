@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>ScalaFX with FXML</title>
+
+        
+        
+        
+        
+        <meta name="description" content="ScalaFX is a nice wrapper around JavaFX for Scala, but currently it lacks support for using FXML instead of Scala code for defining the user interfaces. This ca…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/scalafx-with-fxml/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="ScalaFX with FXML">
+        <meta property="og:description" content="ScalaFX is a nice wrapper around JavaFX for Scala, but currently it lacks support for using FXML instead of Scala code for defining the user interfaces. This ca…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/scalafx-with-fxml/">
+        
+        
+        <meta property="article:published_time" content="2014-01-12T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "ScalaFX with FXML",
+            "datePublished": "2014-01-12T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/scalafx-with-fxml/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/scalafx-with-fxml/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["scala","javafx","scalafx","scalafxml"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>ScalaFX with FXML</h1>
+            <p class="posted-on">Posted on <time datetime="2014-01-12">January 12, 2014</time></p>
+        </header>
+
+        <p><a rel="external" href="https://code.google.com/p/scalafx/">ScalaFX</a> is a nice wrapper around JavaFX for Scala, but currently it lacks support for using <a rel="external" href="http://docs.oracle.com/javafx/2/api/javafx/fxml/doc-files/introduction_to_fxml.html">FXML</a> instead of Scala code for defining the user interfaces. This can be understood as <em>ScalaFX</em> is in fact a DSL for defining the UI in Scala instead of an XML file. Still I believe that using FXML instead may have its advantages; first of all it has a visual designer (<a rel="external" href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>). For me, designing an UI without immediate visual feedback is hard, and involves a lot of iterations of tweaking the code, running it and checking the results. I also expect that in the future there will be more tools available which work on FXML data.</p>
+<p>It is not impossible to use FXML user interfaces from Scala, but the ScalaFX wrappers does not help and the code for the controller classes is not clean enough. See <a rel="external" href="https://github.com/jpsacha/ProScalaFX/blob/master/src/proscalafx/ch10/fxml/AdoptionFormController.scala">the following example</a> to get a feeling how it looks like.</p>
+<p>To make it better I wrote a small library called <a rel="external" href="https://github.com/vigoo/scalafxml">ScalaFXML</a>. In this post I'll go through a small example to explain how it works.</p>
+<p>The following image shows how our sample application will look like:</p>
+<img src="/images/unit-conversion-shot.webp" alt="The running unit converter converting ten inches to 254 millimeters" width="437" height="251" loading="lazy" decoding="async">
+<p>The <em>From</em> fiels is editable, and the result in the <em>To</em> field is filled as you type using <em>data binding</em>. The <em>Close</em> button's only purpose is to demonstrate event handlers.</p>
+<p>The conversion logic itself is implemented by <a rel="external" href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/UnitConverter.scala">small classes</a> sharing the same trait:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">trait</span><span class="z-l-9 z-d-10"> UnitConverter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> description</span><span>:</span><span class="z-l-9 z-d-10"> String</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span class="z-d-9 z-d-i">input</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> String</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> toString</span><span class="z-d-1"> =</span><span> description</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> MMtoInches</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> UnitConverter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> description</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span class="z-d-1"> =</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Millimeters to inches</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span class="z-d-9 z-d-i">input</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      try</span><span> {</span><span> </span></span>
+<span class="giallo-l"><span>          (</span><span>input.toDouble </span><span class="z-d-1">/</span><span class="z-l-6 z-d-8"> 25.4</span><span>)</span><span>.toString </span></span>
+<span class="giallo-l"><span>      }</span><span class="z-l-8 z-d-7"> catch</span><span> {</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">          case</span><span class="z-d-9 z-d-i"> ex</span><span>:</span><span class="z-l-9 z-d-10"> Throwable</span><span> =&gt;</span><span> ex.toString </span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> InchesToMM</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> UnitConverter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> description</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span class="z-d-1"> =</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Inches to millimeters</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span class="z-d-9 z-d-i">input</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      try</span><span> {</span><span> </span></span>
+<span class="giallo-l"><span>          (</span><span>input.toDouble </span><span class="z-d-1">*</span><span class="z-l-6 z-d-8"> 25.4</span><span>)</span><span>.toString </span></span>
+<span class="giallo-l"><span>      }</span><span class="z-l-8 z-d-7"> catch</span><span> {</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">          case</span><span class="z-d-9 z-d-i"> ex</span><span>:</span><span class="z-l-9 z-d-10"> Throwable</span><span> =&gt;</span><span> ex.toString </span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>To describe the set of available <em>unit converters</em>, we define one more helper class:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> UnitConverters</span><span>(</span><span class="z-d-9 z-d-i">converters</span><span>:</span><span class="z-l-9 z-d-10"> UnitConverter</span><span class="z-d-1">*</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> available</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> List</span><span>(</span><span class="z-d-9 z-d-i">converters</span><span> :</span><span> _*</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Now let's start with a <a rel="external" href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/PureScalaFX.scala">pure ScalaFX solution</a>, where the user interface is defined in Scala. I've implemented the view itself in a class called <code>PureScalaFXView</code>, which gets the set of available <em>unit converters</em> as a dependency through its constructor. This makes the main application object very simple:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> PureScalaFX</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> JFXApp</span><span> {</span></span>
+<span class="giallo-l"><span>  stage </span><span class="z-d-1">=</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> PureScalaFXView</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      new</span><span class="z-l-9 z-d-10"> UnitConverters</span><span>(</span><span class="z-l-9 z-d-10">InchesToMM</span><span>, </span><span class="z-l-9 z-d-10">MMtoInches</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>PureScalaFXView</code> class consists of two distinct parts. First we define the user interface using the <em>ScalaFX UI DSL</em>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> PureScalaFXView</span><span>(</span><span class="z-d-9 z-d-i">converters</span><span>:</span><span class="z-l-9 z-d-10"> UnitConverters</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> JFXApp</span><span>.</span><span class="z-l-9 z-d-10">PrimaryStage</span><span> {</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> UI Definition</span></span>
+<span class="giallo-l"><span>  title </span><span class="z-d-1">=</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Unit conversion</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> types</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> ComboBox</span><span>[</span><span class="z-l-9 z-d-10">UnitConverter</span><span>]</span><span>()</span><span> {</span></span>
+<span class="giallo-l"><span>    maxWidth </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Double</span><span>.</span><span class="z-l-9 z-d-10">MaxValue</span></span>
+<span class="giallo-l"><span>    margin </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Insets</span><span>(</span><span class="z-l-6 z-d-8">3</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> from</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> TextField</span><span> {</span></span>
+<span class="giallo-l"><span>    margin </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Insets</span><span>(</span><span class="z-l-6 z-d-8">3</span><span>)</span></span>
+<span class="giallo-l"><span>    prefWidth </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> 200.0</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> to</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> TextField</span><span> {</span></span>
+<span class="giallo-l"><span>    prefWidth </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> 200.0</span></span>
+<span class="giallo-l"><span>    margin </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Insets</span><span>(</span><span class="z-l-6 z-d-8">3</span><span>)</span></span>
+<span class="giallo-l"><span>    editable </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> false</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  scene </span><span class="z-d-1">=</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> Scene</span><span> {</span></span>
+<span class="giallo-l"><span>    content </span><span class="z-d-1">=</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> GridPane</span><span> {</span></span>
+<span class="giallo-l"><span>      padding </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Insets</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> Label</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Conversion type:</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>, </span><span class="z-l-6 z-d-8">0</span><span>, </span><span class="z-l-6 z-d-8">0</span><span>)</span></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> Label</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">From:</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>, </span><span class="z-l-6 z-d-8">0</span><span>, </span><span class="z-l-6 z-d-8">1</span><span>)</span></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> Label</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">To:</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>, </span><span class="z-l-6 z-d-8">0</span><span>, </span><span class="z-l-6 z-d-8">2</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span>types, </span><span class="z-l-6 z-d-8">1</span><span>, </span><span class="z-l-6 z-d-8">0</span><span>)</span></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span>from, </span><span class="z-l-6 z-d-8">1</span><span>, </span><span class="z-l-6 z-d-8">1</span><span>)</span></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span>to, </span><span class="z-l-6 z-d-8">1</span><span>, </span><span class="z-l-6 z-d-8">2</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>      add</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> Button</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Close</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> inline event handler binding</span></span>
+<span class="giallo-l"><span>        onAction </span><span class="z-d-1">=</span><span> (</span><span class="z-d-9 z-d-i">e</span><span>:</span><span class="z-l-9 z-d-10"> ActionEvent</span><span>)</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Platform</span><span>.exit</span><span>()</span></span>
+<span class="giallo-l"><span>      }</span><span>, </span><span class="z-l-6 z-d-8">1</span><span>, </span><span class="z-l-6 z-d-8">3</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>      columnConstraints </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> List</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        new</span><span class="z-l-9 z-d-10"> ColumnConstraints</span><span> {</span></span>
+<span class="giallo-l"><span>          halignment </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> HPos</span><span>.</span><span class="z-l-9 z-d-10">LEFT</span></span>
+<span class="giallo-l"><span>          hgrow </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Priority</span><span>.</span><span class="z-l-9 z-d-10">SOMETIMES</span></span>
+<span class="giallo-l"><span>          margin </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Insets</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        new</span><span class="z-l-9 z-d-10"> ColumnConstraints</span><span> {</span></span>
+<span class="giallo-l"><span>          halignment </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> HPos</span><span>.</span><span class="z-l-9 z-d-10">RIGHT</span></span>
+<span class="giallo-l"><span>          hgrow </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Priority</span><span>.</span><span class="z-l-9 z-d-10">ALWAYS</span></span>
+<span class="giallo-l"><span>          margin </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Insets</span><span>(</span><span class="z-l-6 z-d-8">5</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>      )</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>This is not 100% pure UI definition, because it also contains an inline event handler definition for the <em>Close</em> button.</p>
+<p>The next part fills the <em>combo box</em> and defines the data binding. Filling the combo box is a simple procedural loop:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">  for</span><span> (</span><span>converter </span><span>&lt;-</span><span> converters.available</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span>    types </span><span>+=</span><span> converter</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>  types.getSelectionModel.selectFirst</span><span>()</span></span></code></pre>
+<p>For the data binding we define a <a rel="external" href="http://docs.oracle.com/javafx/2/binding/jfxpub-binding.htm">low level data binding</a> which depends on the combo box's selected value and the <em>From</em> field's text, and produces the output for the <em>To</em> field:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>  to.text </span><span>&lt;==</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> StringBinding</span><span> {</span></span>
+<span class="giallo-l"><span>    bind</span><span>(</span><span>from.text.delegate, types.getSelectionModel.selectedItemProperty</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> computeValue</span><span>()</span><span class="z-d-1"> =</span><span> types.getSelectionModel.getSelectedItem.run</span><span>(</span><span>from.text.value</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>That's all, the application is fully functional. The next thing is to split this class so the UI definition and the UI logic got separated. This <a rel="external" href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/RefactoredPureScalaFX.scala">refactored ScalaFX solution</a> is very similar to the previous one, but the initialization of the combo box, the data binding and the event handler are all encapsulated by a new, separate class:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> RawUnitConverterPresenter</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                              private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> from</span><span>:</span><span class="z-l-9 z-d-10"> TextField</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                              private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> to</span><span>:</span><span class="z-l-9 z-d-10"> TextField</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                              private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> types</span><span>:</span><span class="z-l-9 z-d-10"> ComboBox</span><span>[</span><span class="z-l-9 z-d-10">UnitConverter</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                              private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> converters</span><span>:</span><span class="z-l-9 z-d-10"> UnitConverters</span><span>)</span><span> {</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Filling the combo box</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  for</span><span> (</span><span>converter </span><span>&lt;-</span><span> converters.available</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span>    types </span><span>+=</span><span> converter</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>  types.getSelectionModel.selectFirst</span><span>()</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Data binding</span></span>
+<span class="giallo-l"><span>  to.text </span><span>&lt;==</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> StringBinding</span><span> {</span></span>
+<span class="giallo-l"><span>    bind</span><span>(</span><span>from.text.delegate, types.getSelectionModel.selectedItemProperty</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> computeValue</span><span>()</span><span class="z-d-1"> =</span><span> types.getSelectionModel.getSelectedItem.run</span><span>(</span><span>from.text.value</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Close button event handler</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> onClose</span><span>(</span><span class="z-d-9 z-d-i">event</span><span>:</span><span class="z-l-9 z-d-10"> ActionEvent</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    Platform</span><span>.exit</span><span>()</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>What I wanted is to be able to define the controller class exactly like this while building the user interface from FXML. Without <a rel="external" href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the controller class have some serious limitations:</p>
+<ul>
+<li>It must implement the <a rel="external" href="http://docs.oracle.com/javafx/2/api/javafx/fxml/Initializable.html">Initializable</a> interface</li>
+<li>It cannot have any constructor arguments</li>
+<li>The user interface objects must be variable fields of the class</li>
+<li>And they have to have the type of the JavaFX controls, so to be able to use the ScalaFX wrappers, they have to be explicitly wrapped in the <code>initialize</code> method.</li>
+</ul>
+<p>With <a rel="external" href="https://github.com/vigoo/scalafxml">ScalaFXML</a> the process is really simple. First we create the FXML, for example with the <a rel="external" href="http://www.oracle.com/technetwork/java/javafx/tools/index.html">JavaFX Scene Builder</a>:</p>
+<img src="/images/unit-conversion-scenebuilder.webp" alt="JavaFX Scene Builder editing the unit converter's GridPane layout" width="1031" height="594" loading="lazy" decoding="async">
+<p>In the FXML we give the <code>from</code>, <code>to</code>, and <code>types</code> identifiers to our controls using the <code>fx:id</code> attribute, for example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="xml"><span class="giallo-l"><span>    &lt;</span><span class="z-l-11 z-d-9">TextField</span><span class="z-l-6 z-d-8"> fx</span><span class="z-l-6 z-d-8">:</span><span class="z-l-6 z-d-8">id</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">from</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-6 z-d-8"> prefWidth</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">200.0</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">               GridPane.columnIndex</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">               GridPane.margin</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">$x1</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">               GridPane.rowIndex</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">&quot;</span><span> /&gt;</span></span></code></pre>
+<p>The event handlers can be specified simply by their name:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="xml"><span class="giallo-l"><span>&lt;</span><span class="z-l-11 z-d-9">Button</span><span class="z-l-6 z-d-8"> onAction</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">#onClose</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-6 z-d-8"> text</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Close</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">        mnemonicParsing</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">false</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">        GridPane.columnIndex</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">        GridPane.halignment</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">RIGHT</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">        GridPane.rowIndex</span><span>=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">3</span><span class="z-l-4 z-d-5">&quot;</span><span> /&gt;</span></span></code></pre>
+<p>and the controller class must be referenced on the root node</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="xml"><span class="giallo-l"><span>fx:controller=&quot;scalafxml.demo.unitconverter.UnitConverterPresenter&quot;</span></span></code></pre>
+<p>The controller class <a rel="external" href="https://github.com/vigoo/scalafxml/blob/master/demo/src/main/scala/scalafxml/demo/unitconverter/ScalaFXML.scala">can be exactly the same as the <code>RawUnitConverterPresenter</code></a>, adding an additional <code>@sfxml</code> annotation for it. Everything else is handled by the library, as we will see.</p>
+<p>The application object itself looks like this:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> ScalaFXML</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> JFXApp</span><span> {</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> root</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> FXMLView</span><span>(</span><span>getClass.getResource</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">unitconverter.fxml</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    new</span><span class="z-l-9 z-d-10"> DependenciesByType</span><span>(</span><span class="z-l-9 z-d-10">Map</span><span>(</span></span>
+<span class="giallo-l"><span>      typeOf</span><span>[</span><span class="z-l-9 z-d-10">UnitConverters</span><span>]</span><span> -&gt;</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> UnitConverters</span><span>(</span><span class="z-l-9 z-d-10">InchesToMM</span><span>, </span><span class="z-l-9 z-d-10">MMtoInches</span><span>)</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  stage </span><span class="z-d-1">=</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> JFXApp</span><span>.</span><span class="z-l-9 z-d-10">PrimaryStage</span><span>()</span><span> {</span></span>
+<span class="giallo-l"><span>    title </span><span class="z-d-1">=</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">Unit conversion</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span>    scene </span><span class="z-d-1">=</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> Scene</span><span>(</span><span>root</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Beside giving the URI for the FXML file we also has to provide the <em>additional dependencies</em> of the controller class. This is an easily extensible part of the library, and it already has support for <a rel="external" href="https://github.com/dickwall/subcut">SubCut</a> and <a rel="external" href="https://code.google.com/p/google-guice/">Guice</a> as well. Here we are using a simple <em>type-&gt;value</em> mapping instead.</p>
+<p>How does this work? What happens behind the scenes?</p>
+<p>The <code>@sfxml</code> is a <a rel="external" href="http://docs.scala-lang.org/overviews/macros/annotations.html">macro annotation</a>. In <em>compile-time</em>, the class definition itself is transformed by the <a rel="external" href="https://github.com/vigoo/scalafxml/blob/master/core-macros/src/main/scala/scalafxml/core/macros/sfxmlMacro.scala"><code>sfxmlMacro.impl</code> function</a>.</p>
+<p>The transformation's result is a class definition with the source class' name, but with a completely different content. The original class is added as an inner class, always called <code>Controller</code>. In our example, the generated class definition would look like something similar:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> UnitConverterPresenter</span><span>(</span><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> dependencyResolver</span><span>:</span><span class="z-l-9 z-d-10"> ControllerDependencyResolver</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    extends</span><span> javafx.fxml.</span><span class="z-l-9 z-d-10">Initializable</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    with</span><span class="z-l-9 z-d-10"> FxmlProxyGenerator</span><span>.</span><span class="z-l-9 z-d-10">ProxyDependencyInjection</span><span> {</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    class</span><span class="z-l-9 z-d-10"> Controller</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> from</span><span>:</span><span class="z-l-9 z-d-10"> TextField</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> to</span><span>:</span><span class="z-l-9 z-d-10"> TextField</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> types</span><span>:</span><span class="z-l-9 z-d-10"> ComboBox</span><span>[</span><span class="z-l-9 z-d-10">UnitConverter</span><span>]</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        private</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> converters</span><span>:</span><span class="z-l-9 z-d-10"> UnitConverters</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> …</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> var</span><span class="z-l-11 z-d-9"> impl</span><span>:</span><span class="z-l-9 z-d-10"> Controller</span><span class="z-d-1"> =</span><span class="z-l-6 z-d-8"> null</span></span>
+<span class="giallo-l"><span>    </span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> …</span></span>
+<span class="giallo-l"><span>}</span><span>   </span></span></code></pre>
+<p>The class have four distinct parts:</p>
+<ol>
+<li>Getting the additional dependencies from the <em>dependency resolver</em></li>
+<li>Variable fields for binding the JavaFX controls defined in the FXML</li>
+<li>Event handler methods</li>
+<li>The <code>initializable</code> method's implementation</li>
+</ol>
+<p>The first one is simple - for each constructor argument of the controller class which is <em>not</em> a ScalaFX control, we query the <em>dependency resolver</em> to get a value for it. These are performed when the outer, generated class is instantiated and stored through the <code>ProxyDependencyInjection</code> trait.</p>
+<p>The variable fields are simple fields for all the ScalaFX constructor arguments of the controller class, but converted to their JavaFX counterpart. For example the generated field for the controller's <code>from</code> argument will look like this:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>@</span><span>javafx.fxml.</span><span class="z-l-9 z-d-10">FXML</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> var</span><span class="z-l-11 z-d-9"> from</span><span>:</span><span> javafx.scene.control.</span><span class="z-l-9 z-d-10">TextField</span><span class="z-d-1"> =</span><span class="z-l-6 z-d-8"> null</span></span></code></pre>
+<p>The <em>event handler</em>'s are proxies for all the public methods of the controller, but the ScalaFX event argument types are replaced with JavaFX event argument types and they are wrapped automatically when forwarding the call to the real implementation. For the <code>onClose</code> event handler it would look like the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>@</span><span>javafx.fxml.</span><span class="z-l-9 z-d-10">FXML</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> onClose</span><span>(</span><span class="z-d-9 z-d-i">e</span><span>:</span><span> javafx.event.</span><span class="z-l-9 z-d-10">ActionEvent</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span>    impl.onClose</span><span>(</span><span class="z-l-8 z-d-7">new</span><span> scalafx.event.</span><span class="z-l-9 z-d-10">ActionEvent</span><span>(</span><span>e</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>When JavaFX calls the generated controller's <code>initialize</code> method, the control fields are already set up, and the additional dependencies were already gathered from the dependency resolver so we have all the values required to instantiate the real controller class. For ScalaFX arguments we wrap the JavaFX controls, for the additional dependencies we use the <code>ProxyDependencyInjection</code> trait's <code>getDependency</code> method:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> initialize</span><span>(</span><span class="z-d-9 z-d-i">url</span><span>:</span><span> java.net.</span><span class="z-l-9 z-d-10">URL</span><span>, </span><span class="z-d-9 z-d-i">rb</span><span>:</span><span> java.util.</span><span class="z-l-9 z-d-10">ResourceBundle</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span>    impl </span><span class="z-d-1">=</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> Controller</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        new</span><span> scalafx.scene.control.</span><span class="z-l-9 z-d-10">TextField</span><span>(</span><span>from</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        new</span><span> scalafx.scene.control.</span><span class="z-l-9 z-d-10">TextField</span><span>(</span><span>to</span><span>)</span><span>,        </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        new</span><span> scalafx.scene.control.</span><span class="z-l-9 z-d-10">ComboBox</span><span>[</span><span class="z-l-9 z-d-10">UnitConverter</span><span>]</span><span>(</span><span>types</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>        getDependencies</span><span>[</span><span class="z-l-9 z-d-10">UnitConverters</span><span>]</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">converters</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>That's all. The final interesting bit is the <code>FXMLView</code> object, which overrides JavaFX's default controller factory. This is only necessary to be able to pass the given <code>ControllerDependencyResolver</code> to the generated controller's constructor:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> apply</span><span>(</span><span class="z-d-9 z-d-i">fxml</span><span>:</span><span class="z-l-9 z-d-10"> URL</span><span>, </span><span class="z-d-9 z-d-i">dependencies</span><span>:</span><span class="z-l-9 z-d-10"> ControllerDependencyResolver</span><span>)</span><span>:</span><span> jfxs.</span><span class="z-l-9 z-d-10">Parent</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>    jfxf.</span><span class="z-l-9 z-d-10">FXMLLoader</span><span>.load</span><span>(</span></span>
+<span class="giallo-l"><span>      fxml, </span></span>
+<span class="giallo-l"><span class="z-l-6 z-d-8">      null</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      new</span><span> jfxf.</span><span class="z-l-9 z-d-10">JavaFXBuilderFactory</span><span>()</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      new</span><span> jfxu.</span><span class="z-l-9 z-d-10">Callback</span><span>[</span><span class="z-l-9 z-d-10">Class</span><span>[</span><span>_</span><span>]</span><span>, </span><span class="z-l-9 z-d-10">Object</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> call</span><span>(</span><span class="z-d-9 z-d-i">cls</span><span>:</span><span class="z-l-9 z-d-10"> Class</span><span>[</span><span>_</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Object</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">            FxmlProxyGenerator</span><span>(</span><span>cls, dependencies</span><span>)</span></span>
+<span class="giallo-l"><span>      }</span><span>)</span></span></code></pre>
+<p><code>FxmlProxyGenerator</code> uses reflection to create a new instance of the generated controller, and pass the dependency resolver as its only constructor argument.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

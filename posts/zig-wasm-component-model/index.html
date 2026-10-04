@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Zig and the WASM Component Model</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Golem always considered Zig a supported language, but until now the only documented way to use it was to compile a program with a single main function into a co…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/zig-wasm-component-model/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Zig and the WASM Component Model">
+        <meta property="og:description" content="Golem always considered Zig a supported language, but until now the only documented way to use it was to compile a program with a single main function into a co…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/zig-wasm-component-model/">
+        
+        
+        <meta property="article:published_time" content="2024-05-09T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Zig and the WASM Component Model",
+            "datePublished": "2024-05-09T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/zig-wasm-component-model/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/zig-wasm-component-model/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["zig","wasm","golem"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Zig and the WASM Component Model</h1>
+            <p class="posted-on">Posted on <time datetime="2024-05-09">May 9, 2024</time></p>
+        </header>
+
+        <p><a rel="external" href="https://golem.cloud">Golem</a> always considered <a rel="external" href="https://ziglang.org">Zig</a> a supported language, but until now the only documented way to use it was to compile a program with a single <code>main</code> function into a <em>core WebAssembly module</em> and then wrap that as a component that can be uploaded to Golem for execution. This is very limiting, as in order to take full advantage of Golem (and any other part of the evolving <em>WASM Component Model ecosystem</em>) a Zig program must have definitions for both <em>importing</em> and <em>exporting</em> functions and data types in order to be a usable component.</p>
+<h2 id="binding-generators">Binding generators</h2>
+<p>For many supported languages the workflow is to write a <strong>WIT</strong> file, which is the Component Model's <a rel="external" href="https://component-model.bytecodealliance.org/design/wit.html">interface definition language</a> and then use a <em>binding generator</em>, such as <a rel="external" href="https://github.com/bytecodealliance/wit-bindgen/">wit-bindgen</a> to create statically typed representation of the component's imports and exports in the targeted language.</p>
+<p>The binding generator does not support Zig, but it does support C. So the best we can do with existing tooling is to use the C binding generator and Zig's excellent C interoperability together to be able to create WASM components with Zig.</p>
+<h2 id="the-steps">The steps</h2>
+<p>The primary steps are the following:</p>
+<ul>
+<li><strong>Define</strong> the component's interface using WIT</li>
+<li><strong>Generate</strong> C bindings from this definition</li>
+<li><strong>Implement</strong> the exported functions in Zig, potentially using other imported interfaces and data types available through the generated binding</li>
+<li><strong>Compile</strong> the whole project into WASM</li>
+<li>As Zig's standard library still uses <em>WASI Preview 1</em>, and outputs a single WASM module, we also have to <strong>compose</strong> our resulting module with an <em>adapter component</em> in order to get a WASM component depending on <em>WASI Preview 2</em>.</li>
+</ul>
+<p>The first step is manual work - although we may eventually get code-first approaches in some languages where the WIT interface is generated as part as the build flow, it is not the case for Zig at the moment.</p>
+<p>For generating the bindings we use <code>wit-bindgen</code>, and once the implementation is done we compile the Zig source code, together with the generated C bindings into a WASM module using zig's build system (<code>zig build</code>).</p>
+<p>Finally we can use <code>wasm-tools compose</code> to take this WASM module and an appropriate version of a Preview1 adapter such as <a rel="external" href="https://github.com/golemcloud/golem-wit/blob/main/adapters/tier1/wasi_snapshot_preview1.wasm">the one we provide for Golem</a> to get the final component that's ready to be used with Golem.</p>
+<h2 id="zig-s-build-system">Zig's build system</h2>
+<p>Executing all these steps manually is not convenient but fortunately we can integrate all the steps within Zig's <em>build system</em>. Let's see how!</p>
+<p>We need to write a custom <code>build.zig</code> in the following way. First, let's do some imports and start defining our build flow:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-11 z-d-9"> std</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-1"> @import</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">std</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-11 z-d-9"> Builder</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">build</span><span>.</span><span class="z-l-11 z-d-9">Builder</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-11 z-d-9"> CrossTarget</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">zig</span><span>.</span><span class="z-l-11 z-d-9">CrossTarget</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> build</span><span>(</span><span class="z-l-11 z-d-9">b</span><span>:</span><span class="z-d-1"> *</span><span class="z-l-11 z-d-9">Builder</span><span>) </span><span class="z-d-1">!</span><span class="z-l-8 z-d-7">void</span><span> {</span></span></code></pre>
+<p>The first non-manual thing on our list of steps is <strong>generating</strong> the C bindings. Let's define a build step that just runs <code>wit-bindgen</code> for us:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> bindgen</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">addSystemCommand</span><span>(</span><span class="z-d-1">&amp;</span><span>.</span><span>{ </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">wit-bindgen</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">--autodrop-borrows</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">yes</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    	&quot;</span><span class="z-l-4 z-d-5">./wit</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">--out-dir</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">src/bindings</span><span class="z-l-4 z-d-5">&quot;</span><span> })</span><span>;</span></span></code></pre>
+<p>This is just a description of running the binding generator, not integrated within the build flow yet. The next step is <strong>compiling</strong> our Zig and C files into WASM.</p>
+<p>First we define it as an <em>executable target</em>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> optimize</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">standardOptimizeOption</span><span>(</span><span>.</span><span>{</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-11 z-d-9">preferred_optimize_mode</span><span class="z-d-1"> =</span><span> .</span><span class="z-l-11 z-d-9">ReleaseSmall</span><span>,</span></span>
+<span class="giallo-l"><span>    })</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> wasm</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">addExecutable</span><span>(</span><span>.</span><span>{ </span></span>
+<span class="giallo-l"><span>    	.</span><span class="z-l-11 z-d-9">name</span><span class="z-d-1"> =</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">main</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-11 z-d-9">root_source_file</span><span class="z-d-1"> =</span><span> .</span><span>{ </span><span>.</span><span class="z-l-11 z-d-9">path</span><span class="z-d-1"> =</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">src/main.zig</span><span class="z-l-4 z-d-5">&quot;</span><span> }</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-11 z-d-9">target</span><span class="z-d-1"> =</span><span> .</span><span>{</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-11 z-d-9">cpu_arch</span><span class="z-d-1"> =</span><span> .</span><span class="z-l-11 z-d-9">wasm32</span><span>,</span></span>
+<span class="giallo-l"><span>        .</span><span class="z-l-11 z-d-9">os_tag</span><span class="z-d-1"> =</span><span> .</span><span class="z-l-11 z-d-9">wasi</span><span>,</span></span>
+<span class="giallo-l"><span>    	}</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span>    	.</span><span class="z-l-11 z-d-9">optimize</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> optimize</span><span> </span></span>
+<span class="giallo-l"><span>    })</span><span>;</span></span></code></pre>
+<p>This already defines we want to use WASM and target WASI and points to our root source file. We are not done yet though, as if we run the binding generator step defined above, we will end up having a couple of files generated in our <code>src/bindings</code> directory:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>λ l src/bindings</span></span>
+<span class="giallo-l"><span>.rw-r--r-- 909 vigoo  9 May 09:34 zig3.c</span></span>
+<span class="giallo-l"><span>.rw-r--r-- 371 vigoo  9 May 09:34 zig3.h</span></span>
+<span class="giallo-l"><span>.rw-r--r-- 299 vigoo  9 May 09:34 zig3_component_type.o</span></span></code></pre>
+<p>The <code>.c</code>/<code>.h</code> pair contains the generated binding, while the object file holds the binary representation of the WIT interface it was generated from.</p>
+<p>We need to add the C source and the object file into our build, and the header file to the include file paths. As the name of the generated files depend on the WIT file's contents, we need to list all files in this <code>bindings</code> directory and mutate our <code>wasm</code> build target according to what we find:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> binding_root</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">pathFromRoot</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">src/bindings</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    var</span><span class="z-l-11 z-d-9"> binding_root_dir</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> try</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">fs</span><span>.</span><span class="z-l-3 z-d-3">cwd</span><span>()</span><span>.</span><span class="z-l-3 z-d-3">openIterableDir</span><span>(</span><span class="z-l-11 z-d-9">binding_root</span><span>,</span><span> .</span><span>{})</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    defer</span><span class="z-l-11 z-d-9"> binding_root_dir</span><span>.</span><span class="z-l-3 z-d-3">close</span><span>()</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    var</span><span class="z-l-11 z-d-9"> it</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> try</span><span class="z-l-11 z-d-9"> binding_root_dir</span><span>.</span><span class="z-l-3 z-d-3">walk</span><span>(</span><span class="z-l-11 z-d-9">b</span><span>.</span><span class="z-l-11 z-d-9">allocator</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    while</span><span> (</span><span class="z-l-8 z-d-7">try</span><span class="z-l-11 z-d-9"> it</span><span>.</span><span class="z-l-3 z-d-3">next</span><span>()) </span><span class="z-d-1">|</span><span class="z-l-11 z-d-9">entry</span><span class="z-d-1">|</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        switch</span><span> (</span><span class="z-l-11 z-d-9">entry</span><span>.</span><span class="z-l-11 z-d-9">kind</span><span>) {</span></span>
+<span class="giallo-l"><span>            .</span><span class="z-l-11 z-d-9">file</span><span class="z-d-1"> =</span><span class="z-d-1">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                const</span><span class="z-l-11 z-d-9"> path</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">pathJoin</span><span>(</span><span class="z-d-1">&amp;</span><span>.</span><span>{ </span><span class="z-l-11 z-d-9">binding_root</span><span>,</span><span class="z-l-11 z-d-9"> entry</span><span>.</span><span class="z-l-11 z-d-9">path</span><span> })</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">                if</span><span> (</span><span class="z-l-11 z-d-9">std</span><span>.</span><span class="z-l-11 z-d-9">mem</span><span>.</span><span class="z-l-3 z-d-3">endsWith</span><span>(</span><span class="z-l-8 z-d-7">u8</span><span>,</span><span class="z-l-11 z-d-9"> entry</span><span>.</span><span class="z-l-11 z-d-9">basename</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">.c</span><span class="z-l-4 z-d-5">&quot;</span><span>)) {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                    wasm</span><span>.</span><span class="z-l-3 z-d-3">addCSourceFile</span><span>(</span><span>.</span><span>{ </span><span>.</span><span class="z-l-11 z-d-9">file</span><span class="z-d-1"> =</span><span> .</span><span>{ </span><span>.</span><span class="z-l-11 z-d-9">path</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> path</span><span> }</span><span>,</span><span> .</span><span class="z-l-11 z-d-9">flags</span><span class="z-d-1"> =</span><span class="z-d-1"> &amp;</span><span>.</span><span>{} })</span><span>;</span></span>
+<span class="giallo-l"><span>                } </span><span class="z-l-8 z-d-7">else</span><span class="z-l-8 z-d-7"> if</span><span> (</span><span class="z-l-11 z-d-9">std</span><span>.</span><span class="z-l-11 z-d-9">mem</span><span>.</span><span class="z-l-3 z-d-3">endsWith</span><span>(</span><span class="z-l-8 z-d-7">u8</span><span>,</span><span class="z-l-11 z-d-9"> entry</span><span>.</span><span class="z-l-11 z-d-9">basename</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">.o</span><span class="z-l-4 z-d-5">&quot;</span><span>)) {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                    wasm</span><span>.</span><span class="z-l-3 z-d-3">addObjectFile</span><span>(</span><span>.</span><span>{ </span><span>.</span><span class="z-l-11 z-d-9">path</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> path</span><span> })</span><span>;</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span>            }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            else</span><span class="z-d-1"> =</span><span class="z-d-1">&gt;</span><span class="z-l-8 z-d-7"> continue</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span></code></pre>
+<p>This registers all the <code>.c</code> and <code>.o</code> files from the generated bindings, but we still need to add the whole directory as an include path:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-11 z-d-9">    wasm</span><span>.</span><span class="z-l-3 z-d-3">addIncludePath</span><span>(</span><span>.</span><span>{ </span><span>.</span><span class="z-l-11 z-d-9">path</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> binding_root</span><span> })</span><span>;</span></span></code></pre>
+<p>and enable linking with <code>libc</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-11 z-d-9">    wasm</span><span>.</span><span class="z-l-3 z-d-3">linkLibC</span><span>()</span><span>;</span></span></code></pre>
+<p>Now that we defined two build steps - the generating the bindings and compiling to a WASM module - we define the third step which is <strong>composing</strong> the generated module and the preview1 adapter into a WASM component:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> adapter</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">option</span><span>(</span></span>
+<span class="giallo-l"><span>    	[]</span><span class="z-l-8 z-d-7">const</span><span class="z-l-8 z-d-7"> u8</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    	&quot;</span><span class="z-l-4 z-d-5">adapter</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    	&quot;</span><span class="z-l-4 z-d-5">Path to the Golem Tier1 WASI adapter</span><span class="z-l-4 z-d-5">&quot;</span><span>) </span><span class="z-l-8 z-d-7">orelse</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">adapters/tier1/wasi_snapshot_preview1.wasm</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> out</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> try</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">fmt</span><span>.</span><span class="z-l-3 z-d-3">allocPrint</span><span>(</span><span class="z-l-11 z-d-9">b</span><span>.</span><span class="z-l-11 z-d-9">allocator</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zig-out/bin/{s}</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> .</span><span>{</span><span class="z-l-11 z-d-9">wasm</span><span>.</span><span class="z-l-11 z-d-9">out_filename</span><span>})</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> component</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">addSystemCommand</span><span>(</span><span class="z-d-1">&amp;</span><span>.</span><span>{ </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">wasm-tools</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">component</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">new</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> out</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    	&quot;</span><span class="z-l-4 z-d-5">-o</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zig-out/bin/component.wasm</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">--adapt</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> adapter</span><span> })</span><span>;</span></span></code></pre>
+<p>Here we provide a way to override the path to the adapter WASM using <code>zig build -Dadapter=xxx</code> but default to <code>adapters/tier1/wasi_snapshot_preview1.wasm</code> in case it is not specified.</p>
+<p>The final step is to set up dependencies between these build steps and wire them to the main build flow:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-11 z-d-9">    wasm</span><span>.</span><span class="z-l-11 z-d-9">step</span><span>.</span><span class="z-l-3 z-d-3">dependOn</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">bindgen</span><span>.</span><span class="z-l-11 z-d-9">step</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    component</span><span>.</span><span class="z-l-11 z-d-9">step</span><span>.</span><span class="z-l-3 z-d-3">dependOn</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">wasm</span><span>.</span><span class="z-l-11 z-d-9">step</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    b</span><span>.</span><span class="z-l-3 z-d-3">installArtifact</span><span>(</span><span class="z-l-11 z-d-9">wasm</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    b</span><span>.</span><span class="z-l-3 z-d-3">getInstallStep</span><span>()</span><span>.</span><span class="z-l-3 z-d-3">dependOn</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">component</span><span>.</span><span class="z-l-11 z-d-9">step</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre><h2 id="trying-it-out">Trying it out</h2>
+<p>Let's try this out by implementing a simple counter component. We start with the first step - defining our WIT file, putting it into <code>wit/counter.wit</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="wit"><span class="giallo-l"><span class="z-l-8 z-d-7">package</span><span class="z-l-9 z-d-10"> golem</span><span>:</span><span class="z-l-9 z-d-10">example</span><span class="z-l-9 z-d-10">;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">interface</span><span class="z-l-9 z-d-10"> api</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  add</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span class="z-d-9 z-d-i">value</span><span>:</span><span class="z-l-9 z-d-10"> u64</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  get</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> u64</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">world</span><span class="z-l-9 z-d-10"> counter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  export</span><span class="z-l-11 z-d-10"> api</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span></code></pre>
+<p>We also save the above defined build script as <code>build.zig</code> (full version <a rel="external" href="https://gist.github.com/vigoo/19ed4b5d3e47ca2f5f1258d1ae8b28a4">available here</a>) and then write an initial  <code>src/main.zig</code> file:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-11 z-d-9"> std</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-1"> @import</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">std</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> main</span><span>() </span><span class="z-l-8 z-d-7">anyerror</span><span class="z-d-1">!</span><span class="z-l-8 z-d-7">void</span><span> {}</span></span></code></pre>
+<p>Let's place the <a rel="external" href="https://github.com/golemcloud/golem-wit/raw/main/adapters/tier1/wasi_snapshot_preview1.wasm">adapter WASM</a> as well in the <code>adapters/tier1</code> directory, and then try to compile this:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>λ zig build --summary all                                                                                 ...</span></span>
+<span class="giallo-l"><span>zig build-exe main Debug wasm32-wasi: error: the following command failed with 2 compilation errors:</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"><span>error: wasm-ld: /Users/vigoo/projects/demo/counter/zig-cache/o/a212123ad3dcf4839747c2bd77f7ef4e/counter.o:</span></span>
+<span class="giallo-l"><span>undefined symbol: exports_golem_example_api_add</span></span>
+<span class="giallo-l"><span>error: wasm-ld: /Users/vigoo/projects/demo/counter/zig-cache/o/a212123ad3dcf4839747c2bd77f7ef4e/counter.o:</span></span>
+<span class="giallo-l"><span>undefined symbol: exports_golem_example_api_get</span></span></code></pre>
+<p>It fails because we defined two exported functions: <code>api/add</code> and <code>api/get</code> in our WIT file but haven't implemented them yet. Let's do that:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> state</span><span>:</span><span class="z-l-8 z-d-7"> u64</span><span class="z-d-1"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> exports_golem_example_api_add</span><span>(</span><span class="z-l-11 z-d-9">value</span><span>:</span><span class="z-l-8 z-d-7"> u64</span><span>) </span><span class="z-l-8 z-d-7">void</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> stdout</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">io</span><span>.</span><span class="z-l-3 z-d-3">getStdOut</span><span>()</span><span>.</span><span class="z-l-3 z-d-3">writer</span><span>()</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    stdout</span><span>.</span><span class="z-l-3 z-d-3">print</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Adding {} to state</span><span class="z-l-2 z-d-1">\n</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> .</span><span>{</span><span class="z-l-11 z-d-9">value</span><span>}) </span><span class="z-l-8 z-d-7">catch</span><span class="z-l-8 z-d-7"> unreachable</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    state</span><span class="z-d-1"> +=</span><span class="z-l-11 z-d-9"> value</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> exports_golem_example_api_get</span><span>() </span><span class="z-l-8 z-d-7">u64</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-l-11 z-d-9"> state</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Then compile it:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>λ zig build --summary all</span></span>
+<span class="giallo-l"><span>Generating &quot;src/bindings/counter.c&quot;</span></span>
+<span class="giallo-l"><span>Generating &quot;src/bindings/counter.h&quot;</span></span>
+<span class="giallo-l"><span>Generating &quot;src/bindings/counter_component_type.o&quot;</span></span>
+<span class="giallo-l"><span>Build Summary: 5/5 steps succeeded</span></span>
+<span class="giallo-l"><span>install success</span></span>
+<span class="giallo-l"><span>├─ install main cached</span></span>
+<span class="giallo-l"><span>│  └─ zig build-exe main Debug wasm32-wasi cached 9ms MaxRSS:29M</span></span>
+<span class="giallo-l"><span>│     └─ run wit-bindgen success 3ms MaxRSS:3M</span></span>
+<span class="giallo-l"><span>└─ run wasm-tools success 11ms MaxRSS:8M</span></span>
+<span class="giallo-l"><span>   └─ zig build-exe main Debug wasm32-wasi (+1 more reused dependencies)</span></span></code></pre>
+<p>and we can verify our resulting <code>zig-out/component.wasm</code> using <code>wasm-tools</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>λ wasm-tools print --skeleton zig-out/bin/component.wasm </span></span>
+<span class="giallo-l"><span>(component</span></span>
+<span class="giallo-l"><span>  ...</span></span>
+<span class="giallo-l"><span>  (instance (;11;) (instantiate 0</span></span>
+<span class="giallo-l"><span>      (with &quot;import-func-add&quot; (func 16))</span></span>
+<span class="giallo-l"><span>      (with &quot;import-func-get&quot; (func 17))</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"><span>  )</span></span>
+<span class="giallo-l"><span>  (export (;12;) &quot;golem:example/api&quot; (instance 11))</span></span>
+<span class="giallo-l"><span>  (@producers</span></span>
+<span class="giallo-l"><span>    (processed-by &quot;wit-component&quot; &quot;0.20.1&quot;)</span></span>
+<span class="giallo-l"><span>  )</span></span>
+<span class="giallo-l"><span>)</span></span></code></pre><h2 id="using-imports">Using imports</h2>
+<p>After this simple example let's try <em>importing</em> some interface and using that from our Zig code. What we are going to do is every time our counter changes, we are going to also save that value to an external key-value store. This is usually not something you need to do when writing a Golem application, because your program will be durable anyway - you can just keep the counter in memory. But it is a simple enough example to demonstrate how to use imported interfaces from Zig.</p>
+<p>First let's add some additional WIT files into <code>wit/deps</code> from the <a rel="external" href="https://github.com/golemcloud/golem-wit">golem-wit repository</a> (Note that the WASI Key-Value interface is defined <a rel="external" href="https://github.com/WebAssembly/wasi-keyvalue">here</a>, the <code>golem-wit</code> repo just stores the exact version of its definitions which is currently implemented by Golem ).</p>
+<p>We need the following directory tree:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>λ tree wit</span></span>
+<span class="giallo-l"><span>wit</span></span>
+<span class="giallo-l"><span>├── counter.wit</span></span>
+<span class="giallo-l"><span>└── deps</span></span>
+<span class="giallo-l"><span>    ├── io</span></span>
+<span class="giallo-l"><span>    │   ├── error.wit</span></span>
+<span class="giallo-l"><span>    │   ├── poll.wit</span></span>
+<span class="giallo-l"><span>    │   ├── streams.wit</span></span>
+<span class="giallo-l"><span>    │   └── world.wit</span></span>
+<span class="giallo-l"><span>    └── keyvalue</span></span>
+<span class="giallo-l"><span>        ├── atomic.wit</span></span>
+<span class="giallo-l"><span>        ├── caching.wit</span></span>
+<span class="giallo-l"><span>        ├── error.wit</span></span>
+<span class="giallo-l"><span>        ├── eventual-batch.wit</span></span>
+<span class="giallo-l"><span>        ├── eventual.wit</span></span>
+<span class="giallo-l"><span>        ├── handle-watch.wit</span></span>
+<span class="giallo-l"><span>        ├── types.wit</span></span>
+<span class="giallo-l"><span>        └── world.wit</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>4 directories, 13 files</span></span></code></pre>
+<p>Then we can import the key-value interface to <code>counter.wit</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="wit"><span class="giallo-l"><span class="z-l-8 z-d-7">package</span><span class="z-l-9 z-d-10"> golem</span><span>:</span><span class="z-l-9 z-d-10">example</span><span class="z-l-9 z-d-10">;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">interface</span><span class="z-l-9 z-d-10"> api</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  add</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span class="z-d-9 z-d-i">value</span><span>:</span><span class="z-l-9 z-d-10"> u64</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  get</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-9 z-d-10"> u64</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">world</span><span class="z-l-9 z-d-10"> counter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  import</span><span class="z-l-11 z-d-10"> wasi</span><span>:</span><span class="z-l-11 z-d-10">keyvalue</span><span>/</span><span class="z-l-11 z-d-10">eventual</span><span>@</span><span class="z-l-6 z-d-8">0.1.0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  export</span><span class="z-l-11 z-d-10"> api</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>By recompiling the project we can verify everything still works, and we will also get our new bindings generated in the C source.</p>
+<p>Before implementing writing to the key-value store in Zig, let's just take a look at the WIT interface of <code>wasi:keyvalue/eventual@0.1.0</code> to understand what we will have to do:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="wit"><span class="giallo-l"><span class="z-l-8 z-d-7">interface</span><span class="z-l-9 z-d-10"> eventual</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  // ...</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  set</span><span>:</span><span class="z-l-8 z-d-7"> func</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">    bucket</span><span>:</span><span class="z-l-9 z-d-10"> borrow</span><span>&lt;</span><span class="z-l-9 z-d-10">bucket</span><span>&gt;</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">    key</span><span>:</span><span class="z-l-9 z-d-10"> key</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">    outgoing-value</span><span>:</span><span class="z-l-9 z-d-10"> borrow</span><span>&lt;</span><span class="z-l-9 z-d-10">outgoing-value</span><span>&gt;</span></span>
+<span class="giallo-l"><span>  )</span><span> -&gt;</span><span class="z-l-9 z-d-10"> result</span><span>&lt;</span><span class="z-l-11 z-d-9">_</span><span>,</span><span class="z-l-9 z-d-10"> error</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We will need to pass a <code>bucket</code> and an <code>outgoing-value</code>, both being <em>WIT resources</em> so we first need to create them, then borrow references of them for the <code>set</code> call, and finally drop them.</p>
+<p>The bucket resource can be constructed with a static function called <code>open-bucket</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="wit"><span class="giallo-l"><span>resource</span><span> bucket</span><span> {</span></span>
+<span class="giallo-l"><span>  open-bucket:</span><span> static</span><span> func(name:</span><span> string)</span><span> -&gt;</span><span> result&lt;bucket,</span><span> error&gt;;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Searching for this in the generated C bindings reveals the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="c"><span class="giallo-l"><span class="z-l-8 z-d-7">extern</span><span class="z-l-8 z-d-7"> bool</span><span class="z-l-3 z-d-3"> wasi_keyvalue_types_static_bucket_open_bucket</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  counter_string_t</span><span class="z-l-8 z-d-7"> *</span><span class="z-d-9 z-d-i">name</span><span>,</span><span class="z-d-9"> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_types_own_bucket_t</span><span class="z-l-8 z-d-7"> *</span><span class="z-d-9 z-d-i">ret</span><span>,</span><span class="z-d-9"> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_types_own_error_t</span><span class="z-l-8 z-d-7"> *</span><span class="z-d-9">err</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span></code></pre>
+<p>We will have to drop the created bucket with</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="c"><span class="giallo-l"><span class="z-l-8 z-d-7">extern</span><span class="z-l-8 z-d-7"> void</span><span class="z-l-3 z-d-3"> wasi_keyvalue_types_bucket_drop_own</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_types_own_bucket_t</span><span class="z-d-9"> handle</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span></code></pre>
+<p>With all this information let's try to open a bucket in Zig by directly using the generated C bindings. First we need to import the C headers:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-11 z-d-9"> c</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-1"> @cImport</span><span>({</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">    @cDefine</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">_NO_CRT_STDIO_INLINE</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">    @cInclude</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">counter.h</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>})</span><span>;</span></span></code></pre>
+<p>We also define an initial error type for our function for using later:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-11 z-d-9"> KVError</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> error</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    FailedToOpenBucket</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span></code></pre>
+<p>Then start implementing the store function by first storing the bucket's name in <code>counter_string_t</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">fn</span><span class="z-l-3 z-d-3"> record_state</span><span>() </span><span class="z-l-8 z-d-7">anyerror</span><span class="z-d-1">!</span><span class="z-l-8 z-d-7">void</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-11 z-d-9"> stdout</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">io</span><span>.</span><span class="z-l-3 z-d-3">getStdOut</span><span>()</span><span>.</span><span class="z-l-3 z-d-3">writer</span><span>()</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    var</span><span class="z-l-11 z-d-9"> bucket_name</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">counter_string_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    c</span><span>.</span><span class="z-l-3 z-d-3">counter_string_dup</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">bucket_name</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">state</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">counter_string_free</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">bucket_name</span><span>)</span><span>;</span></span></code></pre>
+<p>and then invoking the <code>wasi_keyvalue_types_static_bucket_open_bucket</code> function:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">    var</span><span class="z-l-11 z-d-9"> bucket</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">wasi_keyvalue_types_own_bucket_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    var</span><span class="z-l-11 z-d-9"> bucket_err</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">wasi_keyvalue_wasi_keyvalue_error_own_error_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    if</span><span> (</span><span class="z-l-11 z-d-9">c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_static_bucket_open_bucket</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">bucket_name</span><span>,</span><span class="z-d-1"> &amp;</span><span class="z-l-11 z-d-9">bucket</span><span>,</span><span class="z-d-1"> &amp;</span><span class="z-l-11 z-d-9">bucket_err</span><span>)) {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_bucket_drop_own</span><span>(</span><span class="z-l-11 z-d-9">bucket</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        </span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-8 z-l-i z-d-7 z-d-i"> TODO</span></span>
+<span class="giallo-l"><span>    } </span><span class="z-l-8 z-d-7">else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_wasi_keyvalue_error_error_drop_own</span><span>(</span><span class="z-l-11 z-d-9">bucket_err</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        try</span><span class="z-l-11 z-d-9"> stdout</span><span>.</span><span class="z-l-3 z-d-3">print</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Failed to open bucket</span><span class="z-l-2 z-d-1">\n</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> .</span><span>{})</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span class="z-l-11 z-d-9"> KVError</span><span>.</span><span class="z-l-11 z-d-9">FailedToOpenBucket</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Now that we have an open bucket we want to call the <code>set</code> function to update a key's value:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="c"><span class="giallo-l"><span class="z-l-8 z-d-7">extern</span><span class="z-l-8 z-d-7"> bool</span><span class="z-l-3 z-d-3"> wasi_keyvalue_eventual_set</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_eventual_borrow_bucket_t</span><span class="z-d-9 z-d-i"> bucket</span><span>,</span><span class="z-d-9"> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_eventual_key_t</span><span class="z-l-8 z-d-7"> *</span><span class="z-d-9 z-d-i">key</span><span>,</span><span class="z-d-9"> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_eventual_borrow_outgoing_value_t</span><span class="z-d-9 z-d-i"> outgoing_value</span><span>,</span><span class="z-d-9"> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  wasi_keyvalue_eventual_own_error_t</span><span class="z-l-8 z-d-7"> *</span><span class="z-d-9">err</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span></code></pre>
+<p>We already have our bucket, but we <em>own</em> it and we need to pass a <em>borrowed</em> bucket to this function. What's the difference? There is no difference in the actual value - both just store a <em>handle</em> to a resource that exists in the runtime engine, but we still have to borrow the owned value using the <code>wasi_keyvalue_types_borrow_bucket</code> function. The <code>wasi_keyvalue_eventual_key_t</code> type is just an alias for <code>counter_string_t</code> and <code>wasi_keyvalue_eventual_borrow_outgoing_value_t</code> is another resource we need to construct first. Let's put this together!</p>
+<p>First we borrow the owned bucket:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> borrowed_bucket</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_borrow_bucket</span><span>(</span><span class="z-l-11 z-d-9">bucket</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_bucket_drop_borrow</span><span>(</span><span class="z-l-11 z-d-9">borrowed_bucket</span><span>)</span><span>;</span></span></code></pre>
+<p>Then we create an <em>outgoing value</em> that's going to be stored in the key-value store:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> outgoing_value</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_static_outgoing_value_new_outgoing_value</span><span>()</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_outgoing_value_drop_own</span><span>(</span><span class="z-l-11 z-d-9">outgoing_value</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> borrowed_outgoing_value</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_borrow_outgoing_value</span><span>(</span><span class="z-l-11 z-d-9">outgoing_value</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_outgoing_value_drop_borrow</span><span>(</span><span class="z-l-11 z-d-9">borrowed_outgoing_value</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> body</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">counter_string_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> value</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> try</span><span class="z-l-11 z-d-9"> std</span><span>.</span><span class="z-l-11 z-d-9">fmt</span><span>.</span><span class="z-l-3 z-d-3">allocPrint</span><span>(</span><span class="z-l-11 z-d-9">gpa</span><span>.</span><span class="z-l-3 z-d-3">allocator</span><span>()</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{d}</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> .</span><span>{</span><span class="z-l-11 z-d-9">state</span><span>})</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">c</span><span>.</span><span class="z-l-3 z-d-3">counter_string_set</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">body</span><span>,</span><span class="z-l-2 z-d-1"> @ptrCast</span><span>(</span><span class="z-l-11 z-d-9">value</span><span>))</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">counter_string_free</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">body</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> write_err</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">wasi_keyvalue_types_own_error_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">if</span><span> (</span><span class="z-d-1">!</span><span class="z-l-11 z-d-9">c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_types_method_outgoing_value_outgoing_value_write_body_sync</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    borrowed_outgoing_value</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">    @ptrCast</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">body</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-1">    &amp;</span><span class="z-l-11 z-d-9">bucket_err</span><span>)) {</span></span>
+<span class="giallo-l"><span>        </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_wasi_keyvalue_error_error_drop_own</span><span>(</span><span class="z-l-11 z-d-9">write_err</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    try</span><span class="z-l-11 z-d-9"> stdout</span><span>.</span><span class="z-l-3 z-d-3">print</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Failed to set outgoing value</span><span class="z-l-2 z-d-1">\n</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> .</span><span>{})</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-l-11 z-d-9"> KVError</span><span>.</span><span class="z-l-11 z-d-9">FailedToSetKey</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Also we need to create a string for holding the <em>key</em>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> key</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">counter_string_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">c</span><span>.</span><span class="z-l-3 z-d-3">counter_string_dup</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">key</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">latest</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">defer</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">counter_string_free</span><span>(</span><span class="z-d-1">&amp;</span><span class="z-l-11 z-d-9">key</span><span>)</span><span>;</span></span></code></pre>
+<p>And finally call the <code>set</code> function:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="zig"><span class="giallo-l"><span class="z-l-8 z-d-7">var</span><span class="z-l-11 z-d-9"> set_err</span><span>:</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-11 z-d-9">wasi_keyvalue_eventual_own_error_t</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">if</span><span> (</span><span class="z-d-1">!</span><span class="z-l-11 z-d-9">c</span><span>.</span><span class="z-l-3 z-d-3">wasi_keyvalue_eventual_set</span><span>(</span><span class="z-l-11 z-d-9">borrowed_bucket</span><span>,</span><span class="z-d-1"> &amp;</span><span class="z-l-11 z-d-9">key</span><span>,</span><span class="z-l-11 z-d-9"> borrowed_outgoing_value</span><span>,</span><span class="z-d-1"> &amp;</span><span class="z-l-11 z-d-9">set_err</span><span>)) {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    try</span><span class="z-l-11 z-d-9"> stdout</span><span>.</span><span class="z-l-3 z-d-3">print</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Failed to set key</span><span class="z-l-2 z-d-1">\n</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> .</span><span>{})</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-l-11 z-d-9"> KVError</span><span>.</span><span class="z-l-11 z-d-9">FailedToSetKey</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>With this implementation we can compile our new version of our WASM component which now also depends on <code>wasi:keyvalue</code> and stores the latest value in a remote storage every time it gets updated.</p>
+<h2 id="what-s-next">What's next?</h2>
+<p>With the above technique we have a way to impelment WASM components in Zig, but working with the generated C bindings is a bit inconvenient. It would be nice to have a more idiomatic Zig interface to the component model, and maybe it can be achieved just by using Zig's metaprogramming features without having to create a Zig specific binding generator in addition to the existing ones.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

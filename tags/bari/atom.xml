@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#39;s software development blog - bari</title>
+    <subtitle>Blog posts about projects, ideas and experiments of Daniel Vigovszky (vigoo)</subtitle>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/bari/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2016-01-21T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/bari/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Bari with Visual Studio Code</title>
+        <published>2016-01-21T00:00:00+00:00</published>
+        <updated>2016-01-21T00:00:00+00:00</updated>
+        
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/bari-vscode/"/>
+        <id>https://blog.vigoo.dev/posts/bari-vscode/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/bari-vscode/">&lt;h2 id=&quot;intro&quot;&gt;Intro&lt;/h2&gt;
+&lt;p&gt;A few weeks ago I discovered &lt;a rel=&quot;external&quot; href=&quot;https://code.visualstudio.com/&quot;&gt;Visual Studio Code&lt;/a&gt; and started using it for some of my work. &lt;em&gt;(Note: I&#39;m using multiple editors/IDEs all the time, based on the task; Emacs, Sublime, Atom, IntelliJ, VS, etc.)&lt;/em&gt; So far &lt;em&gt;Code&lt;/em&gt; is my favourite among the set of similar editors, such as Atom. I was pleasently surprised how well it works with its integrated &lt;a rel=&quot;external&quot; href=&quot;http://www.omnisharp.net/&quot;&gt;OmniSharp&lt;/a&gt; plugin on &lt;a rel=&quot;external&quot; href=&quot;http://vigoo.github.io/bari/&quot;&gt;bari&#39;s&lt;/a&gt; codebase, so I decided to try to write a &lt;em&gt;bari plugin&lt;/em&gt; for it.&lt;/p&gt;
+&lt;p&gt;Writing an extension for &lt;em&gt;Code&lt;/em&gt; was a nice experience. The outcome is the &lt;a rel=&quot;external&quot; href=&quot;https://marketplace.visualstudio.com/items/vigoo.bari&quot;&gt;bari build management extension&lt;/a&gt;, which I&#39;ll demonstrate in the next section.&lt;/p&gt;
+&lt;h2 id=&quot;developing-net-applications-with-visual-studio-code-and-bari&quot;&gt;Developing .NET applications with Visual Studio Code and bari&lt;/h2&gt;
+&lt;p&gt;As &lt;em&gt;Code&lt;/em&gt; is multiplatform, and &lt;em&gt;bari&lt;/em&gt; also works with &lt;a rel=&quot;external&quot; href=&quot;http://www.mono-project.com/&quot;&gt;Mono&lt;/a&gt;, I&#39;ll demonstrate how you can use these tools to develop a .NET application (actually &lt;em&gt;bari&lt;/em&gt; itself) on a Mac. The steps here (except installing Mono) would be the same on Windows or Linux as well.&lt;/p&gt;
+&lt;h3 id=&quot;installing-the-tools&quot;&gt;Installing the tools&lt;/h3&gt;
+&lt;p&gt;First, if you are not on Windows, you&#39;ll have to install the latest &lt;a rel=&quot;external&quot; href=&quot;http://www.mono-project.com/&quot;&gt;Mono&lt;/a&gt; framework. On OSX I recommed to use &lt;a rel=&quot;external&quot; href=&quot;http://brew.sh/&quot;&gt;&lt;code&gt;brew&lt;/code&gt;&lt;/a&gt; to do that:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;brew install mono&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;mono --version&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Then get the latest &lt;a rel=&quot;external&quot; href=&quot;https://code.visualstudio.com/&quot;&gt;Visual Studio Code&lt;/a&gt; version, either by downloading it from its homepage or with &lt;a rel=&quot;external&quot; href=&quot;https://github.com/caskroom/homebrew-cask&quot;&gt;&lt;code&gt;brew cask&lt;/code&gt;&lt;/a&gt;:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;brew cask install visual-studio-code&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Get the latest &lt;em&gt;bari&lt;/em&gt;. On Windows I recommend downloading and extracting the &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari/releases/latest&quot;&gt;latest official release&lt;/a&gt; and adding it to the &lt;code&gt;PATH&lt;/code&gt;.
+On OSX, with &lt;code&gt;mono&lt;/code&gt; we already have &lt;code&gt;nuget&lt;/code&gt;, so let&#39;s use that:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;cd /opt&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;nuget install bari-mono&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;ln -s bari-mono.1.0.2.2 bari&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;and create a script to execute it somewhere in your &lt;code&gt;PATH&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;shellscript&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-7 z-l-i z-d-4 z-d-i&quot;&gt;#!&lt;/span&gt;&lt;span class=&quot;z-l-7 z-l-i z-d-4 z-d-i&quot;&gt;/bin/sh&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-3 z-d-3&quot;&gt;mono&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; /opt/bari/tools/bari.exe&lt;/span&gt;&lt;span class=&quot;z-d-9 z-d-i&quot;&gt; $&lt;/span&gt;&lt;span class=&quot;z-d-9 z-d-i&quot;&gt;@&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;That&#39;s it. Future versions of the &lt;em&gt;bari extension&lt;/em&gt; will probably be able to install &lt;em&gt;bari&lt;/em&gt; itself.&lt;/p&gt;
+&lt;p&gt;Let&#39;s start &lt;em&gt;Code&lt;/em&gt; now!&lt;/p&gt;
+&lt;h3 id=&quot;installing-the-extension&quot;&gt;Installing the extension&lt;/h3&gt;
+&lt;p&gt;Open the &lt;em&gt;command palette&lt;/em&gt; (F1, or ⇧⌘P) and type &lt;code&gt;ext install bari&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode1.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode1.webp&quot; alt=&quot;Installing the bari extension from the Visual Studio Code marketplace view&quot; width=&quot;600&quot; height=&quot;86&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&quot;loading-the-project&quot;&gt;Loading the project&lt;/h3&gt;
+&lt;p&gt;After that restart the editor. Have your bari-built project available somewhere. As we are going to develop bari itself, let&#39;s clone its repository:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;plain&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;git clone https://github.com/vigoo/bari.git&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Then open the result &lt;code&gt;bari&lt;/code&gt; directory with &lt;em&gt;Code&lt;/em&gt;. This should look like the following:&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode2.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode2.webp&quot; alt=&quot;Visual Studio Code with the bari suite loaded in the explorer&quot; width=&quot;800&quot; height=&quot;564&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;The &lt;em&gt;bari plugin&lt;/em&gt; automatically detected that the opened folder has a &lt;code&gt;suite.yaml&lt;/code&gt; in its root, and loaded it. That&#39;s why we can see the two sections on the statusbar&#39;s right side: &lt;code&gt;full&lt;/code&gt; and &lt;code&gt;debug&lt;/code&gt;. The first one is the &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari/wiki/Product&quot;&gt;selected target product&lt;/a&gt; and the second one is the &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari/wiki/Goal&quot;&gt;selected goal&lt;/a&gt;. All the &lt;em&gt;bari commands&lt;/em&gt; provided by the extension will be executed with these settings.&lt;/p&gt;
+&lt;h3 id=&quot;changing-the-target&quot;&gt;Changing the target&lt;/h3&gt;
+&lt;p&gt;To change the active product or goal, you can click on the statusbar or use the &lt;em&gt;command palette&lt;/em&gt; (F1, or ⇧⌘P) and choose &lt;code&gt;bari: Change goal&lt;/code&gt; or &lt;code&gt;bari: Change target product&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Let&#39;s change the &lt;em&gt;goal&lt;/em&gt; to &lt;code&gt;debug-mono&lt;/code&gt;, as we are working on a non-Windows environment:&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode3.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode3.webp&quot; alt=&quot;Choosing a bari build configuration from the quick pick menu&quot; width=&quot;800&quot; height=&quot;560&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&quot;generating-the-solution&quot;&gt;Generating the solution&lt;/h3&gt;
+&lt;p&gt;The next step before starting coding is to actually &lt;strong&gt;generate&lt;/strong&gt; the solution and projects files (and fetch the dependencies, etc.) so &lt;em&gt;OmniSharp&lt;/em&gt; can load it and provide code completion, analysis, etc. features.&lt;/p&gt;
+&lt;p&gt;To do so, just use the &lt;em&gt;command palette&lt;/em&gt; and choose &lt;code&gt;bari: Regenerate solution&lt;/code&gt;, which &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari/wiki/VsCommand&quot;&gt;runs the &lt;code&gt;bari vs&lt;/code&gt; command&lt;/a&gt; with the correct parameters. The command&#39;s output is displayed in an &lt;em&gt;output panel&lt;/em&gt; called &lt;code&gt;bari&lt;/code&gt;. This looks like the following:&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode4.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode4.webp&quot; alt=&quot;The bari output panel resolving NuGet package references&quot; width=&quot;800&quot; height=&quot;562&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;There&#39;s nothing else left than pointing &lt;em&gt;OmniSharp&lt;/em&gt; to the generated solution, with the following command:&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode5.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode5.webp&quot; alt=&quot;The command palette searching for OmniSharp commands&quot; width=&quot;800&quot; height=&quot;126&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;It will automatically find the generated &lt;code&gt;.sln&lt;/code&gt; file, just select the correct one:&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode6.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode6.webp&quot; alt=&quot;Selecting between the test-plugin and full-withtests solutions&quot; width=&quot;800&quot; height=&quot;130&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;In a few seconds (and with a few warnings for this project), &lt;em&gt;OmniSharp&lt;/em&gt; works. To see what it can do, &lt;a rel=&quot;external&quot; href=&quot;https://code.visualstudio.com/Docs/languages/csharp&quot;&gt;check this page&lt;/a&gt;. A simple example is to jump to a given class or interface with ⌘P:&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode7.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode7.webp&quot; alt=&quot;Workspace symbol search finding IUserOutput&quot; width=&quot;600&quot; height=&quot;118&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&quot;working-on-the-project&quot;&gt;Working on the project&lt;/h3&gt;
+&lt;p&gt;You can work on the project and build it from &lt;em&gt;Code&lt;/em&gt; or run its tests using the &lt;code&gt;bari: Build&lt;/code&gt; and &lt;code&gt;bari: Test&lt;/code&gt; commands. The build output will be shown just like in the &lt;em&gt;solution generation step&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/images/baricode8.webp&quot; class=&quot;zimg&quot;&gt;&lt;img src=&quot;/images/baricode8.webp&quot; alt=&quot;The bari command palette listing build, test and solution commands&quot; width=&quot;598&quot; height=&quot;211&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Whenever the suite definition itself must be modified, you can jump there with the &lt;code&gt;bari: Open suite.yaml&lt;/code&gt; command and then just regenerate the solution as it was shown above.&lt;/p&gt;
+&lt;h2 id=&quot;implementation&quot;&gt;Implementation&lt;/h2&gt;
+&lt;p&gt;The implementation was really straightforward. The source code &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari-code&quot;&gt;can be found here&lt;/a&gt;. It&#39;s basically a &lt;em&gt;JSON&lt;/em&gt; defining how the plugin is integrated and some implementation code in &lt;em&gt;TypeScript&lt;/em&gt;. It&#39;s easy to run and debug the plugin from &lt;em&gt;Code&lt;/em&gt; itself.&lt;/p&gt;
+&lt;p&gt;For example the following section from the extension definition describes what events triggers the extension:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;json&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;activationEvents&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;: &lt;/span&gt;&lt;span&gt;[&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.build&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.test&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.vs&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.openSuiteYaml&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.selfUpdate&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.goal.changeCurrentGoal&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;onCommand:bari.goal.changeCurrentProduct&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;    &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;workspaceContains:suite.yaml&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;]&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;It&#39;s either done by invoking one of the defined commands from the &lt;em&gt;command palette&lt;/em&gt;, or if the opened workspace contains a &lt;code&gt;suite.yaml&lt;/code&gt;. The latter enables the extension to parse the suite definition and initialize the statusbar immediately one the suite has been opened.&lt;/p&gt;
+&lt;p&gt;The package definition also specifies the provided configuration values, such as:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;json&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;bari.commandLine&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;: &lt;/span&gt;&lt;span&gt;{&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;	&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;	&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;default&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;bari&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;	&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;description&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;Command line to execute bari&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;bari.verboseOutput&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;: &lt;/span&gt;&lt;span&gt;{&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;	&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;boolean&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;	&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;default&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-2 z-d-8&quot;&gt; false&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;	&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;description&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; &amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;Turns on verbose output for all the executed bari commands&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;}&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The implementation itself is really simple, all the user interface elements involved such as the console output window, the command palette, the statusbar panels can be easily managed.&lt;/p&gt;
+&lt;p&gt;For example the panel showing &lt;code&gt;bari&lt;/code&gt;&#39;s output is created by the following code snippet:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;javascript&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-8 z-d-7&quot;&gt;var&lt;/span&gt;&lt;span class=&quot;z-d-9&quot;&gt; channel&lt;/span&gt;&lt;span class=&quot;z-l-2 z-d-1&quot;&gt; =&lt;/span&gt;&lt;span class=&quot;z-d-10&quot;&gt; vscode&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;window&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-3 z-d-3&quot;&gt;createOutputChannel&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;bari&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-d-10&quot;&gt;channel&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-3 z-d-3&quot;&gt;show&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Or to display the result of an operation:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;javascript&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-d-10&quot;&gt;vscode&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;window&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-3 z-d-3&quot;&gt;showErrorMessage&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;No suite.yaml in the current workspace!&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;or to create the statusbar panel:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;javascript&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;this&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;goals&lt;/span&gt;&lt;span class=&quot;z-l-2 z-d-1&quot;&gt; =&lt;/span&gt;&lt;span class=&quot;z-d-10&quot;&gt; vscode&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;window&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-3 z-d-3&quot;&gt;createStatusBarItem&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span class=&quot;z-d-10&quot;&gt;vscode&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;StatusBarAlignment&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;Right&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;this&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;goals&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;command&lt;/span&gt;&lt;span class=&quot;z-l-2 z-d-1&quot;&gt; =&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; &amp;#39;&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;bari.goal.changeCurrentGoal&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;this&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-10&quot;&gt;goals&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span class=&quot;z-l-3 z-d-3&quot;&gt;show&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This API is simple and well documented enough so basic integrations like this can be done in an hour.&lt;/p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>bari 1.0 released</title>
+        <published>2014-12-08T00:00:00+00:00</published>
+        <updated>2014-12-08T00:00:00+00:00</updated>
+        
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/bari-1-0/"/>
+        <id>https://blog.vigoo.dev/posts/bari-1-0/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/bari-1-0/">&lt;p&gt;I already wrote about &lt;a rel=&quot;external&quot; href=&quot;http://vigoo.github.io/bari&quot;&gt;bari&lt;/a&gt; in &lt;a href=&quot;https://blog.vigoo.dev/posts/introducing-bari/&quot;&gt;May&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;As a reminder, &lt;a rel=&quot;external&quot; href=&quot;http://vigoo.github.io/bari&quot;&gt;bari&lt;/a&gt; is a &lt;em&gt;build management system&lt;/em&gt; primarily for .NET, trying to fix Visual Studio&#39;s bad parts while keeping the good ones.&lt;/p&gt;
+&lt;p&gt;After more than two years of development, and being in production at &lt;a rel=&quot;external&quot; href=&quot;http://www.kotem.com/&quot;&gt;KOTEM&lt;/a&gt; for almost half a year, bari reached a state when it can be considered as a &lt;em&gt;stable&lt;/em&gt; and &lt;em&gt;usable&lt;/em&gt; first version.&lt;/p&gt;
+&lt;p&gt;To indicate this today I released &lt;strong&gt;bari 1.0&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Try it out and feel free to give any kind of feedback or ask any questions!&lt;/p&gt;
+&lt;img src=&quot;/images/barilogo-small.webp&quot; alt=&quot;The bari logo&quot; width=&quot;45&quot; height=&quot;64&quot; loading=&quot;lazy&quot; decoding=&quot;async&quot;&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Introducing bari</title>
+        <published>2014-05-16T00:00:00+00:00</published>
+        <updated>2014-05-16T00:00:00+00:00</updated>
+        
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/introducing-bari/"/>
+        <id>https://blog.vigoo.dev/posts/introducing-bari/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/introducing-bari/">&lt;p&gt;In the past two years I worked on a project called &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari&quot;&gt;bari&lt;/a&gt; which now reached an usable state. &lt;strong&gt;bari&lt;/strong&gt; is a &lt;em&gt;build management system&lt;/em&gt;, trying to fix Visual Studio&#39;s bad parts while keeping the good ones.&lt;/p&gt;
+&lt;p&gt;Basically it tries to make .NET development more convenient, when&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The application may consist of a &lt;em&gt;large number of projects&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;There may be several different &lt;em&gt;subsets&lt;/em&gt; of these projects defining
+valuable target &lt;em&gt;products&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;Custom build steps&lt;/em&gt; may be required&lt;/li&gt;
+&lt;li&gt;It is important to be able to &lt;em&gt;reproduce&lt;/em&gt; the build environment as
+easily as possible&lt;/li&gt;
+&lt;li&gt;The developers want to use the full power of their &lt;em&gt;IDE&lt;/em&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The main idea is to generate Visual Studio solutions and projects &lt;em&gt;on the fly&lt;/em&gt; as needed, from a concise &lt;em&gt;declarative&lt;/em&gt;  build description. I tried to optimize this build description for human readability. Let&#39;s see an example, a short section from &lt;strong&gt;bari&lt;/strong&gt;&#39;s own build definition:&lt;/p&gt;
+&lt;pre class=&quot;giallo z-l-code z-d-code&quot; &gt;&lt;code data-lang=&quot;yaml&quot;&gt;&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;-&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt; n&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;ame&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; b&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;ari&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;  t&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;ype&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; e&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;xecutable&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;  r&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;eferences&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    -&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; g&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;ac://System&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    -&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; n&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;uget://log4net&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    -&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; n&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;uget://Ninject/3.0.1.10&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    -&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; n&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;uget://QuickGraph&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span&gt;    -&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; m&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;odule://Bari.Core&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;  c&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;sharp&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;giallo-l&quot;&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;    r&lt;/span&gt;&lt;span class=&quot;z-l-11 z-d-9&quot;&gt;oot-namespace&lt;/span&gt;&lt;span&gt;:&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt; B&lt;/span&gt;&lt;span class=&quot;z-l-4 z-d-5&quot;&gt;ari.Console&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The main advantage of generating solutions and projects on the fly is that each developer can work on the subset he needs for his current task keeping the IDE fast, but can also open everything in one solution if it is useful for performing a refactoring.&lt;/p&gt;
+&lt;p&gt;To keep build definitions short and readable, &lt;strong&gt;bari&lt;/strong&gt; prefers &lt;em&gt;convention&lt;/em&gt; over &lt;em&gt;configuration&lt;/em&gt;. For example the directory stucture in which the source code lays defines not only the name of the modules to build, but also the way it is built. For example, in a simple &lt;em&gt;hello world&lt;/em&gt; example the C# source code would be put in the &lt;code&gt;src/TestModule/HelloWorld/cs&lt;/code&gt; directory, and &lt;strong&gt;bari&lt;/strong&gt; would build &lt;code&gt;target/TestModule/HelloWorld.exe&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;bari&lt;/strong&gt; unifies the handling of &lt;em&gt;project references&lt;/em&gt; in a way that referencing projects within a suite, from the GAC, using &lt;a rel=&quot;external&quot; href=&quot;http://www.nuget.org&quot;&gt;Nuget&lt;/a&gt; or from a custom repository works exactly the same. It is also possible to write &lt;em&gt;custom builders&lt;/em&gt; in Python.&lt;/p&gt;
+&lt;p&gt;For more information check out &lt;a rel=&quot;external&quot; href=&quot;https://github.com/vigoo/bari/wiki/GettingStarted&quot;&gt;the getting started page&lt;/a&gt;.&lt;/p&gt;
+</content>
+        
+    </entry>
+</feed>

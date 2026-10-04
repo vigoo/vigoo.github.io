@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>vigoo&#39;s software development blog</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Blog posts about projects, ideas and experiments of Daniel Vigovszky (vigoo)">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/tags/zio/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="website">
+        <meta property="og:title" content="vigoo&#39;s software development blog">
+        <meta property="og:description" content="Blog posts about projects, ideas and experiments of Daniel Vigovszky (vigoo)">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/tags/zio/">
+        
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        
+
+        
+  
+  <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/tags/zio/atom.xml">
+
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <section class="post-list">
+        <h2>Blog posts tagged with zio</h2>
+        <ul>
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/generating-a-rust-client-library-for-zio-http-endpoints/">Generating a Rust client library for ZIO Http endpoints</a></h3>
+        <time class="post-date" datetime="2023-09-07">September 7, 2023</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/rust/">rust</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/codegen/">codegen</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        <span class="post-word-count">4716 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/introducing-zio-flow/">[Video] Introducing ZIO Flow @ ZIO World 2023</a></h3>
+        <time class="post-date" datetime="2023-09-06">September 6, 2023</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/talk/">talk</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/video/">video</a></span>
+        
+        <span class="post-word-count">52 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/zioworld-talk/">[Video] ZIO Parser @ ZIO World 2022</a></h3>
+        <time class="post-date" datetime="2022-03-11">March 11, 2022</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/parser/">parser</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/talk/">talk</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/video/">video</a></span>
+        
+        <span class="post-word-count">45 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/zio-k8s-plugins/">Writing kubectl plugins with ZIO K8s</a></h3>
+        <time class="post-date" datetime="2021-03-07">March 7, 2021</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/k8s/">k8s</a></span>
+        
+        <span class="post-word-count">1470 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/zio-k8s/">The Coralogix Operator: A Tale of ZIO and Kubernetes</a></h3>
+        <time class="post-date" datetime="2021-02-16">February 16, 2021</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/k8s/">k8s</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/coralogix/">coralogix</a></span>
+        
+        <span class="post-word-count">31 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/zioaws-zioquery/">ZIO-AWS with ZIO Query</a></h3>
+        <time class="post-date" datetime="2020-11-01">November 1, 2020</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/aws/">aws</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zioquery/">zioquery</a></span>
+        
+        <span class="post-word-count">3976 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/zioaws-code-generation/">Code generation in ZIO-AWS</a></h3>
+        <time class="post-date" datetime="2020-09-23">September 23, 2020</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/aws/">aws</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/codegen/">codegen</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/sbt/">sbt</a></span>
+        
+        <span class="post-word-count">2847 words</span>
+    </article>
+</li>
+
+        
+            <li>
+    <article>
+        <h3><a href="https://blog.vigoo.dev/posts/prox-3-zio/">prox part 3 - effect abstraction and ZIO</a></h3>
+        <time class="post-date" datetime="2019-08-13">August 13, 2019</time>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/prox/">prox</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/scala/">scala</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/cats-effects/">cats effects</a></span>
+        
+        
+        <span class="post-tag"><a href="https://blog.vigoo.dev/tags/zio/">zio</a></span>
+        
+        <span class="post-word-count">1199 words</span>
+    </article>
+</li>
+
+        
+        </ul>
+    </section>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

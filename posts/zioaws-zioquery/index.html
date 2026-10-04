@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>ZIO-AWS with ZIO Query</title>
+
+        
+        
+        
+        
+        <meta name="description" content="A few years ago I wrote a post about how I refactored one of our internal tools at Prezi. This command line tool was able to discover a set of AWS resources and…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/zioaws-zioquery/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="ZIO-AWS with ZIO Query">
+        <meta property="og:description" content="A few years ago I wrote a post about how I refactored one of our internal tools at Prezi. This command line tool was able to discover a set of AWS resources and…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/zioaws-zioquery/">
+        
+        
+        <meta property="article:published_time" content="2020-11-01T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "ZIO-AWS with ZIO Query",
+            "datePublished": "2020-11-01T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/zioaws-zioquery/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/zioaws-zioquery/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["scala","zio","aws","zioquery"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>ZIO-AWS with ZIO Query</h1>
+            <p class="posted-on">Posted on <time datetime="2020-11-01">November 1, 2020</time></p>
+        </header>
+
+        <p>A few years ago I wrote a <a href="https://blog.vigoo.dev/posts/aws-rate-limits-prezidig/">post</a> about how I refactored one of our internal tools at <a rel="external" href="https://prezi.com">Prezi</a>. This command line tool was able to discover a set of AWS resources and present them in a nice human readable way. The primary motivation at that time was to introduce circuit breaking to survive AWS API rate limits.</p>
+<p>I have recently published a set of libraries, <a rel="external" href="https://github.com/vigoo/zio-aws"><strong>zio-aws</strong></a>, and thought it would be interesting to rewrite this tool on top of it, and use this opportunity to try out <a rel="external" href="https://zio.github.io/zio-query/"><strong>ZIO Query</strong></a> on a real-world example. In this post I'm going to show step by step how to build an efficient and easily extensible query tool with the help of <em>ZIO</em> libraries. The full source can be found <a rel="external" href="https://github.com/vigoo/aws-query">on GitHub</a>.</p>
+<h2 id="the-task">The task</h2>
+<p>The CLI tool we build will get an arbitrary string as an input, and search for it in various AWS resources. Once it has a match, it has to traverse a graph of these resources and finally pretty-print all the gathered information to the console.</p>
+<img src="/images/awsquery-1.webp" alt="ZIO Query walking the ECS resource tree in a terminal: clusters, services, task definitions and instances" width="780" height="505" loading="lazy" decoding="async">
+<p>The provided input could mean any of the following:</p>
+<ul>
+<li>An <strong>EC2</strong> <em>instance ID</em></li>
+<li>An <strong>ELB</strong> (load balancer)'s <em>name</em></li>
+<li>An <strong>ElasticBeanstalk</strong> <em>environment name</em> or <em>ID</em></li>
+<li>An <strong>ElasticBeanstalk</strong> <em>application name</em></li>
+<li>An <strong>ASG</strong> (auto-scaling group) <em>ID</em></li>
+</ul>
+<p>For the level of detail to be reported I copied the original tool. This means finding all the related resources in the above sets (plus among <em>launch configurations</em>) but only include a single <em>EC2 instance</em> in the output if it was explicitly queried. So for example if the search term matches an <em>ELB</em> that belongs to an <em>ElasticBeanstalk environment</em>, the report will contain the <em>EB app</em> and all its other environments as well, but won't show individual instances. This choice does not affect the design and could be easily changed or extended with additional resource types.</p>
+<h2 id="aws-client">AWS client</h2>
+<p>For querying the above mentioned resources, we have to call four different AWS services. The <code>zio-aws</code> project adds a streaming ZIO wrapper for <em>all</em> the libraries in <a rel="external" href="https://docs.aws.amazon.com/sdk-for-java/v2/developer-guide/welcome.html">AWS Java SDK v2</a>, each published as separate artifact:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>libraryDependencies </span><span>++=</span><span class="z-l-9 z-d-10"> Seq</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &quot;</span><span class="z-l-4 z-d-5">io.github.vigoo</span><span class="z-l-4 z-d-5">&quot;</span><span> %%</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zio-aws-autoscaling</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-1"> %</span><span> zioAwsVersion,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &quot;</span><span class="z-l-4 z-d-5">io.github.vigoo</span><span class="z-l-4 z-d-5">&quot;</span><span> %%</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zio-aws-ec2</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-1"> %</span><span> zioAwsVersion,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &quot;</span><span class="z-l-4 z-d-5">io.github.vigoo</span><span class="z-l-4 z-d-5">&quot;</span><span> %%</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zio-aws-elasticloadbalancing</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-1"> %</span><span> zioAwsVersion,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &quot;</span><span class="z-l-4 z-d-5">io.github.vigoo</span><span class="z-l-4 z-d-5">&quot;</span><span> %%</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zio-aws-elasticbeanstalk</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-1"> %</span><span> zioAwsVersion</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">  &quot;</span><span class="z-l-4 z-d-5">io.github.vigoo</span><span class="z-l-4 z-d-5">&quot;</span><span> %%</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zio-aws-netty</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-1"> %</span><span> zioAwsVersion,    </span></span>
+<span class="giallo-l"><span>)</span></span></code></pre>
+<p>In addition to loading the necessary client libraries, we also need one of the <em>http implementations</em>, in this case I chose the default <em>Netty</em>. Other possibilities are <em>akka-http</em> and <em>http4s</em>. If your application already uses one of these for other HTTP communications you may want to use them to share their configuration and pools.</p>
+<p>The client libraries have a <code>ZStream</code> API for all the operations that either support streaming (like for example S3 download/upload) or pagination, and <code>ZIO</code> wrapper for non-streaming simple operations. Instead of using the Java SDK's builders, the requests are described by <em>case classes</em>, and the <em>result</em> types have convenience accessors to handle the nullable results.</p>
+<p>Let's see some examples!</p>
+<p>We can get information about <em>EB applications</em> with the <em>ElasticBeanstalk</em> API's <a rel="external" href="https://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DescribeApplications.html"><code>DescribeApplications</code> operation</a>. This is defined like the following in <code>zio-aws-elasticbeanstalk</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> describeApplications</span><span>(</span><span class="z-d-9 z-d-i">request</span><span>:</span><span class="z-l-9 z-d-10"> DescribeApplicationsRequest</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">ElasticBeanstalk</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">DescribeApplicationsResponse</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> ApplicationName</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> String</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> DescribeApplicationsRequest</span><span>(</span><span class="z-d-9 z-d-i">applicationNames</span><span>:</span><span class="z-l-9 z-d-10"> Option</span><span>[</span><span class="z-l-9 z-d-10">Iterable</span><span>[</span><span class="z-l-9 z-d-10">ApplicationName</span><span>]</span><span>]</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> DescribeApplicationsResponse</span><span>(</span><span class="z-d-9 z-d-i">applications</span><span> :</span><span class="z-l-9 z-d-10"> Option</span><span>[</span><span class="z-l-9 z-d-10">Iterable</span><span>[</span><span class="z-l-9 z-d-10">ApplicationDescription</span><span>]</span><span>]</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> DescribeApplicationsResponse</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  trait</span><span class="z-l-9 z-d-10"> ReadOnly</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> editable</span><span>:</span><span class="z-l-9 z-d-10"> DescribeApplicationsResponse</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> applicationsValue</span><span>:</span><span class="z-l-9 z-d-10"> Option</span><span>[</span><span class="z-l-9 z-d-10">List</span><span>[</span><span class="z-l-9 z-d-10">ApplicationDescription</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> applications</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">List</span><span>[</span><span class="z-l-9 z-d-10">ApplicationDescription</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span><span>]</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>A few things to notice here:</p>
+<ul>
+<li>The client function requires the <code>ElasticBeanstalk</code> module. We will see how to set up the dependencies in the <em>Putting all together</em> section.</li>
+<li>The primitive types defined by the AWS schema are currently simple type aliases. In the future they will be probably replaced by <a rel="external" href="https://github.com/zio/zio-prelude">zio-prelude</a>'s <em>newtypes</em>.</li>
+<li>Each wrapper type has a <code>ReadOnly</code> trait and a <em>case class</em>. The case classes are used as input, and the read-only interfaces as outputs. This way the result provided by the Java SDK can be accessed directly and it only has to be rewrapped in the case class if it is passed to another call as input.</li>
+<li>In many cases the AWS SDK describes fields as optional even if in normal circumstances it would never be <code>None</code>. To make it more convenient to work with these, the <code>ReadOnly</code> interface contains <em>accessor functions</em> which fail with <code>FieldIsNone</code> in case the field did not have any value. The pure optional values can be accessed with the <code>xxxValue</code> variants. See <code>applications</code> and <code>applicationsValue</code> in the above example.</li>
+</ul>
+<p>For operations support pagination, the wrapper functions return a stream. The actual first AWS call happens when the stream is first pulled. An example for this that we have to use in this application is the <em>EC2</em> API's <a rel="external" href="https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html"><code>DescribeInstances</code> operation</a>.</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> describeInstances</span><span>(</span><span class="z-d-9 z-d-i">request</span><span>:</span><span class="z-l-9 z-d-10"> DescribeInstancesRequest</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZStream</span><span>[</span><span class="z-l-9 z-d-10">Ec2</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Reservation</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span></span></code></pre>
+<p>The pagination can be controlled by setting the <code>MaxResults</code> property in <code>DescribeInstancesRequest</code>. For the user of the <code>describeInstances</code> function this is completely transparent, the returned stream will gather all the results, possibly by performing multiple AWS requests.</p>
+<h2 id="queries">Queries</h2>
+<p>We could implement the resource discovery directly using the low level AWS wrappers described above, using ZIO's tools to achieve concurrency. There are several things to consider though:</p>
+<ul>
+<li>We don't know what resource we are looking for, so we should start multiple queries in parallel to find a match as soon as possible</li>
+<li>Some queries return additional data that could be reused later. For example it is not possible to search for an ELB by a instance ID contained by it; for that we have to query <em>all</em> load balancers and check the members on client side.</li>
+<li>There are AWS operations that support querying multiple entities, for example by providing a list of IDs to look for</li>
+<li>We should minimize the number of calls to AWS, both for performance reasons, and to avoid getting rate limited</li>
+</ul>
+<p>We can achieve all this by expressing our AWS queries with a higher level abstraction, delegating the execution to a library called <a rel="external" href="https://zio.github.io/zio-query/">ZIO Query</a>. This library let us define composable <em>queries</em> to arbitrary <em>data sources</em>, and it automatically provides <em>pipelining</em>, <em>batching</em> and <em>caching</em>. A perfect match for the problem we have to solve here.</p>
+<p>To be able to cache results that became available as a side effect of a query, we need a <a rel="external" href="https://github.com/zio/zio-query/pull/105">recent improvement</a> that is not published yet, so <code>aws-query</code> currently uses a snapshot release of <code>zio-query</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>libraryDependencies </span><span>+=</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">dev.zio</span><span class="z-l-4 z-d-5">&quot;</span><span> %%</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">zio-query</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-1"> %</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">0.2.5+12-c41557f7-SNAPSHOT</span><span class="z-l-4 z-d-5">&quot;</span></span></code></pre>
+<p>The first step is to define custom <em>data sources</em>. Data sources must implement a function <code>runAll</code> with the following signature:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> runAll</span><span>(</span><span class="z-d-9 z-d-i">requests</span><span>:</span><span class="z-l-9 z-d-10"> Chunk</span><span>[</span><span class="z-l-9 z-d-10">Chunk</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">Nothing</span><span>, </span><span class="z-l-9 z-d-10">CompletedRequestMap</span><span>]</span></span></code></pre>
+<p>Here <code>A</code> is the <em>request type</em> specific to a given data source (extending <code>Request[E, A]</code>, and the returned <code>CompletedRequestMap</code> will store an <code>Either[E, A]</code> result for each request. The two nested chunks model sequential and parallel execution: the requests in the inner chunks can be executed in parallel, while these batches contained by the outer chunk must be performed sequentially. In practice we won't implement this method but use <code>DataSource.Batched</code> that is a simplified version that can perform requests in parallel but does not make further optimizations on the requests to be performed sequentially.</p>
+<p>What should belong to one data source?  It could be a single data source for all the AWS queries, or one per service, or one per resource type. The best choice in this case is to have one for each resource type, for the following reasons:</p>
+<ul>
+<li>There are no opportunities to do any cross-resource-type caching. For example when we are querying EC2 instances, we won't fetch auto scaling groups as a side effect.</li>
+<li>If all requests are about the same data type, implementing the data source is much simpler</li>
+</ul>
+<p>Let's see a simple example. EC2 instances can be queried by <em>instance ID</em> with the <a rel="external" href="https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html"><code>DescribeInstances</code></a> operation, and it supports querying for multiple IDs in a single request. We first define a <em>request type</em>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> GetEc2Instance</span><span>(</span><span class="z-d-9 z-d-i">id</span><span>:</span><span class="z-l-9 z-d-10"> InstanceId</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Request</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Instance</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span></span></code></pre>
+<p>Then the data source:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> ec2InstancesDataSource</span><span>:</span><span class="z-l-9 z-d-10"> DataSource</span><span>[</span><span class="z-l-9 z-d-10">Logging</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Ec2</span><span>, </span><span class="z-l-9 z-d-10">GetEc2Instance</span><span>]</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  DataSource</span><span>.</span><span class="z-l-9 z-d-10">Batched</span><span>.make</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">ec2</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span><span> (</span><span class="z-d-9 z-d-i">requests</span><span>:</span><span class="z-l-9 z-d-10"> Chunk</span><span>[</span><span class="z-l-9 z-d-10">GetEc2Instance</span><span>]</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    import</span><span class="z-l-9 z-d-10"> AwsDataSource</span><span>.</span><span>_</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      result </span><span>&lt;-</span><span> ec2.describeInstances</span><span>(</span><span class="z-l-9 z-d-10">DescribeInstancesRequest</span><span>(</span><span>instanceIds </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span>requests.map</span><span>(</span><span>_.id</span><span>)</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        .mapM</span><span>(</span><span>_.instances</span><span>)</span></span>
+<span class="giallo-l"><span>        .flatMap</span><span>(</span><span>instances </span><span>=&gt;</span><span class="z-l-9 z-d-10"> ZStream</span><span>.fromIterable</span><span>(</span><span>instances</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        .foldM</span><span>(</span><span class="z-l-9 z-d-10">CompletedRequestMap</span><span>.empty</span><span>)</span><span> {</span><span> (</span><span>resultMap, item</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">          for</span><span> {</span></span>
+<span class="giallo-l"><span>            instanceId </span><span>&lt;-</span><span> item.instanceId</span></span>
+<span class="giallo-l"><span>          }</span><span class="z-l-8 z-d-7"> yield</span><span> resultMap.insert</span><span>(</span><span class="z-l-9 z-d-10">GetEc2Instance</span><span>(</span><span>instanceId</span><span>)</span><span>)</span><span>(</span><span class="z-l-9 z-d-10">Right</span><span>(</span><span>item</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>        .recordFailures</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">DescribeInstances</span><span class="z-l-4 z-d-5">&quot;</span><span>, requests</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-l-8 z-d-7"> yield</span><span> result</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Here <code>requests</code> holds a set of <code>GetEc2Instance</code> requests to be performed in parallel. We can simply do this by taking all the <em>instance IDs</em> from these requests and performing a single <code>describeInstances</code> AWS call. The result, as I explained before, is a <code>ZStream</code> of instances. We have to construct a <code>CompletedRequestMap</code> holding one entry for each request in <code>requests</code>. To do this we <code>foldM</code> the stream, using the <code>instanceId</code> accessor function to reconstruct the request value for each item in the result stream.</p>
+<p>The <code>.recordFailures</code> function is a helper extension method defined in <code>AwsDataSource</code>. It catches all errors and produces a <code>CompletedRequestMap</code> where all requested items are recorded as failures:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> recordFailures</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">description</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>, </span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                      requests</span><span>:</span><span class="z-l-9 z-d-10"> Iterable</span><span>[</span><span class="z-l-9 z-d-10">Request</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">Nothing</span><span>, </span><span class="z-l-9 z-d-10">CompletedRequestMap</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>  f.catchAll </span><span>{</span><span> error </span><span>=&gt;</span></span>
+<span class="giallo-l"><span>    log.error</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-7">$</span><span>description</span><span class="z-l-4 z-d-5"> f</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5"> w</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">h</span><span class="z-d-7"> $</span><span>error</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> *&gt;</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      ZIO</span><span>.succeed </span><span>{</span></span>
+<span class="giallo-l"><span>        requests.foldLeft</span><span>(</span><span class="z-l-9 z-d-10">CompletedRequestMap</span><span>.empty</span><span>)</span><span> {</span><span class="z-l-8 z-d-7"> case</span><span> (</span><span>resultMap, req</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span>          resultMap.insert</span><span>(</span><span>req</span><span>)</span><span>(</span><span class="z-l-9 z-d-10">Left</span><span>(</span><span>error</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>This is necessary because the data source requires a function of type <code>Chunk[A] =&gt; ZIO[R, Nothing, CompletedRequestMap]</code> that cannot fail.</p>
+<p>With the data source defined, we can define primitive <em>queries</em> on it:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> getEc2Instance</span><span>(</span><span class="z-d-9 z-d-i">id</span><span>:</span><span class="z-l-9 z-d-10"> InstanceId</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">Logging</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Ec2</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Instance</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  ZQuery</span><span>.fromRequest</span><span>(</span><span class="z-l-9 z-d-10">GetEc2Instance</span><span>(</span><span>id</span><span>)</span><span>)</span><span>(</span><span>ec2InstancesDataSource</span><span>)</span></span></code></pre>
+<p>A more complex example is <code>ebEnvDataSource</code>, the data source of <em>ElasticBeanstalk environments</em>. For this resource, we have different request types:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">sealed</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> EbEnvRequest</span><span>[</span><span class="z-d-1">+</span><span class="z-l-9 z-d-10">A</span><span>]</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Request</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> GetEnvironmentByName</span><span>(</span><span class="z-d-9 z-d-i">name</span><span>:</span><span class="z-l-9 z-d-10"> EnvironmentName</span><span>)</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  extends</span><span class="z-l-9 z-d-10"> EbEnvRequest</span><span>[</span><span class="z-l-9 z-d-10">Option</span><span>[</span><span class="z-l-9 z-d-10">EnvironmentDescription</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> GetEnvironmentById</span><span>(</span><span class="z-d-9 z-d-i">id</span><span>:</span><span class="z-l-9 z-d-10"> EnvironmentId</span><span>)</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  extends</span><span class="z-l-9 z-d-10"> EbEnvRequest</span><span>[</span><span class="z-l-9 z-d-10">Option</span><span>[</span><span class="z-l-9 z-d-10">EnvironmentDescription</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> GetEnvironmentByApplicationName</span><span>(</span><span class="z-d-9 z-d-i">name</span><span>:</span><span class="z-l-9 z-d-10"> ApplicationName</span><span>)</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  extends</span><span class="z-l-9 z-d-10"> EbEnvRequest</span><span>[</span><span class="z-l-9 z-d-10">List</span><span>[</span><span class="z-l-9 z-d-10">EnvironmentDescription</span><span>.</span><span class="z-l-9 z-d-10">ReadOnly</span><span>]</span><span>]</span></span></code></pre>
+<p>In the data source implementation we get a <code>Chunk</code> of <code>EbEnvRequest</code> to be performed in parallel. We start it by separating it per request type:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> byName</span><span class="z-d-1"> =</span><span> requests.collect </span><span>{</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-9 z-d-10"> GetEnvironmentByName</span><span>(</span><span>name</span><span>)</span><span> =&gt;</span><span> name </span><span>}</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> byId</span><span class="z-d-1"> =</span><span> requests.collect </span><span>{</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-9 z-d-10"> GetEnvironmentById</span><span>(</span><span>id</span><span>)</span><span> =&gt;</span><span> id </span><span>}</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> byAppName</span><span class="z-d-1"> =</span><span> requests.collect </span><span>{</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-9 z-d-10"> GetEnvironmentByApplicationName</span><span>(</span><span>name</span><span>)</span><span> =&gt;</span><span> name </span><span>}</span></span></code></pre>
+<p>Then for each of these collections, if not empty, we can perform a <code>describeEnvironments</code> AWS call and then fold the result stream to create partial <code>CompletedRequestMap</code> values. What is interesting here is that if we already queried an environment by either name or id or it's application name, we already know both its identifier and name, so we can store additional items in <code>CompletedRequestMap</code> that will be cached and reused in future queries. For example this is how the query by-id gets processed:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>resultMap </span><span>&lt;-</span><span> elasticbeanstalk</span></span>
+<span class="giallo-l"><span>  .describeEnvironments</span><span>(</span><span class="z-l-9 z-d-10">DescribeEnvironmentsRequest</span><span>(</span><span>environmentIds </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span>byId</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>  .foldM</span><span>(</span><span>initialResultMap</span><span>)</span><span> {</span><span> (</span><span>resultMap, item</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      name </span><span>&lt;-</span><span> item.environmentName</span></span>
+<span class="giallo-l"><span>      id </span><span>&lt;-</span><span> item.environmentId</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-l-8 z-d-7"> yield</span><span> resultMap</span></span>
+<span class="giallo-l"><span>        .insert</span><span>(</span><span class="z-l-9 z-d-10">GetEnvironmentById</span><span>(</span><span>id</span><span>)</span><span>)</span><span>(</span><span class="z-l-9 z-d-10">Right</span><span>(</span><span class="z-l-9 z-d-10">Some</span><span>(</span><span>item</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        .insert</span><span>(</span><span class="z-l-9 z-d-10">GetEnvironmentByName</span><span>(</span><span>name</span><span>)</span><span>)</span><span>(</span><span class="z-l-9 z-d-10">Right</span><span>(</span><span class="z-l-9 z-d-10">Some</span><span>(</span><span>item</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>  .recordFailures</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">DescribeEnvironmentRequest(id)</span><span class="z-l-4 z-d-5">&quot;</span><span>, byId.map</span><span>(</span><span class="z-l-9 z-d-10">GetEnvironmentById</span><span>)</span><span>)</span></span></code></pre>
+<p>For all three request types we describe the computation to create a partial <code>CompletedRequestMap</code> for them. Then we can implement the data source by executing these (maximum) three queries in parallel and combining the results:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>byNameResultMap</span></span>
+<span class="giallo-l"><span>  .zipWithPar</span><span>(</span><span>byIdResultMap</span><span>)</span><span>(</span><span>_ </span><span>++</span><span> _</span><span>)</span></span>
+<span class="giallo-l"><span>  .zipWithPar</span><span>(</span><span>byAppNameResultMap</span><span>)</span><span>(</span><span>_ </span><span>++</span><span> _</span><span>)</span></span></code></pre>
+<p>There are some cases where being able to query <em>all</em> instances of a given resource is also a requirement. An example is <em>load balancers</em>, where the only way to find if an ELB contains a given <em>EC2 instance</em> is to query <em>all</em> ELBs and check their members. There are a few more cases that require a very similar implementation, so it makes sense extracting it to a common place. We define an <code>AllOrPerItem</code> trait that defines the specifics per use case:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">trait</span><span class="z-l-9 z-d-10"> AllOrPerItem</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">Req</span><span>, </span><span class="z-l-9 z-d-10">Item</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> name</span><span>:</span><span class="z-l-9 z-d-10"> String</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> isGetAll</span><span>(</span><span class="z-d-9 z-d-i">request</span><span>:</span><span class="z-l-9 z-d-10"> Req</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Boolean</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> isPerItem</span><span>(</span><span class="z-d-9 z-d-i">request</span><span>:</span><span class="z-l-9 z-d-10"> Req</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Boolean</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  val</span><span class="z-l-11 z-d-9"> allReq</span><span>:</span><span class="z-l-9 z-d-10"> Req</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> itemToReq</span><span>(</span><span class="z-d-9 z-d-i">item</span><span>:</span><span class="z-l-9 z-d-10"> Item</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Req</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> getAll</span><span>()</span><span>:</span><span class="z-l-9 z-d-10"> ZStream</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Item</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> getSome</span><span>(</span><span class="z-d-9 z-d-i">reqs</span><span>:</span><span class="z-l-9 z-d-10"> Set</span><span>[</span><span class="z-l-9 z-d-10">Req</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZStream</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Item</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> processAdditionalRequests</span><span>(</span><span class="z-d-9 z-d-i">requests</span><span>:</span><span class="z-l-9 z-d-10"> Chunk</span><span>[</span><span class="z-l-9 z-d-10">Req</span><span>]</span><span>, </span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                                partialResult</span><span>:</span><span class="z-l-9 z-d-10"> CompletedRequestMap</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">Nothing</span><span>, </span><span class="z-l-9 z-d-10">CompletedRequestMap</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    ZIO</span><span>.succeed</span><span>(</span><span>partialResult</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>By implementing these one-liners the actual data source implementation can be a shared code defined in <code>AllOrPerItem.make</code>. It's very similar to the examples already seen. If any of the requests is the <em>get all request</em>, that's the only thing to be performed, and all the result items will be cached. Otherwise a single batched request is made.</p>
+<p>These primitive <code>ZQuery</code>s then can be composed to more complex queries. For example the following code:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> {</span></span>
+<span class="giallo-l"><span>  instance </span><span>&lt;-</span><span> ec2query.getEc2Instance</span><span>(</span><span>instanceId</span><span>)</span></span>
+<span class="giallo-l"><span>  imageId </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.fromEffect</span><span>(</span><span>instance.imageId</span><span>)</span></span>
+<span class="giallo-l"><span>  imgElb </span><span>&lt;-</span><span> (</span><span>ec2query.getImage</span><span>(</span><span>imageId</span><span>)</span><span> &lt;&amp;&gt;</span><span> elbquery.loadBalancerOf</span><span>(</span><span>instanceId</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>  (</span><span>image, elb</span><span>)</span><span class="z-d-1"> =</span><span> imgElb</span></span>
+<span class="giallo-l"><span>  elbReport </span><span>&lt;-</span><span> optionally</span><span>(</span><span>elb</span><span>)</span><span>(</span><span>getElbReport</span><span>)</span></span>
+<span class="giallo-l"><span>  result </span><span>&lt;-</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> yield</span><span> result    </span></span></code></pre>
+<p>This is part of the definition of a query of type <code>ZQuery[QueryEnv, AwsError, LinkedReport[Ec2InstanceKey, Ec2InstanceReport]]</code>. We will talk about <code>QueryEnv</code> and <code>LinkedReport</code> later, for now it's enough to understand that this is a more complex query that provides an <em>EC2 instance report</em>; the data type that will be used to render the human-readable output. The query first gets an EC2 instance by <em>instance ID</em>. Then with <code>ZQuery.fromEffect</code> we lift a <code>ZIO</code> effect to the query. In this case this is a <code>zio-aws</code> <em>accessor function</em> that fails if <code>imageId</code> is <code>None</code>.</p>
+<p>By this we express that we <em>expect</em> that <code>imageId</code> is always specified, and if not, we fail the <em>whole query</em>. Then we use <code>&lt;&amp;&gt;</code> (it's alias is <code>zipPar</code>) to perform two queries <strong>in parallel</strong>: getting an EC2 image and finding the load balancer containing the instance. Once both queries are finished, we optionally generate a <em>load balancer report</em> (if we have found an ELB link) and then we construct the result.</p>
+<p>Here <code>optionally</code> is a simple helper function that makes our query more readable. It could have been written as <code>elb.fold(ZQuery.none)(getElbReport)</code>.</p>
+<p>Another useful combinator on <code>ZQuery</code> is <code>collectAllPar</code> that runs a subquery on each item of a collection in parallel:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> {</span></span>
+<span class="giallo-l"><span>  elbNames </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.fromEffect</span><span>(</span><span>asg.loadBalancerNames</span><span>)</span></span>
+<span class="giallo-l"><span>  result </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.collectAllPar</span><span>(</span><span>elbNames.map</span><span>(</span><span>name </span><span>=&gt;</span><span> elbquery.getLoadBalancer</span><span>(</span><span>name</span><span>)</span><span> &gt;&gt;=</span><span> getElbReport</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> yield</span><span> result</span></span></code></pre>
+<p>As I mentioned earlier, we have no way to know what resource we are looking for (in fact we could for example detect EC2 <em>instance IDs</em> by a pattern but let's ignore that for now). So on top level we simply start _all the possible queries <strong>at once</strong> and let print all the non-failing ones:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> {</span></span>
+<span class="giallo-l"><span>  renderers </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.collectAllPar</span><span>(</span><span>possibleQueries</span><span>)</span><span>.run</span></span>
+<span class="giallo-l"><span>  _ </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZIO</span><span>.foreach_</span><span>(</span><span>renderers.flatten</span><span>)</span><span>(</span><span>identity</span><span>)</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> yield</span><span> ()</span></span></code></pre>
+<p>Where <code>possibleQueries</code> is a where we list all the queries we want to support, tied to the <em>renderer</em> to show it on the console.</p>
+<h2 id="report-cache">Report cache</h2>
+<p><em>ZIO Query</em> solves caching and optimizes the requests on the AWS resource level, but we still have a problem. The queries form a cyclic graph. For example an <em>EC2 instance</em> holds a link to its <em>load balancer</em>, that holds a link to the <em>EB environment</em> it is defined in. The environment refers back to the ELB, and it also links to the <em>EB app</em> and the application has again links to all the <em>environments</em> it contains.</p>
+<p>We want to collect all these resources exactly once, and there is a chance that parallel queries reach to the same resource. To solve this we can add an extra <em>caching layer</em> on top of <em>ZIO Query</em>. Let's define this caching layer as a ZIO <em>module</em>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> ReportCache</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  trait</span><span class="z-l-9 z-d-10"> Service</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> storeIfNew</span><span>[</span><span class="z-l-9 z-d-10">A</span><span> &lt;:</span><span class="z-l-9 z-d-10"> Report</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">reportKey</span><span>:</span><span class="z-l-9 z-d-10"> ReportKey</span><span>, </span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                                query</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Boolean</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> retrieve</span><span>[</span><span class="z-l-9 z-d-10">A</span><span> &lt;:</span><span class="z-l-9 z-d-10"> Report</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">key</span><span>:</span><span class="z-l-9 z-d-10"> ReportKey</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Option</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>storeIfNew</code> function is a <em>query</em>, to be used in high level queries to shortcut cycles in case a given report is already stored in the cache. We can define a helper function <code>cached</code> like the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">protected</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> cached</span><span>[</span><span class="z-l-9 z-d-10">R</span><span> &lt;:</span><span class="z-l-9 z-d-10"> ReportCache</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Logging</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">B</span><span> &lt;:</span><span class="z-l-9 z-d-10"> Report</span><span>, </span><span class="z-l-9 z-d-10">K</span><span> &lt;:</span><span class="z-l-9 z-d-10"> ReportKey</span><span>]</span></span>
+<span class="giallo-l"><span>  (</span><span class="z-d-9 z-d-i">input</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span>)</span></span>
+<span class="giallo-l"><span>  (</span><span class="z-d-9 z-d-i">keyFn</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span> =&gt;</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">K</span><span>]</span><span>)</span></span>
+<span class="giallo-l"><span>  (</span><span class="z-d-9 z-d-i">query</span><span>:</span><span class="z-l-9 z-d-10"> K</span><span> =&gt;</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">K</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  for</span><span> {</span></span>
+<span class="giallo-l"><span>    key </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.fromEffect</span><span>(</span><span>keyFn</span><span>(</span><span>input</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    env </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.environment</span><span>[</span><span class="z-l-9 z-d-10">R</span><span>]</span></span>
+<span class="giallo-l"><span>    _ </span><span>&lt;-</span><span> storeIfNew</span><span>(</span></span>
+<span class="giallo-l"><span>      key,</span></span>
+<span class="giallo-l"><span>      query</span><span>(</span><span>key</span><span>)</span><span>.provide</span><span>(</span><span>env </span><span>?</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">provided environment</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"><span>  }</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">K</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>(</span><span>key</span><span>)</span></span></code></pre>
+<p>Then we can use it in queries like this:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> getEbAppReport</span><span>(</span><span class="z-d-9 z-d-i">name</span><span>:</span><span class="z-l-9 z-d-10"> ApplicationName</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">QueryEnv</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">EbAppKey</span><span>, </span><span class="z-l-9 z-d-10">EbAppReport</span><span>]</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>  cached</span><span>(</span><span>name</span><span>)</span><span>(</span><span>name </span><span>=&gt;</span><span class="z-l-9 z-d-10"> ZIO</span><span>.succeed</span><span>(</span><span class="z-l-9 z-d-10">EbAppKey</span><span>(</span><span>name</span><span>)</span><span>)</span><span>)</span><span> {</span><span> (</span><span class="z-d-9 z-d-i">key</span><span>:</span><span class="z-l-9 z-d-10"> EbAppKey</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">     //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Let's see in detail how this works!</p>
+<p>First of all, we define the following types:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-d-1">+</span><span class="z-l-9 z-d-10">K</span><span> &lt;:</span><span class="z-l-9 z-d-10"> ReportKey</span><span>, </span><span class="z-d-1">+</span><span class="z-l-9 z-d-10">R</span><span> &lt;:</span><span class="z-l-9 z-d-10"> Report</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">key</span><span>:</span><span class="z-l-9 z-d-10"> K</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">sealed</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> ReportKey</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> Ec2InstanceKey</span><span>(</span><span class="z-d-9 z-d-i">instanceId</span><span>:</span><span class="z-l-9 z-d-10"> InstanceId</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> ReportKey</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">sealed</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> Report</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> Ec2InstanceReport</span><span>(</span><span class="z-d-9 z-d-i">instanceId</span><span>:</span><span> ec2.model.primitives.</span><span class="z-l-9 z-d-10">InstanceId</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">                                   //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                                   elb</span><span>:</span><span class="z-l-9 z-d-10"> Option</span><span>[</span><span class="z-l-9 z-d-10">LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">ElbKey</span><span>, </span><span class="z-l-9 z-d-10">ElbReport</span><span>]</span><span>]</span></span>
+<span class="giallo-l"><span>                                  )</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Report</span></span></code></pre>
+<p>In <code>cached</code>, we provide a <code>keyFn</code> that is an effectful function to extract the <code>ReportKey</code> from the arbitrary input that can be the key itself, or an already fetched resource. Then we call the <code>ReportCache</code> module's <code>storeIfNew</code> query and return a <code>LinkedReport</code>. A <em>linked report</em> is just a wrapper around a report key, it is the type to be used in <code>Report</code> types to refer to each other. We store the cyclic resource graph by using these report keys and the cache's <code>retrieve</code> function to resolve the references on demand.</p>
+<p>One thing to notice is the <code>.provide</code> in the code of <code>cached</code>. The report cache does not know about the environments needed for the queries it caches the results of; the <code>query</code> parameter of <code>storeIfNew</code> has the type <code>ZQuery[Any, AwsError, A]</code>. For this reason <code>cached</code> eliminates the environment of its inner query by getting it and calling <code>.provide(env)</code> before passing it to the cache.</p>
+<p>The report cache itself can be implemented with <a rel="external" href="https://zio.dev/docs/datatypes/datatypes_stm"><em>STM</em></a>. First we create a <a rel="external" href="https://zio.dev/docs/datatypes/datatypes_tmap"><code>TMap</code></a>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>cache </span><span>&lt;-</span><span class="z-l-9 z-d-10"> TMap</span><span>.empty</span><span>[</span><span class="z-l-9 z-d-10">ReportKey</span><span>, </span><span class="z-l-9 z-d-10">Promise</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Report</span><span>]</span><span>]</span><span>.commit</span></span></code></pre>
+<p>We want to store the fact that a query <em>has been started</em> for a given report key. This can be modelled with a <code>Promise</code> that eventually gets a <code>Report</code> value. With this <code>TMap</code> structure, the <code>storeIfNew</code> function can be defined as:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> storeIfNew</span><span>[</span><span class="z-l-9 z-d-10">A</span><span> &lt;:</span><span class="z-l-9 z-d-10"> Report</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">reportKey</span><span>:</span><span class="z-l-9 z-d-10"> ReportKey</span><span>, </span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                                     query</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZQuery</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Boolean</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  ZQuery</span><span>.fromEffect </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      promise </span><span>&lt;-</span><span class="z-l-9 z-d-10"> Promise</span><span>.make</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Report</span><span>]</span></span>
+<span class="giallo-l"><span>      finalQuery </span><span>&lt;-</span><span> cache.get</span><span>(</span><span>reportKey</span><span>)</span><span>.flatMap </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span>report</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">          //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> replacing the query with the cached value</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">          ZSTM</span><span>.succeed</span><span>(</span><span class="z-l-9 z-d-10">ZQuery</span><span>.succeed</span><span>(</span><span class="z-l-6 z-d-8">false</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span class="z-l-9 z-d-10"> None</span><span> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">          //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> replacing the query with the cached value</span></span>
+<span class="giallo-l"><span>          cache.put</span><span>(</span><span>reportKey, promise</span><span>)</span><span>.map </span><span>{</span><span> _ </span><span>=&gt;</span></span>
+<span class="giallo-l"><span>            query.foldM</span><span>(</span></span>
+<span class="giallo-l"><span>              failure </span><span>=&gt;</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.fromEffect</span><span>(</span><span>promise.fail</span><span>(</span><span>failure</span><span>)</span><span>)</span><span> *&gt;</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.fail</span><span>(</span><span>failure</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>              success </span><span>=&gt;</span><span class="z-l-9 z-d-10"> ZQuery</span><span>.fromEffect</span><span>(</span><span>promise.succeed</span><span>(</span><span>success</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>            )</span></span>
+<span class="giallo-l"><span>          }</span></span>
+<span class="giallo-l"><span>      }</span><span>.commit</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-l-8 z-d-7"> yield</span><span> finalQuery</span></span>
+<span class="giallo-l"><span>  }</span><span>.flatMap</span><span>(</span><span>identity</span><span>)</span></span></code></pre>
+<p>This may seem simple but actually we are combining three different layers of abstraction here!</p>
+<ul>
+<li>The whole thing is a <em>query</em>. But we first run a <em>ZIO effect</em> that <strong>produces</strong> a query, and then execute that result query (in <code>.flatMap(identity)</code>)</li>
+<li>In the effect we create a promise that might be used or not, depending on the outcome of the transaction. Then we do <code>cache.get</code> which is an <em>STM transaction</em>.</li>
+<li>In the transaction we produce a <code>ZQuery</code> value that is either returning a simple <code>false</code> value if the report was already cached, or we store the already created promise in the map and return the query that constructs the report as the <em>result</em> of the transaction.</li>
+<li>As it is an <em>STM transaction</em> it may be retried multiple times but eventually it returns with a query that is either a NOP or calculates the <em>report</em> <strong>and</strong> sets the promise in the end.</li>
+</ul>
+<p>The other function of <code>ReportCache</code>, <code>retrieve</code> will be used when traversing the gathered <em>reports</em> to follow the <code>LinkedReport</code> links. It is simply a combination of getting an item from the <code>TMap</code> and then waiting for the stored promise.</p>
+<h2 id="throttling">Throttling</h2>
+<p>The original implementation of this tool did not control the amount and rate of AWS requests in any way, and a few years ago API rate limits made it somewhat unusable. As I explained <a href="https://blog.vigoo.dev/posts/aws-rate-limits-prezidig/">in a previous post</a>, I solved it by centralizing the calls to AWS then adding <em>circuit breaking and retry</em> to handle the <em>throttling errors</em>.</p>
+<p>In this new implementation <em>ZIO Query</em> 's batching feature already reduces the load but AWS has a global rate limit that can be reached any time, regardless of the actual request rate provided by this application. So how could we handle this with <code>zio-aws</code> and ZIO Query?</p>
+<p>There is useful ZIO library called <a rel="external" href="https://www.vroste.nl/rezilience/">rezilience</a> that defines utilities to express circuit breaking, retries, rate limiting and other similar policies. With this library we can create a policy that detects <code>AwsError</code>s representing throttling failures:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> throttlingPolicy</span><span>:</span><span class="z-l-9 z-d-10"> ZManaged</span><span>[</span><span class="z-l-9 z-d-10">Random</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Clock</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Logging</span><span>, </span><span class="z-l-9 z-d-10">Nothing</span><span>, </span><span class="z-l-9 z-d-10">Policy</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>]</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  for</span><span> {</span></span>
+<span class="giallo-l"><span>    cb </span><span>&lt;-</span><span class="z-l-9 z-d-10"> CircuitBreaker</span><span>.make</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>]</span><span>(</span></span>
+<span class="giallo-l"><span>      trippingStrategy </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> TrippingStrategy</span><span>.failureCount</span><span>(</span><span class="z-l-6 z-d-8">1</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>      resetPolicy </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Retry</span><span>.</span><span class="z-l-9 z-d-10">Schedules</span><span>.exponentialBackoff</span><span>(</span><span>min </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> 1</span><span>.second, max </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> 1</span><span>.minute</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>      isFailure </span><span class="z-d-1">=</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span class="z-l-9 z-d-10"> GenericAwsError</span><span>(</span><span class="z-d-9 z-d-i">error</span><span>:</span><span class="z-l-9 z-d-10"> AwsServiceException</span><span>)</span><span class="z-l-8 z-d-7"> if</span><span> error.isThrottlingException </span><span>=&gt;</span><span class="z-l-6 z-d-8"> true</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>    )</span></span>
+<span class="giallo-l"><span>    retry </span><span>&lt;-</span><span class="z-l-9 z-d-10"> Retry</span><span>.make</span><span>(</span><span>min </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> 1</span><span>.second, max </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> 1</span><span>.minute</span><span>)</span></span>
+<span class="giallo-l"><span>    retryComposable </span><span class="z-d-1">=</span><span> retry.widen</span><span>[</span><span class="z-l-9 z-d-10">PolicyError</span><span>[</span><span class="z-l-9 z-d-10">AwsError</span><span>]</span><span>]</span><span> {</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-9 z-d-10"> Policy</span><span>.</span><span class="z-l-9 z-d-10">WrappedError</span><span>(</span><span>e</span><span>)</span><span> =&gt;</span><span> e </span><span>}</span></span>
+<span class="giallo-l"><span>  }</span><span class="z-l-8 z-d-7"> yield</span><span> cb.toPolicy compose retryComposable.toPolicy</span></span></code></pre>
+<p>This will open a circuit breaker in case of throttling errors, and retry the operation with exponential back-off.</p>
+<p>These policies can be applied to <code>ZIO</code> effects. What we really need is to apply a policy like this to <em>all</em> AWS call. It should be the actual call to the underlying <em>AWS Java SDK</em>, not on the <code>zio-aws</code> wrapper level, because for example a streaming API function may produce multiple AWS requests.</p>
+<p>The <code>zio-aws</code> library supports applying <code>AwsCallAspect</code>s on the <em>AWS service client layers</em> to modify the underlying SDK calls. This is exactly what we need to apply the throttling policy to all calls! What's even better, by creating a single <code>throttlingPolicy</code> and applying it to all the service layers (<code>ec2</code>, <code>elasticloadbalancing</code>, <code>elasticbeanstalk</code> and <code>autoscaling</code>) they will share a common circuit breaker that matches the situation perfectly as the AWS API rate limiting is applied to globally to all services.</p>
+<p>An AWS call aspect has the following form:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> throttling</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> AwsCallAspect</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> apply</span><span>[</span><span class="z-l-9 z-d-10">R1</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">f</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R1</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Described</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R1</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, aspects.</span><span class="z-l-9 z-d-10">Described</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>    policy</span><span>(</span><span>f</span><span>)</span><span>.mapError </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> Policy</span><span>.</span><span class="z-l-9 z-d-10">WrappedError</span><span>(</span><span>e</span><span>)</span><span> =&gt;</span><span> e</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> Policy</span><span>.</span><span class="z-l-9 z-d-10">BulkheadRejection</span><span> =&gt;</span><span class="z-l-9 z-d-10"> AwsError</span><span>.fromThrowable</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> RuntimeException</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">B</span><span class="z-l-4 z-d-5">u</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">k</span><span class="z-l-4 z-d-5">h</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">j</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> Policy</span><span>.</span><span class="z-l-9 z-d-10">CircuitBreakerOpen</span><span> =&gt;</span><span class="z-l-9 z-d-10"> AwsError</span><span>.fromThrowable</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-9 z-d-10"> RuntimeException</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">A</span><span class="z-l-4 z-d-5">W</span><span class="z-l-4 z-d-5">S</span><span class="z-l-4 z-d-5"> r</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5"> l</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5"> e</span><span class="z-l-4 z-d-5">x</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Another simple example could be logging all AWS requests:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> callLogging</span><span>:</span><span class="z-l-9 z-d-10"> AwsCallAspect</span><span>[</span><span class="z-l-9 z-d-10">Logging</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  new</span><span class="z-l-9 z-d-10"> AwsCallAspect</span><span>[</span><span class="z-l-9 z-d-10">Logging</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">   override</span><span class="z-l-8 z-d-7"> final</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> apply</span><span>[</span><span class="z-l-9 z-d-10">R1</span><span> &lt;:</span><span class="z-l-9 z-d-10"> Logging</span><span>, </span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">f</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R1</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Described</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">R1</span><span>, </span><span class="z-l-9 z-d-10">AwsError</span><span>, </span><span class="z-l-9 z-d-10">Described</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>     f.flatMap </span><span>{</span><span class="z-l-8 z-d-7"> case</span><span> r</span><span>@</span><span class="z-l-9 z-d-10">Described</span><span>(</span><span>_, description</span><span>)</span><span> =&gt;</span></span>
+<span class="giallo-l"><span>       log.info</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">[</span><span class="z-d-7">${</span><span>description.service</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">/</span><span class="z-d-7">${</span><span>description.operation</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">]</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>.as</span><span>(</span><span>r</span><span>)</span></span>
+<span class="giallo-l"><span>     }</span></span>
+<span class="giallo-l"><span> }</span></span></code></pre>
+<p>These aspects can be applied to a <code>zio-aws</code> <code>ZLayer</code> directly, such as:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>ec2.live </span><span>@@</span><span> (</span><span>throttling </span><span>&gt;&gt;&gt;</span><span> callLogging</span><span>)</span></span></code></pre><h2 id="rendering">Rendering</h2>
+<p>With the queries and report cache ready the last missing building block is <em>rendering</em> the gathered reports. We implement it in its own ZIO module with the following interface:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">object</span><span class="z-l-9 z-d-10"> Rendering</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  trait</span><span class="z-l-9 z-d-10"> Service</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> renderEc2Instance</span><span>(</span><span class="z-d-9 z-d-i">report</span><span>:</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">Ec2InstanceKey</span><span>, </span><span class="z-l-9 z-d-10">Ec2InstanceReport</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> renderElb</span><span>(</span><span class="z-d-9 z-d-i">report</span><span>:</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">ElbKey</span><span>, </span><span class="z-l-9 z-d-10">ElbReport</span><span>]</span><span>, </span><span class="z-d-9 z-d-i">context</span><span>:</span><span class="z-l-9 z-d-10"> Option</span><span>[</span><span class="z-l-9 z-d-10">String</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> renderAsg</span><span>(</span><span class="z-d-9 z-d-i">report</span><span>:</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">AsgKey</span><span>, </span><span class="z-l-9 z-d-10">AsgReport</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> renderEbEnv</span><span>(</span><span class="z-d-9 z-d-i">report</span><span>:</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">EbEnvKey</span><span>, </span><span class="z-l-9 z-d-10">EbEnvReport</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    def</span><span class="z-l-3 z-d-3"> renderEbApp</span><span>(</span><span class="z-d-9 z-d-i">report</span><span>:</span><span class="z-l-9 z-d-10"> LinkedReport</span><span>[</span><span class="z-l-9 z-d-10">EbAppKey</span><span>, </span><span class="z-l-9 z-d-10">EbAppReport</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The live implementation of course needs access to <code>ReportCache</code> and writes the report out to <code>Console</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> live</span><span>:</span><span class="z-l-9 z-d-10"> ZLayer</span><span>[</span><span class="z-l-9 z-d-10">Console</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> ReportCache</span><span>, </span><span class="z-l-9 z-d-10">Nothing</span><span>, </span><span class="z-l-9 z-d-10">Rendering</span><span>]</span><span class="z-d-1"> =</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>We need two main things to implement report rendering:</p>
+<ul>
+<li>A way to pretty-print reports to the console</li>
+<li>We have to track which report was already rendered to be able to traverse the cyclic result graph</li>
+</ul>
+<p>To track the already printed reports we can simply create a <code>Ref</code> holding a set of visited <code>ReportKey</code>s:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> State</span><span>(</span><span class="z-d-9 z-d-i">alreadyVisited</span><span>:</span><span class="z-l-9 z-d-10"> Set</span><span>[</span><span class="z-l-9 z-d-10">ReportKey</span><span>]</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>alreadyVisited </span><span>&lt;-</span><span class="z-l-9 z-d-10"> Ref</span><span>.make</span><span>(</span><span class="z-l-9 z-d-10">State</span><span>(</span><span class="z-l-9 z-d-10">Set</span><span>.empty</span><span>)</span><span>)</span></span></code></pre>
+<p>For pretty printing the reports there are several possibilities. Eventually we want to call <code>console.putStr</code> to write to the console. The original implementation of this tool used a string templating engine to define the output. Instead of doing that we can write a pretty-printing DSL to define our output in Scala. Take a look at the following example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span>ifNotVisitedYet</span><span>(</span><span>report</span><span>)</span><span> {</span><span> env </span><span>=&gt;</span></span>
+<span class="giallo-l"><span>  sectionHeader</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Beanstalk/Env</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> &lt;-&gt;</span><span> highlighted</span><span>(</span><span>env.name</span><span>)</span><span> &lt;-&gt;</span><span> </span></span>
+<span class="giallo-l"><span>    details</span><span>(</span><span>env.id</span><span>)</span><span> &lt;-&gt;</span><span> </span></span>
+<span class="giallo-l"><span>    normal</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5"> a</span><span class="z-l-4 z-d-5"> B</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">k</span><span class="z-l-4 z-d-5"> e</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">v</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">r</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5"> o</span><span class="z-l-4 z-d-5">f</span><span class="z-l-4 z-d-5"> t</span><span class="z-l-4 z-d-5">h</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5"> a</span><span class="z-l-4 z-d-5">p</span><span class="z-l-4 z-d-5">p</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-d-7"> ${</span><span>env.appName</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>  indented </span><span>{</span></span>
+<span class="giallo-l"><span>    keyword</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">AWS Console</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> &lt;:&gt;</span><span> </span></span>
+<span class="giallo-l"><span>      link</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">h</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">p</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">:</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">.</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">w</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">.</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">z</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">.</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">b</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">k</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">h</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">?</span><span class="z-l-4 z-d-5">r</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">g</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">=</span><span class="z-d-7">${</span><span>env.region</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">#</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">v</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">r</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">h</span><span class="z-l-4 z-d-5">b</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">r</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5">?</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">p</span><span class="z-l-4 z-d-5">p</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">N</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">=</span><span class="z-d-7">${</span><span>env.appName</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&amp;</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">v</span><span class="z-l-4 z-d-5">i</span><span class="z-l-4 z-d-5">r</span><span class="z-l-4 z-d-5">o</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">I</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5">=</span><span class="z-d-7">${</span><span>env.id</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>    keyword</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Health</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> &lt;:&gt;</span><span> highlighted</span><span>(</span><span>env.health.toString</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>    keyword</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Currently running version</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> &lt;:&gt;</span><span> normal</span><span>(</span><span>env.version</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>    normal</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-7">${</span><span>env.asgs.size</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5"> A</span><span class="z-l-4 z-d-5">S</span><span class="z-l-4 z-d-5">G</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">,</span><span class="z-d-7"> ${</span><span>env.instanceCount</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5"> i</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">t</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">e</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">,</span><span class="z-d-7"> ${</span><span>env.elbs.size</span><span class="z-d-7">}</span><span class="z-l-4 z-d-5"> E</span><span class="z-l-4 z-d-5">L</span><span class="z-l-4 z-d-5">B</span><span class="z-l-4 z-d-5">s</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>    env.elbs.foreach_</span><span>(</span><span>elb</span><span>(</span><span>_, </span><span class="z-l-9 z-d-10">None</span><span>)</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>    env.asgs.foreach_</span><span>(</span><span>asg</span><span>)</span><span> \\</span></span>
+<span class="giallo-l"><span>    ebApp</span><span>(</span><span>env.app</span><span>)</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can see here a couple of functions and operators, all created to the specific task of printing <em>AWS resource reports</em>:</p>
+<ul>
+<li><code>ifNotYetVisitedYet</code> must somehow interact with the <code>Ref</code> we defined above</li>
+<li><code>&lt;-&gt;</code> concatenates two texts with a space</li>
+<li><code>&lt;:&gt;</code> concatenates two texts with a colon and a space</li>
+<li><code>\\</code> concatenates two texts with a newline</li>
+<li><code>keyword</code>, <code>link</code>, <code>normal</code>, <code>highlighted</code> etc. add styling to the given text</li>
+<li><code>foreach_</code> is coming from <code>zio-prelude</code>-s <code>Traversable</code>. We will see why is it used soon.</li>
+</ul>
+<p>We could define these styling functions as <code>ZIO</code> effects and the helper operators as general extension methods on <code>ZIO</code>. Then we could store required state (for example for indentation) in a <code>Ref</code> for example. This works but we can do better. By defining our own monadic data type <code>Print[A]</code> we get the following advantages:</p>
+<ul>
+<li>It is more type safe. The pretty printing operators will be only applicable to pretty printing functions, not to arbitrary ZIO effects</li>
+<li>Pretty printing state gets completely hidden from the pretty printing definitions</li>
+<li>We can easily do some optimizations such as collapsing multiple newlines into one, which makes rendering optional lines more convenient</li>
+</ul>
+<p>So let's define a data type to represent pretty printing:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">sealed</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-d-1">+</span><span class="z-l-9 z-d-10">A</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintPure</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">a</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintS</span><span>(</span><span class="z-d-9 z-d-i">s</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintModified</span><span>(</span><span class="z-d-9 z-d-i">s</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>, </span><span class="z-d-9 z-d-i">modifiers</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> object</span><span class="z-l-9 z-d-10"> PrintNL</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintIndented</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">p</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintFlatMap</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">a</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>, </span><span class="z-d-9 z-d-i">f</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintEffect</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">f</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span></span></code></pre>
+<p><code>PrintPure</code> and <code>PrintFlatMap</code> can be used to implement <code>zio-prelude</code>s type classes:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">implicit</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> print</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> Covariant</span><span>[</span><span class="z-l-9 z-d-10">Print</span><span>]</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> IdentityFlatten</span><span>[</span><span class="z-l-9 z-d-10">Print</span><span>]</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> IdentityBoth</span><span>[</span><span class="z-l-9 z-d-10">Print</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> map</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">f</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span> =&gt;</span><span class="z-l-9 z-d-10"> B</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span>    fa </span><span>=&gt;</span><span class="z-l-9 z-d-10"> PrintFlatMap</span><span>(</span><span>fa, </span><span>(</span><span class="z-d-9 z-d-i">a</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span>)</span><span> =&gt;</span><span class="z-l-9 z-d-10"> PrintPure</span><span>(</span><span>f</span><span>(</span><span>a</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> any</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Any</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    PrintPure</span><span>(</span><span>()</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> flatten</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">ffa</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    PrintFlatMap</span><span>(</span><span>ffa, </span><span>(</span><span class="z-d-9 z-d-i">fa</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span> =&gt;</span><span> fa</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  override</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> both</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">fa</span><span>:</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>, </span><span class="z-d-9 z-d-i">fb</span><span>:</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span>(</span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>)</span><span>]</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    PrintFlatMap</span><span>(</span><span>fa, </span><span>(</span><span class="z-d-9 z-d-i">a</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span>)</span><span> =&gt;</span><span> map</span><span>(</span><span>(</span><span class="z-d-9 z-d-i">b</span><span>:</span><span class="z-l-9 z-d-10"> B</span><span>)</span><span> =&gt;</span><span> (</span><span>a, b</span><span>)</span><span>)</span><span>(</span><span>fb</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>What are these type classes providing to us?</p>
+<ul>
+<li><code>Covariant</code> basically gives us <code>map</code></li>
+<li><code>IdentityFlatten</code> means that the data type can be "flattened" associatively and has an identity element. This gives us <code>flatten</code> and <code>flatMap</code>.</li>
+<li><code>IdentityBoth</code> means we have an associative binary operator to combine two values. This enables syntax like <code>&lt;*&gt;</code>.</li>
+</ul>
+<p>Having this we can define primitive pretty printing operators like:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">def</span><span class="z-l-3 z-d-3"> normal</span><span>(</span><span class="z-d-9 z-d-i">text</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> PrintS</span><span>(</span><span>text</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> space</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">Unit</span><span>]</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> PrintS</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5"> &quot;</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">implicit</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrintOps</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">self</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> &lt;-&gt;</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">next</span><span>:</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>    self </span><span>*&gt;</span><span> space </span><span>*&gt;</span><span> next</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Then we can use the syntax provided by <code>zio-prelude</code> to compose these pretty printer values. The only thing remaining is to provide a transformation of <code>Print[A]</code> to <code>UIO[A]</code>. This is where we can hide the pretty printer state and can handle special rules like collapsing newlines:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> PrettyConsole</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  protected</span><span class="z-l-8 z-d-7"> val</span><span class="z-l-11 z-d-9"> console</span><span>:</span><span class="z-l-9 z-d-10"> Console</span><span>.</span><span class="z-l-9 z-d-10">Service</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> PrettyState</span><span>(</span><span class="z-d-9 z-d-i">indentation</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>, </span><span class="z-d-9 z-d-i">afterNL</span><span>:</span><span class="z-l-9 z-d-10"> Boolean</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> printFlatMap</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">B</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">a</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>, </span><span class="z-d-9 z-d-i">f</span><span>:</span><span class="z-l-9 z-d-10"> A</span><span> =&gt;</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">B</span><span>]</span><span>, </span><span class="z-d-9 z-d-i">state</span><span>:</span><span class="z-l-9 z-d-10"> PrettyState</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span>(</span><span class="z-l-9 z-d-10">B</span><span>, </span><span class="z-l-9 z-d-10">PrettyState</span><span>)</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    for</span><span> {</span></span>
+<span class="giallo-l"><span>      r1 </span><span>&lt;-</span><span> runImpl</span><span>(</span><span>a, state</span><span>)</span></span>
+<span class="giallo-l"><span>      r2 </span><span>&lt;-</span><span> runImpl</span><span>(</span><span>f</span><span>(</span><span>r1._1</span><span>)</span><span>, r1._2</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span><span class="z-l-8 z-d-7"> yield</span><span> r2</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> runImpl</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">p</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>, </span><span class="z-d-9 z-d-i">state</span><span>:</span><span class="z-l-9 z-d-10"> PrettyState</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span>(</span><span class="z-l-9 z-d-10">A</span><span>, </span><span class="z-l-9 z-d-10">PrettyState</span><span>)</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>    p </span><span class="z-l-8 z-d-7">match</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintPure</span><span>(</span><span>a</span><span>)</span><span> =&gt;</span><span class="z-l-9 z-d-10"> ZIO</span><span>.succeed</span><span>(</span><span>(</span><span>a, state</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintS</span><span>(</span><span>s</span><span>)</span><span> =&gt;</span><span class="z-l-9 z-d-10"> ZIO</span><span>.when</span><span>(</span><span>state.afterNL</span><span>)</span><span>(</span><span>console.putStr</span><span>(</span><span>state.indentation</span><span>)</span><span>)</span><span> *&gt;</span><span> </span></span>
+<span class="giallo-l"><span>        console.putStr</span><span>(</span><span>s</span><span>)</span><span>.as</span><span>(</span><span>(</span><span>()</span><span>, state.copy</span><span>(</span><span>afterNL </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> false</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintModified</span><span>(</span><span>s, modifiers</span><span>)</span><span> =&gt;</span><span class="z-l-9 z-d-10"> ZIO</span><span>.when</span><span>(</span><span>state.afterNL</span><span>)</span><span>(</span><span>console.putStr</span><span>(</span><span>state.indentation</span><span>)</span><span>)</span><span> *&gt;</span></span>
+<span class="giallo-l"><span>        console.putStr</span><span>(</span><span class="z-l-8 z-d-7">s</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-7">${</span><span>modifiers</span><span class="z-d-7">}</span><span class="z-d-7">$</span><span>s</span><span class="z-d-7">$</span><span>RESET</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>.as</span><span>(</span><span>(</span><span>()</span><span>, state.copy</span><span>(</span><span>afterNL </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> false</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintNL</span><span> =&gt;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span>state.afterNL</span><span>)</span><span class="z-l-9 z-d-10"> ZIO</span><span>.succeed</span><span>(</span><span>(</span><span>()</span><span>, state</span><span>)</span><span>)</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        else</span><span> console.putStrLn</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>.as</span><span>(</span><span>(</span><span>()</span><span>, state.copy</span><span>(</span><span>afterNL </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> true</span><span>)</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintIndented</span><span>(</span><span>f</span><span>)</span><span> =&gt;</span><span> runImpl</span><span>(</span><span>f, state.copy</span><span>(</span><span>indentation </span><span class="z-d-1">=</span><span> state.indentation </span><span class="z-d-1">+</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">  &quot;</span><span>)</span><span>)</span><span>.map </span><span>{</span><span class="z-l-8 z-d-7"> case</span><span> (</span><span>a, s</span><span>)</span><span> =&gt;</span><span> </span></span>
+<span class="giallo-l"><span>          (</span><span>a, s.copy</span><span>(</span><span>indentation </span><span class="z-d-1">=</span><span> state.indentation</span><span>)</span><span>)</span><span> }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintFlatMap</span><span>(</span><span>a, f</span><span>)</span><span> =&gt;</span><span> printFlatMap</span><span>(</span><span>a, f, state</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      case</span><span class="z-l-9 z-d-10"> PrintEffect</span><span>(</span><span>f</span><span>)</span><span> =&gt;</span><span> f.map</span><span>(</span><span>(</span><span>_, state</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  def</span><span class="z-l-3 z-d-3"> run</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>(</span><span class="z-d-9 z-d-i">p</span><span>:</span><span class="z-l-9 z-d-10"> Print</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span>)</span><span>:</span><span class="z-l-9 z-d-10"> UIO</span><span>[</span><span class="z-l-9 z-d-10">A</span><span>]</span><span class="z-d-1"> =</span><span> runImpl</span><span>(</span><span>p, </span><span class="z-l-9 z-d-10">PrettyState</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>, afterNL </span><span class="z-d-1">=</span><span class="z-l-6 z-d-8"> false</span><span>)</span><span>)</span><span>.map</span><span>(</span><span>_._1</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>A couple of things to notice here:</p>
+<ul>
+<li><code>PrettyState</code> holds the indentation and a flag that is true when the last print was a <em>new line</em></li>
+<li><code>runImpl</code> gets the state as input and has the capability to modify it, by returning the modified state together with the computation's result</li>
+<li>there is a <code>PrintEffect</code> constructor that allows lifting arbitrary <code>ZIO</code> effects to the pretty printer. This is needed for interacting with the <code>Ref</code> that holds the record of already printed reports.</li>
+</ul>
+<h2 id="putting-all-together">Putting all together</h2>
+<p>Putting all this together means getting command line arguments, setting up the AWS client libraries, the report cache and the rendering modules and running the top level queries.</p>
+<p>To parse the command line arguments we can use my <a rel="external" href="https://vigoo.github.io/clipp/docs/">clipp library</a>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">final</span><span class="z-l-8 z-d-7"> case</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> Parameters</span><span>(</span><span class="z-d-9 z-d-i">verbose</span><span>:</span><span class="z-l-9 z-d-10"> Boolean</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                            searchInput</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">                            region</span><span>:</span><span class="z-l-9 z-d-10"> String</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> paramSpec</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> for</span><span> {</span></span>
+<span class="giallo-l"><span>  _ </span><span>&lt;-</span><span> metadata</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">aws-query</span><span class="z-l-4 z-d-5">&quot;</span><span>, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">search for AWS infrastructure resources</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  verbose </span><span>&lt;-</span><span> flag</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Verbose logging</span><span class="z-l-4 z-d-5">&quot;</span><span>, </span><span class="z-l-6 z-d-8">&#39;</span><span class="z-l-6 z-d-8">v</span><span class="z-l-6 z-d-8">&#39;</span><span>, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">verbose</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  searchInput </span><span>&lt;-</span><span> parameter</span><span>[</span><span class="z-l-9 z-d-10">String</span><span>]</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Search input</span><span class="z-l-4 z-d-5">&quot;</span><span>, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">NAME_OR_ID</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>  region </span><span>&lt;-</span><span> optional </span><span>{</span><span> namedParameter</span><span>[</span><span class="z-l-9 z-d-10">String</span><span>]</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">AWS region</span><span class="z-l-4 z-d-5">&quot;</span><span>, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">REGION</span><span class="z-l-4 z-d-5">&quot;</span><span>, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">region</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> }</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-9 z-d-10"> Parameters</span><span>(</span><span>verbose, searchInput, region.getOrElse</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">us-east-1</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> params</span><span class="z-d-1"> =</span><span> clipp.zioapi.config.fromArgsWithUsageInfo</span><span>(</span><span>args, paramSpec</span><span>)</span></span></code></pre>
+<p>The <code>verbose</code> flag is used to set up logging. We use <a rel="external" href="https://zio.github.io/zio-logging/">zio-logging</a> with SLF4j support (to be able to see logs from the underlying AWS Java SDK) with lo4j2 backend. In order to control the log level by the command line <code>verbose</code> flag, instead of the usual XML-based configuration for log4j2 we define a ZIO <em>layer</em> that's only purpose is to perform the configuration programmatically:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> log4j2Configuration</span><span>:</span><span class="z-l-9 z-d-10"> ZLayer</span><span>[</span><span class="z-l-9 z-d-10">Has</span><span>[</span><span class="z-l-9 z-d-10">ClippConfig</span><span>.</span><span class="z-l-9 z-d-10">Service</span><span>[</span><span class="z-l-9 z-d-10">Parameters</span><span>]</span><span>]</span><span>, </span><span class="z-l-9 z-d-10">Throwable</span><span>, </span><span class="z-l-9 z-d-10">Has</span><span>[</span><span class="z-l-9 z-d-10">Log4jConfiguration</span><span>]</span><span>]</span><span class="z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  ZLayer</span><span>.fromServiceM</span><span>[</span><span class="z-l-9 z-d-10">ClippConfig</span><span>.</span><span class="z-l-9 z-d-10">Service</span><span>[</span><span class="z-l-9 z-d-10">Parameters</span><span>]</span><span>, </span><span class="z-l-9 z-d-10">Any</span><span>, </span><span class="z-l-9 z-d-10">Throwable</span><span>, </span><span class="z-l-9 z-d-10">Log4jConfiguration</span><span>]</span><span> {</span><span> params </span><span>=&gt;</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">    ZIO</span><span>.effect </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      val</span><span class="z-l-11 z-d-9"> builder</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> ConfigurationBuilderFactory</span><span>.newConfigurationBuilder</span><span>()</span><span>       </span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">      //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Configurator</span><span>.initialize</span><span>(</span><span>builder.build</span><span>()</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">      Log4jConfiguration</span><span>()</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>This way the root logger's level can depend on the <code>Parameters</code> parsed by <code>clipp</code>. Composing this layer with <code>zio-logger</code>s <code>Slf4jLogger</code> gives us a working <code>Logging</code> layer:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> logging</span><span class="z-d-1"> =</span><span> log4j2Configuration </span><span>&gt;+&gt;</span><span class="z-l-9 z-d-10"> Slf4jLogger</span><span>.make </span><span>{</span><span> (</span><span>_, message</span><span>)</span><span> =&gt;</span><span> message </span><span>}</span></span></code></pre>
+<p>By bootstrapping the parameters and the logging we can run our main application like this:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> {</span></span>
+<span class="giallo-l"><span>  result </span><span>&lt;-</span><span> awsQuery</span><span>()</span></span>
+<span class="giallo-l"><span>    .provideCustomLayer</span><span>(</span><span>params </span><span>&gt;+&gt;</span><span> logging</span><span>)</span></span>
+<span class="giallo-l"><span>    .catchAll </span><span>{</span><span> _ </span><span>=&gt;</span><span class="z-l-9 z-d-10"> ZIO</span><span>.succeed</span><span>(</span><span class="z-l-9 z-d-10">ExitCode</span><span>.failure</span><span>)</span><span> }</span></span>
+<span class="giallo-l"><span>  _ </span><span>&lt;-</span><span class="z-l-9 z-d-10"> ZIO</span><span>.effect</span><span>(</span><span class="z-l-9 z-d-10">LogManager</span><span>.shutdown</span><span>()</span><span>)</span><span>.orDie</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> yield</span><span> result</span></span></code></pre>
+<p>The <code>clipp</code> parser will print detailed usage info in case it fails, and other runtime errors are logged, so we can simply catch all errors and exit with a failure on top level.</p>
+<p>In <code>awsQuery</code> we create all the other layers necessary for running the queries. First we need to create the <em>throttling policy</em> that is used by all the AWS service clients as I explained above:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">private</span><span class="z-l-8 z-d-7"> def</span><span class="z-l-3 z-d-3"> awsQuery</span><span>()</span><span>:</span><span class="z-l-9 z-d-10"> ZIO</span><span>[</span><span class="z-l-9 z-d-10">Random</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Clock</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Console</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> Logging</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> ClippConfig</span><span>[</span><span class="z-l-9 z-d-10">Parameters</span><span>]</span><span>, </span><span class="z-l-9 z-d-10">Nothing</span><span>, </span><span class="z-l-9 z-d-10">ExitCode</span><span>]</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>    throttlingPolicy.use </span><span>{</span><span> policy </span><span>=&gt;</span><span>      </span></span></code></pre>
+<p>The <code>zio-aws</code> library uses <a rel="external" href="https://zio.github.io/zio-config/">ZIO Config</a> for configuration. This means we need a <code>ZConfig[CommonAwsConfig]</code> to construct the <code>AwsConfig</code> layer:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> commonConfig</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> ZLayer</span><span>.succeed</span><span>(</span><span class="z-l-9 z-d-10">CommonAwsConfig</span><span>(</span></span>
+<span class="giallo-l"><span>  region </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> Some</span><span>(</span><span class="z-l-9 z-d-10">Region</span><span>.of</span><span>(</span><span>params.region</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  credentialsProvider </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> DefaultCredentialsProvider</span><span>.create</span><span>()</span><span>,</span></span>
+<span class="giallo-l"><span>  endpointOverride </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> None</span><span>,</span></span>
+<span class="giallo-l"><span>  commonClientConfig </span><span class="z-d-1">=</span><span class="z-l-9 z-d-10"> None</span></span>
+<span class="giallo-l"><span>)</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> awsCore</span><span class="z-d-1"> =</span><span> (</span><span>netty.default </span><span>++</span><span> commonConfig</span><span>)</span><span> &gt;&gt;&gt;</span><span> core.config.configured</span><span>()</span></span></code></pre>
+<p>The <code>AwsConfig</code> layer combines the configuration with a selected HTTP backend. In our case this is the <em>Netty</em> backend, using its default configuration.</p>
+<p>Then we define the per-service client layers, applying the throttling and call logging <em>aspects</em> as I described before:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> awsClients</span><span class="z-d-1"> =</span></span>
+<span class="giallo-l"><span>  ec2.live </span><span>@@</span><span> (</span><span>throttling </span><span>&gt;&gt;&gt;</span><span> callLogging</span><span>)</span><span> ++</span></span>
+<span class="giallo-l"><span>  elasticloadbalancing.live </span><span>@@</span><span> (</span><span>throttling </span><span>&gt;&gt;&gt;</span><span> callLogging</span><span>)</span><span> ++</span></span>
+<span class="giallo-l"><span>  elasticbeanstalk.live </span><span>@@</span><span> (</span><span>throttling </span><span>&gt;&gt;&gt;</span><span> callLogging</span><span>)</span><span> ++</span></span>
+<span class="giallo-l"><span>  autoscaling.live </span><span>@@</span><span> (</span><span>throttling </span><span>&gt;&gt;&gt;</span><span> callLogging</span><span>)</span></span></code></pre>
+<p>To produce the final layer, we feed the logging and the <code>AwsConfig</code> layers to the client layers, and add the <code>ReportCache</code> and <code>Render</code> implementations:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">val</span><span class="z-l-11 z-d-9"> finalLayer</span><span class="z-d-1"> =</span><span> </span></span>
+<span class="giallo-l"><span>  (</span><span>(</span><span class="z-l-9 z-d-10">ZLayer</span><span>.service</span><span>[</span><span class="z-l-9 z-d-10">Logger</span><span>[</span><span class="z-l-9 z-d-10">String</span><span>]</span><span>]</span><span> ++</span><span> awsCore</span><span>)</span><span> &gt;&gt;&gt;</span><span> awsClients</span><span>)</span><span> ++</span></span>
+<span class="giallo-l"><span>  (</span><span>(</span><span class="z-l-9 z-d-10">Console</span><span>.any </span><span>++</span><span> cache.live</span><span>)</span><span> &gt;+&gt;</span><span> render.live</span><span>)</span></span></code></pre>
+<p>This has the environment <code>ClippConfig[Parameters] with Console with Logging with ReportCache with Rendering with AllServices</code> where</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="scala"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> AllServices</span><span class="z-d-1"> =</span><span class="z-l-9 z-d-10"> Ec2</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> ElasticLoadBalancing</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> ElasticBeanstalk</span><span class="z-l-8 z-d-7"> with</span><span class="z-l-9 z-d-10"> AutoScaling</span></span></code></pre><h2 id="conclusion">Conclusion</h2>
+<p>We reimplemented the tool to query AWS resources using functional programming techniques, built on top of ZIO libraries. By separating the execution from the problem specification we get an easily readable and maintainable code that can be easily extended with new queries or reports without having to thing about how caching and concurrency is implemented under the hood. We can rate limit AWS requests without touching the actual queries, and take advantage of batching AWS operations while keeping the query logic simple and unaware of this optimization.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

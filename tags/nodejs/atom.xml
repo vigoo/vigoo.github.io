@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>vigoo&#39;s software development blog - nodejs</title>
+    <subtitle>Blog posts about projects, ideas and experiments of Daniel Vigovszky (vigoo)</subtitle>
+    <link rel="self" type="application/atom+xml" href="https://blog.vigoo.dev/tags/nodejs/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://blog.vigoo.dev"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2026-04-14T00:00:00+00:00</updated>
+    <id>https://blog.vigoo.dev/tags/nodejs/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Golem 1.5 features - Part 4: Node.js compatibility</title>
+        <published>2026-04-14T00:00:00+00:00</published>
+        <updated>2026-04-14T00:00:00+00:00</updated>
+        
+        <author>
+          <name>Daniel Vigovszky</name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://blog.vigoo.dev/posts/golem15-part4-nodejs/"/>
+        <id>https://blog.vigoo.dev/posts/golem15-part4-nodejs/</id>
+        
+        <content type="html" xml:base="https://blog.vigoo.dev/posts/golem15-part4-nodejs/">&lt;h2 id=&quot;introduction&quot;&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;I am writing a series of &lt;em&gt;short&lt;/em&gt; posts showcasing the new features of &lt;strong&gt;Golem 1.5&lt;/strong&gt;, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my &lt;a rel=&quot;external&quot; href=&quot;https://blog.vigoo.dev/tags/golem/&quot;&gt;other Golem-related posts&lt;/a&gt; for more information!&lt;/p&gt;
+&lt;p&gt;Parts released so far:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part1-code-first-routes&quot;&gt;Part 1: Code-first routes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part2-webhooks&quot;&gt;Part 2: Webhooks&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part3-mcp&quot;&gt;Part 3: MCP&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part4-nodejs&quot;&gt;Part 4: Node.js compatibility&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part5-scala&quot;&gt;Part 5: Scala support&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part6-user-defined-snapshotting&quot;&gt;Part 6: User-defined snapshotting&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part7-config-and-secrets&quot;&gt;Part 7: Configuration and Secrets&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part8-template-simplifications&quot;&gt;Part 8: Template simplifications and automatic updates&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part9-skills&quot;&gt;Part 9: Agent skills&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part10-websocket&quot;&gt;Part 10: WebSocket client&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part11-bridges&quot;&gt;Part 11: Bridge libraries&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part12-repl&quot;&gt;Part 12: REPL&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part13-per-agent-config&quot;&gt;Part 13: Per-agent configuration&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part14-otlp&quot;&gt;Part 14: OpenTelemetry&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part15-moonbit&quot;&gt;Part 15: MoonBit&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part16-quotas&quot;&gt;Part 16: Quotas&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;/posts/golem15-part17-semantic-retry-policies&quot;&gt;Part 17: Semantic retry policies&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;js-ts-support&quot;&gt;JS/TS support&lt;/h2&gt;
+&lt;p&gt;The previous release introduced our new QuickJS based &lt;strong&gt;JavaScript engine&lt;/strong&gt; and supported using &lt;strong&gt;TypeScript&lt;/strong&gt; for writing Golem applications. The runtime itself and the Golem SDK already worked well, however not many of the third party libraries of the JS/TS ecosystem were compatible with our runtime. We have put a lot of effort into increasing our runtime&#39;s compatibility with both browser APIs and Node.js modules.&lt;/p&gt;
+&lt;h3 id=&quot;previously-supported&quot;&gt;Previously supported&lt;/h3&gt;
+&lt;p&gt;The runtime shipped with the last Golem release supported the following APIs:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Good support for: &lt;code&gt;Console&lt;/code&gt;, HTTP (&lt;code&gt;fetch&lt;/code&gt;), &lt;code&gt;URL&lt;/code&gt;, Streams, Timeout functions, Encoding, &lt;code&gt;Crypto&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Very limited support for parts of &lt;code&gt;node:util&lt;/code&gt;, &lt;code&gt;node:buffer&lt;/code&gt;, &lt;code&gt;node:fs&lt;/code&gt;, &lt;code&gt;node:path&lt;/code&gt;, &lt;code&gt;node:process&lt;/code&gt; and &lt;code&gt;node:stream&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;base64-js, ieee754&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&quot;the-current-state&quot;&gt;The current state&lt;/h3&gt;
+&lt;p&gt;During the development of &lt;strong&gt;Golem 1.5&lt;/strong&gt;, we took Node.js&#39;s own test suite and tried to reach as high compatibility as possible with our runtime. Of course it cannot support it 100%, given the constraints of running on a different JS engine, in a single-threaded, sandboxed WASM environment. Still, we were able to implement a large part of Node.js&#39;s modules, tested some third party libraries extensively by hand and verified hundreds via automated coding agents.&lt;/p&gt;
+&lt;p&gt;The summary of what we have now:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Web Platform APIs: &lt;code&gt;Console&lt;/code&gt;, HTTP (&lt;code&gt;fetch&lt;/code&gt;), &lt;code&gt;URL&lt;/code&gt;, Streams, Timers, Abort Controller, Encoding, Messaging, Events, &lt;code&gt;Intl&lt;/code&gt;, &lt;code&gt;Crypto&lt;/code&gt; (global), Structured Clone&lt;/li&gt;
+&lt;li&gt;Node modules:
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;node:assert&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:async_hooks&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:buffer&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:constants&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:crypto&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:diagnostics_channel&lt;/code&gt; (implemented through Golem&#39;s invocation context APIs)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:dgram&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:dns&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:domain&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:events&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:fs&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:fs/promises&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:http&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:https&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:module&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:net&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:os&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:path&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:perf_hooks&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:process&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:punycode&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:querystring&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:readline&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:sqlite&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:stream&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:string_decoder&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:test&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:timers&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:trace_events&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:tty&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:url&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:util&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:vm&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:zlib&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;Defined (to satisfy imports) but not implemented:
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;node:child_process&lt;/code&gt; (not possible in our current WASM runtime)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:cluster&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:inspector&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:http2&lt;/code&gt; (not possible in our current WASM runtime)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:repl&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:tls&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:v8&lt;/code&gt; (not running on V8)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;node:worker_threads&lt;/code&gt; (not possible in our current WASM runtime)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&quot;more-information&quot;&gt;More information&lt;/h3&gt;
+&lt;p&gt;For more information you can take a look at the vendored Node.js test &lt;a rel=&quot;external&quot; href=&quot;https://github.com/golemcloud/wasm-rquickjs/blob/main/tests/node_compat/report.md&quot;&gt;compatibility report&lt;/a&gt; and the &lt;a rel=&quot;external&quot; href=&quot;https://github.com/golemcloud/wasm-rquickjs/blob/main/tests/libraries/libraries.md&quot;&gt;automated library compatibility test report&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;After &lt;strong&gt;Golem 1.5&lt;/strong&gt; is released, we are going to further increase the compatibility of this runtime; please report any compatibility issues, real-world problems are going to be taken as highest priority.&lt;/p&gt;
+</content>
+        
+    </entry>
+</feed>

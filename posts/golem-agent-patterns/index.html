@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Agent patterns in Golem</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Golem is an agent-native platform that provides high level of fault-tolerance and exactly-once (or in some cases, at-least once) semantics automatically without…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/golem-agent-patterns/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Agent patterns in Golem">
+        <meta property="og:description" content="Golem is an agent-native platform that provides high level of fault-tolerance and exactly-once (or in some cases, at-least once) semantics automatically without…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/golem-agent-patterns/">
+        
+        
+        <meta property="article:published_time" content="2025-12-19T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Agent patterns in Golem",
+            "datePublished": "2025-12-19T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/golem-agent-patterns/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/golem-agent-patterns/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["typescript","golem","agents","patterns"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Agent patterns in Golem</h1>
+            <p class="posted-on">Posted on <time datetime="2025-12-19">December 19, 2025</time></p>
+        </header>
+
+        <p><a rel="external" href="https://golem.cloud">Golem</a> is an <em>agent-native</em> platform that provides high level of fault-tolerance and exactly-once (or in some cases, at-least once) semantics automatically without requiring to write any code for persisting and recovering state. We wrote several blog posts, demos and live coding sessions showing how this looks like. Yesterday I've <a rel="external" href="https://blog.vigoo.dev/posts/rust-agents-golem14/">posted about writing a Golem application in Rust</a>, and a week before John de Goes had a really nice <a rel="external" href="https://www.youtube.com/live/ovVn_fNIyJU">live coding session showing writing a NoSQL database using Golem in Type Script</a>.</p>
+<p>In all these examples we are defining one or more <strong>agents</strong> that interact with each other - it's the fundamental building block of a Golem application. But what are these agents? How should we structure our application, what are some common patterns?</p>
+<p>I'm trying to answer some of these questions in this article.</p>
+<h2 id="agents-as-workflows">Agents as workflows</h2>
+<p>When we first released Golem, we said you can run any application (with some restrictions, of course) on it without having to rewrite it to use anything Golem specific. With the new, agent centric approach this might seem to be no longer true - but to some extent it still is. The simplest way to map an application to agents is that every unique run of the program is an agent - we can create such a unique instance of our program, and run it - and it's going to do some <em>side-effects</em> such as calling remote HTTP endpoints or databases.</p>
+<p>In this setup the agent's identity is a unique identifier - for example a UUID, and the agent exposes a single callable entry point, similar how a traditional program's exposes it's single entry point in the form of a <code>main</code> function. Let's see how an agent like this looks like in Golem, using TypeScript:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> {</span><span class="z-l-11 z-d-9"> BaseAgent</span><span>,</span><span class="z-l-11 z-d-9"> agent</span><span>,</span><span>}</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">@golemcloud/golem-ts-sdk</span><span class="z-l-4 z-d-5">&#39;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> {</span><span class="z-d-9"> validate</span><span class="z-d-7"> as</span><span class="z-l-11 z-d-9"> uuidValidate</span><span> }</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">uuid</span><span class="z-l-4 z-d-5">&#39;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> BlackboxWorkflow</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span class="z-l-2 z-d-1">!</span><span class="z-l-3 z-d-3">uuidValidate</span><span>(</span><span class="z-d-9">id</span><span>)</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            throw</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Error</span><span>(</span><span class="z-l-4 z-d-5">`</span><span class="z-l-4 z-d-5">Invalid id, must be a UUID: </span><span class="z-l-10 z-d-7">${</span><span class="z-d-9">id</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">`</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Potentially long running workflow doing a series of steps</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>run</code> function can do a a series of steps - call <code>fetch</code> multiple times, sleep, use third party libraries to connect to external systems, and so on, without having any Golem specific detail in it. Even an agent like this is completely <strong>durable</strong> in Golem. For example, if it's execution gets interrupted by a scaling event the running agent can be "moved" (interrupted in one node, and restored in another) to another node and it can continue executing without any noticable effect, except for some latency.</p>
+<h3 id="observing-a-workflow-s-state">Observing a workflow's state</h3>
+<p>The above example is a <strong>black box</strong> - once you started a workflow like this, by creating the agent and invoking it's <code>run</code> method, you cannot really observe the workflow's inner state. You can observe its side effects - it may call external systems, write logs, etc, but there is no real way to query or control what's happening until <code>run</code> finishes.</p>
+<p>The primary reason for this is that Golem agents are <strong>single-threaded</strong> and <strong>invocations cannot overlap</strong>. Although <code>run</code> can contain overlapping asynchronous network calls, for example, even if we would export more methods than just <code>run</code> from our agent, we would not be able to call them <em>during</em> <code>run</code> is executing. The other calls would end up in a message queue, waiting to be processed one by one.</p>
+<p>One very important property of <strong>agents</strong> is that an agent can <strong>call</strong> another agent; this call can be synchronous (the caller awaits a response) or just a trigger (the caller puts an invocation request in the other agent's message queue). Both of these are persistent and by that, Golem can guarantee <strong>exactly-once semantics</strong>. If the code to call an agent from another agent runs, you can be sure that is going to happen, and only once, no matter what happens to the execution environment.</p>
+<p>We can use this feature to introduce simple observability to a long-running workflow like the one we defined above by defining a second agent representing the running workflow's state:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> State</span><span class="z-l-2 z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-9">    tag</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">not-started</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span class="z-d-9">    id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-2"> |</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-9">    tag</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">in-progress</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    currentStep</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    startedAt</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-2"> |</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-9">    tag</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">completed</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    startedAt</span><span class="z-l-2 z-d-7">?</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    finishedAt</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    results</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>[</span><span>]</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> some domain-specific result</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> WorkflowState</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-d-9"> state</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> State</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">state</span><span class="z-l-2 z-d-1"> =</span><span> {</span><span class="z-l-11 z-d-9">tag</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">not-started</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-d-9"> id</span><span>}</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    get</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> State</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      return</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">state</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    update</span><span>(</span><span class="z-d-9 z-d-i">currentStep</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">tag</span><span class="z-l-2 z-d-1"> ===</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">not-started</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">            this</span><span>.</span><span class="z-l-11 z-d-9">state</span><span class="z-l-2 z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              tag</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">in-progress</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              id</span><span class="z-l-2">:</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">id</span><span>,</span><span class="z-d-9"> currentStep</span><span>,</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">              startedAt</span><span class="z-l-2">:</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Date</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">toISOString</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>            }</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-l-8 z-d-7"> else</span><span class="z-l-8 z-d-7"> if</span><span> (</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">tag</span><span class="z-l-2 z-d-1"> ===</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">in-progress</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">            this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">currentStep</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> currentStep</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-l-8 z-d-7"> else</span><span class="z-l-8 z-d-7"> if</span><span> (</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">tag</span><span class="z-l-2 z-d-1"> ==</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">completed</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            throw</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Error</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Cannot update completed workflow state</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    finished</span><span>(</span><span class="z-d-9 z-d-i">results</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>[</span><span>]</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">tag</span><span class="z-l-2 z-d-1"> ==</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">completed</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            throw</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Error</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">Cannot finish completed workflow state</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span><span class="z-l-8 z-d-7"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">            this</span><span>.</span><span class="z-l-11 z-d-9">state</span><span class="z-l-2 z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                tag</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">completed</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                id</span><span class="z-l-2">:</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">id</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                startedAt</span><span class="z-l-2">:</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">tag</span><span class="z-l-2 z-d-1"> ===</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">in-progress</span><span class="z-l-4 z-d-5">&quot;</span><span> </span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-7">              		?</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">state</span><span>.</span><span class="z-l-11 z-d-9">startedAt</span><span class="z-l-2 z-d-7"> :</span><span class="z-l-6 z-d-8"> undefined</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">                finishedAt</span><span class="z-l-2">:</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Date</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">toISOString</span><span>(</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">                results</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>With this, we can modify our black box agent's <code>run</code> method to report progress and completion to this other agent:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-9">async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span>: </span><span class="z-l-9 z-d-10">Promise</span><span class="z-l-2 z-d-1">&lt;</span><span class="z-l-2 z-d-7">void</span><span class="z-l-2 z-d-1">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    const </span><span class="z-d-9">state</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> WorkflowState</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">   	//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>    state.update.trigger(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">step 1</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-11 z-d-9">);</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    state.update.trigger(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">step 2</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-11 z-d-9">);</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    state.finished.trigger([1, 2, 3]);</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">}</span></span></code></pre>
+<p>The <code>trigger</code> in the agent calls means we don't want to block on these calls - we just trigger the update on the other agent, so it's very fast.</p>
+<p>Our <code>WorkflowState</code> agent is very different from our first one, as it is reactive. Its methods are not long running, they are just updating the agent's inner state. We can call <code>get</code> any time on it while the workflow is running, these <code>get</code> calls are going to be interleaved between the status update calls.</p>
+<h3 id="multi-step-workflows">Multi-step workflows</h3>
+<p>As we've seen on <code>WorkflowState</code> agents can export <strong>multiple methods</strong>. This suggests that instead of writing a workflow like in the first example - a single method performing all the steps sequentially, we could also expose these steps as agent methods.</p>
+<p>This is not always what we want, and it has pros and cons:</p>
+<ul>
+<li>We may already have our code structured like this - extracting sub-steps into functions. Exposing them as agent methods is just a matter of making them public methods on the agent class</li>
+<li>However once we do that, we no longer have a single entry point for our workflow. We need something that orchestrates the workflow execution! This can be both an advantage and a disadvantage:
+<ul>
+<li>The external orchestrator may customize the execution flow by deciding which steps to call, etc</li>
+<li>But we need to write this orchestrator (potentially an another agent) that complicates our architecture</li>
+</ul>
+</li>
+</ul>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> InnerWorkflow</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-d-9"> value</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> step1</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ..</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> step2</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ..</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> step3</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ..</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> OuterWorkflow</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-d-9"> value</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> inner</span><span class="z-l-2 z-d-1">  =</span><span class="z-d-10"> InnerWorkflow</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        await</span><span class="z-d-10"> inner</span><span>.</span><span class="z-l-3 z-d-3">step1</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        await</span><span class="z-d-10"> inner</span><span>.</span><span class="z-l-3 z-d-3">step2</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        await</span><span class="z-d-10"> inner</span><span>.</span><span class="z-l-3 z-d-3">step3</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can introduce these hierarchies of agents in as many layers as we want, but the reason why would want to do so is controlling <strong>concurrency</strong>.</p>
+<h3 id="concurrency">Concurrency</h3>
+<p>Even though agent methods can be <code>async</code> and do some operations in parallel - HTTP requests, remote agent calls and so on - agents are single threaded and their exported methods cannot overlap.</p>
+<p>We can implement fully parallel execution with two techniques:</p>
+<ul>
+<li>Spawning child agents</li>
+<li>Forking agents</li>
+</ul>
+<p>We have already seen a simple example of spawning child agents to achieve concurrency when we created a <code>WorkflowState</code> agent as a child of our <code>Workflow</code> agent.</p>
+<p>In general the pattern looks like the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> ConcurrentAgent</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> inputs</span><span class="z-l-2 z-d-1"> =</span><span> [</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">b</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">&quot;</span><span>]</span><span>;</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> example chunks we want to process in parallel</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> stepPromises</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> inputs</span><span>.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span>(</span><span class="z-d-9 z-d-i">input</span><span>,</span><span class="z-d-9 z-d-i"> idx</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-d-10">            Substep</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span>,</span><span class="z-d-9"> idx</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-d-9">input</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> results</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-l-9 z-d-10"> Promise</span><span>.</span><span class="z-l-3 z-d-3">all</span><span>(</span><span class="z-d-9">stepPromises</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> Substep</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> substepId</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span><span class="z-d-9 z-d-i"> substepId</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">substepId</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> substepId</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span class="z-d-9 z-d-i">input</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> Some operation on input producing an output</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span class="z-d-9"> input</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This example takes every element of <code>inputs</code> and spawns a separate <strong>child agent</strong> to process that chunk. The <code>Substep</code> agent is responsible for performing work on one chunk - its <em>identity</em> is no longer just the main workflow's ID, but it also contains an index. This can be useful if this number (<code>substepId</code> in the example) holds some important meaning in our problem domain (imagine it's not just an index, but a domain-specific identifier of the chunk of data it works on).</p>
+<p>In case the identity of the substeps does not matter, just that we get a separate instance for each substep that can run in parallel, we can use the <strong>phantom agent</strong> feature of Golem to make it even simpler:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> PhantomSubstep</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span class="z-d-9 z-d-i">input</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">      //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> stepPromises</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> inputs</span><span>.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span class="z-d-9 z-d-i">input</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-10"> PhantomSubstep</span><span>.</span><span class="z-l-3 z-d-3">newPhantom</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-d-9">input</span><span>)</span><span>)</span><span>;</span></span></code></pre>
+<p><code>newPhantom</code> always creates a new instance of the agent, even if there is no user-defined unique identity to distinguish them.</p>
+<h4 id="results">Results</h4>
+<p>The above example was <strong>awaiting all results</strong> before moving forward. This is just one of the possibilities. When using <code>Promise.all</code> to await all the agent invocations, we were using the divide and conquer strategy to delegate work to other agents running in parallel, to speed up execution. We need all the results to move forward to the next step (or completion) of our main agent.</p>
+<p>It's also possible do a <strong>race</strong> instead - we wait for the first child agent to complete, and use its results, ignoring the others. This is problematic in Golem 1.4 though, because <code>Promise.race</code> does not cancel the losing promises, and Golem's current JS runtime <strong>ensures that all promises complete</strong> before an invocation stops. So even though we would get the winner promise as soon as possible, our method would only return when every other sub-agents finished as well. This is a temporary limitation and future Golem TypeScript SDK versions will provide a way to pass an <a rel="external" href="https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal"><code>AbortSignal</code></a> to the invocations.</p>
+<p>Until then, let's see how racing looks like in a Rust agent!</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> RustRaceSubAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> millis</span><span>:</span><span class="z-l-9 z-d-10"> u64</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> String</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> RustRaceSubAgentImpl</span><span> {</span><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> RustRaceSubAgent</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> RustRaceSubAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span><span>}</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>,</span><span class="z-l-11 z-d-9"> millis</span><span>:</span><span class="z-l-9 z-d-10"> u64</span><span>)</span><span> -&gt;</span><span class="z-l-2 z-d-10"> String</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">        std</span><span>::</span><span class="z-d-10">thread</span><span>::</span><span class="z-l-3 z-d-3">sleep</span><span>(</span><span class="z-d-10">std</span><span>::</span><span class="z-d-10">time</span><span>::</span><span class="z-d-10">Duration</span><span>::</span><span class="z-l-3 z-d-3">from_millis</span><span>(</span><span class="z-l-11 z-d-9">millis</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        format!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">slept </span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5"> millis</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> millis</span><span>)</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_definition</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> trait</span><span class="z-l-9 z-d-10"> RustRaceAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> RustRaceAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    _name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-6">#</span><span class="z-l-6">[</span><span class="z-l-6">agent_implementation</span><span class="z-l-6">]</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">impl</span><span class="z-l-2 z-d-10"> RustRaceAgent</span><span class="z-l-8 z-d-7"> for</span><span class="z-l-2 z-d-10"> RustRaceAgentImpl</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    fn</span><span class="z-l-3 z-d-3"> new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span>:</span><span class="z-l-2 z-d-10"> String</span><span>)</span><span> -&gt;</span><span class="z-l-11 z-d-10"> Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        Self</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            _name</span><span>:</span><span class="z-l-11 z-d-9"> name</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>&amp;</span><span class="z-l-8 z-d-7">mut</span><span class="z-l-11 z-d-10"> self</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> a</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> RustRaceSubAgentClient</span><span>::</span><span class="z-l-3 z-d-3">new_phantom</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> b</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> RustRaceSubAgentClient</span><span>::</span><span class="z-l-3 z-d-3">new_phantom</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-8 z-d-7"> mut</span><span class="z-l-11 z-d-9"> c</span><span class="z-d-1"> =</span><span class="z-l-2 z-d-10"> RustRaceSubAgentClient</span><span>::</span><span class="z-l-3 z-d-3">new_phantom</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> f1</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> a</span><span>.</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-l-6 z-d-8">1000</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> f2</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> b</span><span>.</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-l-6 z-d-8">2000</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> f3</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> c</span><span>.</span><span class="z-l-3 z-d-3">run</span><span>(</span><span class="z-l-6 z-d-8">10000</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        let</span><span class="z-l-11 z-d-9"> result</span><span class="z-d-1"> =</span><span> (</span><span class="z-l-11 z-d-9">f1</span><span>,</span><span class="z-l-11 z-d-9"> f2</span><span>,</span><span class="z-l-11 z-d-9"> f3</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">race</span><span>(</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        println!</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">{</span><span class="z-l-4 z-d-5">result</span><span class="z-l-4 z-d-5">}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This works as expected - the main agent finishes in 1 second.</p>
+<p>What can we do in TypeScript until invocations became abortable? There is a workaround - we can use <strong>Golem Promises</strong> to signal completion, instead of blocking asynchronous method invocations.</p>
+<h4 id="golem-promises">Golem Promises</h4>
+<p>A <strong>Golem Promise</strong> is a cluster-level entity that can be <strong>completed</strong> either from an agent, or even from the outside. Completing it from the outside is our basic building block for introducing <strong>human-in-the-loop</strong> for agentic workflows.</p>
+<p>Let's see how we can use promises as a workaround for the race issue in TypeScript!</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span> {</span><span class="z-l-11 z-d-9">awaitPromise</span><span>,</span><span class="z-l-11 z-d-9"> completePromise</span><span>,</span><span class="z-l-11 z-d-9"> createPromise</span><span>,</span><span class="z-l-11 z-d-9"> PromiseId</span><span>}</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &#39;</span><span class="z-l-4 z-d-5">@golemcloud/golem-ts-sdk</span><span class="z-l-4 z-d-5">&#39;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> RaceAgentWithPromise</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> promise</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> createPromise</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">        RaceSubstepWithPromise</span><span>.</span><span class="z-l-3 z-d-3">newPhantom</span><span>(</span><span class="z-d-9">promise</span><span>)</span><span>.</span><span class="z-l-11 z-d-10">run</span><span>.</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span class="z-l-6 z-d-8">1000</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">        RaceSubstepWithPromise</span><span>.</span><span class="z-l-3 z-d-3">newPhantom</span><span>(</span><span class="z-d-9">promise</span><span>)</span><span>.</span><span class="z-l-11 z-d-10">run</span><span>.</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span class="z-l-6 z-d-8">2000</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">        RaceSubstepWithPromise</span><span>.</span><span class="z-l-3 z-d-3">newPhantom</span><span>(</span><span class="z-d-9">promise</span><span>)</span><span>.</span><span class="z-l-11 z-d-10">run</span><span>.</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span class="z-l-6 z-d-8">10000</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> result</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-l-3 z-d-3"> awaitPromise</span><span>(</span><span class="z-d-9">promise</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">        console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-l-8 z-d-7">new</span><span class="z-l-3 z-d-3"> TextDecoder</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">decode</span><span>(</span><span class="z-d-9">result</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> RaceSubstepWithPromise</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> promiseId</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> PromiseId</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">promiseId</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> PromiseId</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">promiseId</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> promiseId</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span class="z-d-9 z-d-i">millis</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">void</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> sleep</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-9 z-d-10"> Promise</span><span>(</span><span class="z-d-9 z-d-i">resolve</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">            setTimeout</span><span>(</span><span>(</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-3 z-d-3"> resolve</span><span>(</span><span class="z-l-4 z-d-5">`</span><span class="z-l-4 z-d-5">Slept </span><span class="z-l-10 z-d-7">${</span><span class="z-d-9">millis</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">`</span><span>)</span><span>,</span><span class="z-d-9"> millis</span><span>)</span></span>
+<span class="giallo-l"><span>        )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> result</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-d-9"> sleep</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        completePromise</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">promiseId</span><span>,</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> TextEncoder</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">encode</span><span>(</span><span class="z-d-9">result</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Instead of returning the result as a return value from our method, we are completing a <strong>Golem promise</strong> with it. This way we don't need await the invocation itself on the caller side, instead we await the promise - and the first sub-agent that completes it will unblock that await.</p>
+<h4 id="forking">Forking</h4>
+<p>Forking is another way to do work in parallel from Golem agents. It is a special way to spawn a new agent - instead of explicitly creating a new agent with an initial state, <code>fork()</code> creates a <strong>copy</strong> of the agent it is called in, and both agents continue running from the fork point. The new copy inherits the state of the original agent, including all the values of all the variables etc. The only distinction between the two copies is the <strong>return value</strong> of <code>fork()</code> - it can be used to decide what to do next.</p>
+<p><strong>Golem promises</strong> are an important part of working with forking, as in this case there is no invoked method to return values from.</p>
+<p>Forking can be a convenient way to parallize some work in cases where the context necessary for the child agent is big and would be hard to pass down as parameters.</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-9">async</span><span class="z-l-3 z-d-3"> run</span><span>(</span><span>)</span><span>: </span><span class="z-l-9 z-d-10">Promise</span><span class="z-l-2 z-d-1">&lt;</span><span class="z-l-2 z-d-7">void</span><span class="z-l-2 z-d-1">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    const </span><span class="z-d-9">inputs</span><span class="z-l-2 z-d-1"> =</span><span> [</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">a</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">b</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">c</span><span class="z-l-4 z-d-5">&quot;</span></span>
+<span class="giallo-l"><span>    ]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    const </span><span class="z-d-9">promises</span><span class="z-l-2 z-d-1"> =</span><span> [</span><span>]</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    for</span><span> (</span><span class="z-d-9 z-d-i">const</span><span class="z-d-9 z-d-i"> input</span><span class="z-d-9 z-d-i"> of</span><span class="z-d-9 z-d-i"> inputs</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> promise</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> createPromise</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">        promises</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-3 z-d-3">processInput</span><span>(</span><span class="z-d-9">promise</span><span>,</span><span class="z-d-9"> input</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">forked</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            break</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">		if</span><span> (</span><span>!this.forked</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> results</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-l-9 z-d-10"> Promise</span><span>.</span><span class="z-l-3 z-d-3">all</span><span>(</span><span class="z-d-9">promises</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">      console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-d-9">results</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-d-9">async</span><span class="z-l-3 z-d-3"> processInput</span><span>(</span><span class="z-d-9">promise</span><span>: </span><span class="z-d-9">PromiseId</span><span>,</span><span class="z-d-9"> input</span><span>: </span><span class="z-d-9">string</span><span>)</span><span>: </span><span class="z-l-9 z-d-10">Promise</span><span class="z-l-2 z-d-1">&lt;</span><span class="z-d-9">string</span><span class="z-l-2 z-d-1">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    switch</span><span> (</span><span class="z-d-9 z-d-i">fork</span><span>(</span><span>)</span><span>.tag) </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">original</span><span class="z-l-4 z-d-5">&quot;</span><span>:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">            //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> awaiting the promise in the original copy</span></span>
+<span class="giallo-l"><span>            const </span><span class="z-d-9">bytes</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-l-3 z-d-3"> awaitPromise</span><span>(</span><span class="z-d-9">promise</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            return new </span><span class="z-l-3 z-d-3">TextDecoder</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">decode</span><span>(</span><span class="z-d-9 z-d-i">bytes</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        case</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">forked</span><span class="z-l-4 z-d-5">&quot;</span><span>:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">            //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> do the actual work in the forked copy</span></span>
+<span class="giallo-l"><span>            const </span><span class="z-d-9">processed</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> input</span><span class="z-l-2 z-d-1"> +</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">!</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">            completePromise</span><span>(</span><span class="z-d-9 z-d-i">promise</span><span>,</span><span class="z-d-9 z-d-i"> new</span><span class="z-d-9 z-d-i"> TextEncoder</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">encode</span><span>(</span><span class="z-d-9 z-d-i">processed</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>	          this.</span><span class="z-d-9">forked</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> true</span><span>;</span></span>
+<span class="giallo-l"><span>            return processed;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Note that we need to remember that we got into a forked copy to avoid forking again from the fork - as all copies are (almost) identical. This makes things easy as the forked copy has the same state as the original at the fork point, but also makes things hard by having to remember to not get back to the same code path in both instances.</p>
+<h2 id="agents-as-domain-entities">Agents as domain entities</h2>
+<p>So far we represented workflows and their subtasks as agents. We can also <strong>model our domain using agents</strong>!</p>
+<p><strong>Domain-driven design</strong> as an approach is with us since more than 20 years, and many books and articles discuss how to model our application based on the domains its applied to. The entities identified can be directly mapped to Golem agents and the interaction between these entities can be done with our <strong>agent-to-agent</strong> communication.</p>
+<p>It is important that agents are <strong>durable</strong> by default, which can significantly simplify the implementation of these entities, so we end up with something that closely maps to our domain model.</p>
+<p>To demonstrate this, consider a simple e-commerce example where we identify three entities: <strong>Customer</strong>, <strong>Order</strong> and <strong>OrderItem</strong>. Customers and orders are top-level entities directly accessible by their unique identifier: the customer e-mail address and the order ID. Each order is associated with a customer, and can have one or more items.</p>
+<p>We said that both Customer and Order are top-level entities with unique identifiers. This maps directly to Golem agents:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> OrderId</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> Customer</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> email</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">email</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">email</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> email</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> Order</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> orderId</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">orderId</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">orderId</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> orderId</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can refer to a customer directly by its domain-specific unique identifier, for example in Golem REPL:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="plain"><span class="giallo-l"><span>&gt;&gt;&gt; let vigoo = customer(&quot;vigoo@email.address&quot;)</span></span></code></pre>
+<p>The third entity, an item associated with an Order is important from a data modelling perspective but probably not something we would  map to an individual Golem agent. It is small enough that we can just model it as a record type and associate the list of items directly with our Order by just adding a new field to it:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> OrderItem</span><span class="z-l-2 z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-9">    productId</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    quantity</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">    price</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> Order</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> orderId</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> items</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderItem</span><span>[</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>Operations on these entities are going to be <strong>agent methods</strong>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-3 z-d-3">add</span><span>(</span><span class="z-d-9">item</span><span>: </span><span class="z-d-9">OrderItem</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-10">items</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span class="z-d-9">item</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">getItems</span><span>(</span><span>)</span><span>: </span><span class="z-d-9">OrderItem</span><span>[</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">items</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The agents can simply call each other when needed using <strong>agent-to-agent calls</strong>. For example, assuming we also added a way to attach the customer's email address to an order, we could have a method in <code>Customer</code> like the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-9">async</span><span class="z-l-3 z-d-3"> newOrder</span><span>(</span><span>)</span><span>: </span><span class="z-l-9 z-d-10">Promise</span><span class="z-l-2 z-d-1">&lt;</span><span class="z-d-9">OrderId</span><span class="z-l-2 z-d-1">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    const </span><span class="z-d-9">newId</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> uuidv4</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    const </span><span class="z-d-9">order</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Order</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-d-9">newId</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    await order.setCustomer(this.email);</span></span>
+<span class="giallo-l"><span>    return newId;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The facts that agents are <strong>durable</strong> and that calls between agents are guaranteed to be <strong>exactly-once</strong> make these trivial implementations very powerful.</p>
+<h2 id="patterns">Patterns</h2>
+<p>We can identify some useful patterns that can help a lot in developing agent based applications on Golem. As people will write more and more applications on this platform, we are going to identify more of these patterns.</p>
+<h3 id="cluster-level-singletons">Cluster level singletons</h3>
+<p>The first pattern we discuss is <strong>cluster level singletons</strong>. A cluster level singleton agent has exactly one instance in the whole application. In Golem an agent's identity is its constructor parameters - so if our agent does not have any constructor parameter, it can only have a single instance, and any other agent or external call referring to it will refer to the same instance.</p>
+<p>As an example, let's assume that our <code>OrderId</code> type from the previous section is not a UUID but need to be a unique, sequential number. It's quite easy to achieve this of course if we have some kind of database in our application. But in Golem we don't need a third party database for this - we can just create a singleton agent responsible for generating new unique order IDs:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> OrderId</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-2 z-d-10"> number</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> OrderIds</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-d-9"> next</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    nextId</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">next</span><span class="z-l-2 z-d-1">++</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> Customer</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> newOrder</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> newId</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-d-10"> OrderIds</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">nextId</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">        //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre><h3 id="shard-singletons">Shard singletons</h3>
+<p>Having a single shared global state using <strong>cluster singletons</strong> can be very useful, however it can very soon become a bottleneck. One possible way to reduce this bottleneck is to not only have a single instance in the whole cluster, but define somehow a set of distinct <strong>shards</strong>, and have a single instance <strong>per shard</strong>. It is very much depending on the actual domain whether this technique can be applied or not, but in general the idea is that if every agent can calculate the <strong>shard</strong> it belongs to, and there is no need to share information among the shards, they can simply access the shard instance they need to.</p>
+<p>To demonstrate this, let's assume we want to maintain a <strong>list of all customers</strong> with a count of how many orders they have. As this map will have to be updated every time an order is created, we don't want to maintain it in a cluster level singleton. Instead, we associate the customers into N (=100) shards, and have a separate <code>Customer-&gt;OrderCount</code> map in each shard:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> Shard</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-2 z-d-10"> number</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> ShardedCustomers</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> shard</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Shard</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    private</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-d-9"> customerWithOrderCount</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Map</span><span>&lt;</span><span class="z-d-10">string</span><span>,</span><span class="z-d-10"> number</span><span>&gt;</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Map</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span class="z-d-9 z-d-i">shard</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Shard</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-9">shard</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> shard</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    registerCustomer</span><span>(</span><span class="z-d-9 z-d-i">customer</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-10">customerWithOrderCount</span><span>.</span><span class="z-l-3 z-d-3">set</span><span>(</span><span class="z-d-9">customer</span><span>,</span><span class="z-l-6 z-d-8"> 0</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    registerOrder</span><span>(</span><span class="z-d-9 z-d-i">customer</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span><span class="z-d-9 z-d-i"> orderId</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> OrderId</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> count</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">customerWithOrderCount</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-d-9">customer</span><span>)</span><span class="z-l-2 z-d-1"> ??</span><span class="z-l-6 z-d-8"> 0</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">        this</span><span>.</span><span class="z-l-11 z-d-10">customerWithOrderCount</span><span>.</span><span class="z-l-3 z-d-3">set</span><span>(</span><span class="z-d-9">customer</span><span>,</span><span class="z-d-9"> count</span><span class="z-l-2 z-d-1"> +</span><span class="z-l-6 z-d-8"> 1</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>We can then write a function that determines the <code>Shard</code> from a customer's identifier (an email address string):</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">import</span><span class="z-l-11 z-d-9"> md5</span><span class="z-l-8 z-d-7"> from</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">md5-ts</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">function</span><span class="z-l-3 z-d-3"> shardOfCustomer</span><span>(</span><span class="z-d-9 z-d-i">email</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Shard</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-6 z-d-10"> SHARDS</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 100</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-6 z-d-10"> hash</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> md5</span><span>(</span><span class="z-d-9">email</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-6 z-d-10"> hashPefixAsNumber</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-3 z-d-3"> parseInt</span><span>(</span><span class="z-d-10">hash</span><span>.</span><span class="z-l-3 z-d-3">substring</span><span>(</span><span class="z-l-6 z-d-8">0</span><span>,</span><span class="z-l-6 z-d-8"> 8</span><span>)</span><span>,</span><span class="z-l-6 z-d-8"> 16</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-9"> hashPefixAsNumber</span><span class="z-l-2 z-d-1"> %</span><span class="z-l-6 z-d-10"> SHARDS</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Using this function we can call <code>registerCustomer</code> and <code>registerOrder</code> in an asynchronous way using <code>trigger</code> on the remote agent interface:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> in class Order:</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">setCustomer</span><span>(</span><span class="z-d-9">customer</span><span>: </span><span class="z-d-9">string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">customer</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> customer</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">    ShardedCustomers</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-3 z-d-3">shardOfCustomer</span><span>(</span><span class="z-d-9">customer</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-11 z-d-9">registerOrder</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span class="z-d-9">customer</span><span>,</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">orderId</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> in class Customer:</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">constructor</span><span>(</span><span class="z-d-9">email</span><span>: </span><span class="z-d-9">string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">    super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">email</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> email</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">    ShardedCustomers</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-3 z-d-3">shardOfCustomer</span><span>(</span><span class="z-d-9">email</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-11 z-d-9">registerCustomer</span></span>
+<span class="giallo-l"><span>      .</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span class="z-d-9">email</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>By using <code>trigger</code> we guarantee that even if the shard-level singleton gets overloaded with registration messages, this does not block our Order or Customer agents.</p>
+<h3 id="agents-as-message-queues">Agents as message queues</h3>
+<p>It's not really a pattern but this last statement also tells an important feature of Golem - every agent <strong>has its own persistent message queue</strong>. If every agent invocation is done using <code>trigger</code> (or <code>schedule</code> to trigger an invocation in a future point in time), an agent actually works as a persistent message queue from the senders point of view.</p>
+<p>The example above demonstrated this - <code>Order</code> and <code>Customer</code> were just sending <em>registration messages</em> to a message queue, without blocking on anything. The consumer of the message queue was the <code>ShardedCustomers</code> agent itself.</p>
+<p>These message queues are just as durable as everything else in Golem. Once the <code>trigger</code> call returned we can be sure that the invocation is in the target agent's pending invocations queue, and even if the agent gets restarted, or relocated to another node, it will always have it in its invocation queue.</p>
+<p>A different example could be a cluster-level singleton for aggregating important domain-level events from various agents:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> Event</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> EventLog</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">    log</span><span>(</span><span class="z-d-9 z-d-i">event</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Event</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">        console</span><span>.</span><span class="z-l-3 z-d-3">log</span><span>(</span><span class="z-d-9">event</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i">/ Log an event from anywhere</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">function</span><span class="z-l-3 z-d-3"> log</span><span>(</span><span class="z-d-9 z-d-i">event</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Event</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-10">    EventLog</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>)</span><span>.</span><span class="z-l-11 z-d-10">log</span><span>.</span><span class="z-l-3 z-d-3">trigger</span><span>(</span><span class="z-d-9">event</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Our <code>log</code> processor could do anything - just log the event in the singleton agent's log stream, or store it in memory, extract and aggregate some information, etc. Even just logging it can help with debugging distributed systems, as it is a developer-defined aggregated view of the logs important for the application's logic itself, unlike the lower level server logs of the Golem platform itself.</p>
+<h3 id="ephemeral-agents">Ephemeral agents</h3>
+<p>Finally let's talk about <strong>ephemeral agents</strong> which are so important that Golem has built-in support for them and make the use of them very convenient. Ephemeral agents are agents - they can have constructor parameters and exported methods, but they are <strong>not durable</strong>. For each invocation a fresh instance is created, and although Golem allows you to observe past ephemeral agent instances for debugging purposes, you cannot invoke them again.</p>
+<p>Calling an ephemeral agent's method is Golem's equivalent of <strong>serverless functions</strong>. As each invocation gets a fresh instance, we don't have to worry about the message queueing property of agents - all the invoations are going to run in parallel. This is a very good fit for writing <strong>request handlers</strong> at the edge of a Golem application.</p>
+<p>As an example we are going to write an ephemeral agent with a single function that enumerates <strong>all customers</strong> in the system. In a real application where we have so many customers that we are managing the list of them in sharded singletons, we would not want a single function returning all of them at once, of course; but for simplicity, let's implement it anyway.</p>
+<p>First we add a new agent method to <code>ShardedCustomers</code> to get the list of customers in that particular shard:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-3 z-d-3">getCustomers</span><span>(</span><span>)</span><span>: </span><span class="z-d-9">string</span><span>[</span><span>]</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-10"> Array</span><span>.</span><span class="z-l-3 z-d-3">from</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-10">customerWithOrderCount</span><span>.</span><span class="z-l-3 z-d-3">keys</span><span>(</span><span>)</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>And then we create an <strong>ephemeral</strong> <code>RequestHandler</code> agent:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>{</span><span class="z-l-11 z-d-9">mode</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">ephemeral</span><span class="z-l-4 z-d-5">&quot;</span><span>}</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">class</span><span class="z-l-9 z-d-10"> RequestHandler</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    constructor</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">        super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    async</span><span class="z-l-3 z-d-3"> getAllConsumers</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">string</span><span>[</span><span>]</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> SHARDS</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 100</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> allCustomers</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>[</span><span>]</span><span class="z-l-2 z-d-1"> =</span><span> [</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        for</span><span> (</span><span class="z-l-8 z-d-7">let</span><span class="z-d-9"> shard</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span><span class="z-d-9"> shard</span><span class="z-l-2 z-d-1"> &lt;</span><span class="z-l-6 z-d-10"> SHARDS</span><span>;</span><span class="z-d-9"> shard</span><span class="z-l-2 z-d-1">++</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">            const</span><span class="z-l-6 z-d-10"> customers</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> await</span><span class="z-d-10"> ShardedCustomers</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-d-9">shard</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">getCustomers</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">            allCustomers</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span class="z-l-2">...</span><span class="z-d-9">customers</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span class="z-d-9"> allCustomers</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>This is a long running call that makes 100 remote agent calls in sequence. But it is done every time on a fresh ephemeral agent instance without affecting any potentially already running request handlers.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>As I demonstrated the basic building blocks of Golem - <strong>agents</strong> - can be used in many different ways to write applications that can run in a safe way, surviving external failure conditions, automatically providing observability and many other features with almost zero boilerplate. Some of these benefits apply even if the application is not really designed with a distributed net of agents in mind, but to use the full potential of Golem we should think about how our application can be modelled like that.</p>
+<p>It is nothing fundamentally new - there are many publications discussing domain driven design, distributed actor systems, reactive messaging patterns and so on. These existing materials can be useful inspiration, but keep in mind that in Golem each agent is durable (persistent) by default - this provides a lot of guarantees out of the box, which would have been solved by explicit architecture in other systems.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

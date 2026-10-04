@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Haskell plugin for Gradle</title>
+
+        
+        
+        
+        
+        <meta name="description" content="My team at Prezi uses Haskell for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe.…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/gradle-haskell-plugin/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Haskell plugin for Gradle">
+        <meta property="og:description" content="My team at Prezi uses Haskell for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe.…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/gradle-haskell-plugin/">
+        
+        
+        <meta property="article:published_time" content="2015-04-22T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Haskell plugin for Gradle",
+            "datePublished": "2015-04-22T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/gradle-haskell-plugin/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/gradle-haskell-plugin/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["haskell","gradle","build tools"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Haskell plugin for Gradle</h1>
+            <p class="posted-on">Posted on <time datetime="2015-04-22">April 22, 2015</time></p>
+        </header>
+
+        <p>My team at <a rel="external" href="https://prezi.com">Prezi</a> uses <strong>Haskell</strong> for several projects, which usually depend on each other, often with build steps using other languages such as Scala, C++ or Haxe. As <a rel="external" href="https://gradle.org/">Gradle</a> is used heavily in the company, we decided to try to integrate our Haskell projects within Gradle.</p>
+<p>The result is <a rel="external" href="https://github.com/prezi/gradle-haskell-plugin">Gradle Haskell Plugin</a>, which we were using succesfully in the last 2 months in our daily work, and we have <em>open-sourced</em> recently.</p>
+<p>What makes this solution interesting is that it not just simply wraps <em>cabal</em> within Gradle tasks, but implements a way to define <strong>dependencies</strong> between Haskell projects and to upload the binary Haskell artifacts to a <em>repository</em> such as <a rel="external" href="http://www.jfrog.com/open-source/">artifactory</a>.</p>
+<p>This makes it easy to modularize our projects, publish them, and also works perfectly with <a rel="external" href="https://github.com/prezi/pride">pride</a>, an other <em>open-source</em> Prezi project. This means that we can work on a subset of our Haskell projects while the other dependencies are built on Jenkins, and it also integrates well with our non-Haskell projects.</p>
+<h2 id="how-does-it-work">How does it work?</h2>
+<p>The main idea is that we let <em>cabal</em> manage the Haskell packages, and handle whole Haskell <em>sandboxes</em> on Gradle level. So if you have a single Haskell project, it will be built using <em>cabal</em> and the result sandbox (the built project together with all the dependent cabal packages which are not installed in the <em>global package database</em>) will be packed/published as a Gradle <em>artifact</em>.</p>
+<p>This is not very interesting so far, but when you introduce dependencies on Gradle level, the plugin does something which (as far as I know) is not really done by anyone else, which I call <em>sandbox chaining</em>. This basically means that to compile the haskell project, the plugin will pass all the dependent sandboxes' package database to cabal and GHC, so for the actual sandbox only the packages which are <strong>not</strong> in any of the dependent sandboxes will be installed.</p>
+<h2 id="example">Example</h2>
+<p>Let's see an example scenario with <em>4 gradle-haskell projects</em>.</p>
+<p><a href="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" class="zimg"><img src="https://raw.githubusercontent.com/prezi/gradle-haskell-plugin/master/doc/gradle-haskell-plugin-drawing1.png" alt="Diagram of the gradle-haskell-plugin module structure" width="600" height="429" loading="lazy" decoding="async"></a></p>
+<p>The project called <em>Haskell project</em> depends on two other projects, which taking into accound the transitive dependencies means it depends on <em>three other haskell projects</em>. Each project has its own haskell source and <em>cabal file</em>. Building this suite consists of the following steps:</p>
+<ul>
+<li><strong>dependency 1</strong> is built using only the <em>global package database</em>, everything <strong>not</strong> in that database, together with the compiled project goes into its <code>build/sandbox</code> directory, which is a combination of a <em>GHC package database</em> and the project's build output. This is packed as <strong>dependency 1</strong>'s build artifact.</li>
+<li>For <strong>dependency 2</strong>, Gradle first downloads the build artifact of <em>dependency 1</em> and extracts it to <code>build/deps/dependency1</code>.</li>
+<li>Then it runs <a rel="external" href="https://github.com/exFalso/sandfix">SandFix</a> on it</li>
+<li>And compiles the second project, now passing <strong>both</strong> the <em>global package database</em> and <strong>dependency 1</strong>'s sandbox to cabal/ghc. The result is that only the packages which are <strong>not</strong> in any of these two package databases will be installed in the project's own sandbox, which becomes the build artifact of <strong>dependency 2</strong>.</li>
+<li>For <strong>dependency 3</strong>, Gradle extracts both the direct dependency and the transitive dependency's sandbox, to <code>build/deps/dependency2</code> and <code>build/deps/dependency3</code>.</li>
+<li>Then it runs <a rel="external" href="https://github.com/exFalso/sandfix">SandFix</a> on both the dependencies</li>
+<li>And finally passes three package databases to cabal/ghc to compile the project. Only those cabal dependencies will be installed into this sandbox which are not in global, neither in any of the dependent sandboxes.</li>
+<li>Finally, for <strong>Haskell project</strong> it goes the same way, but here we have three sandboxes, all chained together to make sure only the built sandbox only contains what is not in the dependent sandboxes yet.</li>
+</ul>
+<p>For more information, check out <a rel="external" href="https://github.com/prezi/gradle-haskell-plugin">the documentation</a>.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

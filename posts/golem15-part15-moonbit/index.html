@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Golem 1.5 features - Part 15: MoonBit</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/golem15-part15-moonbit/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Golem 1.5 features - Part 15: MoonBit">
+        <meta property="og:description" content="Introduction I am writing a series of short posts showcasing the new features of Golem 1.5, to be released at the end of April, 2026. The episodes of this serie…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/golem15-part15-moonbit/">
+        
+        
+        <meta property="article:published_time" content="2026-04-23T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Golem 1.5 features - Part 15: MoonBit",
+            "datePublished": "2026-04-23T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/golem15-part15-moonbit/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/golem15-part15-moonbit/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem","durable-execution","agents","golem-1.5","moonbit"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem 1.5 features - Part 15: MoonBit</h1>
+            <p class="posted-on">Posted on <time datetime="2026-04-23">April 23, 2026</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p>I am writing a series of <em>short</em> posts showcasing the new features of <strong>Golem 1.5</strong>, to be released at the end of April, 2026. The episodes of this series will be short and assume the reader knows what Golem is. Check my <a rel="external" href="https://blog.vigoo.dev/tags/golem/">other Golem-related posts</a> for more information!</p>
+<p>Parts released so far:</p>
+<ul>
+<li><a href="/posts/golem15-part1-code-first-routes">Part 1: Code-first routes</a></li>
+<li><a href="/posts/golem15-part2-webhooks">Part 2: Webhooks</a></li>
+<li><a href="/posts/golem15-part3-mcp">Part 3: MCP</a></li>
+<li><a href="/posts/golem15-part4-nodejs">Part 4: Node.js compatibility</a></li>
+<li><a href="/posts/golem15-part5-scala">Part 5: Scala support</a></li>
+<li><a href="/posts/golem15-part6-user-defined-snapshotting">Part 6: User-defined snapshotting</a></li>
+<li><a href="/posts/golem15-part7-config-and-secrets">Part 7: Configuration and Secrets</a></li>
+<li><a href="/posts/golem15-part8-template-simplifications">Part 8: Template simplifications and automatic updates</a></li>
+<li><a href="/posts/golem15-part9-skills">Part 9: Agent skills</a></li>
+<li><a href="/posts/golem15-part10-websocket">Part 10: WebSocket client</a></li>
+<li><a href="/posts/golem15-part11-bridges">Part 11: Bridge libraries</a></li>
+<li><a href="/posts/golem15-part12-repl">Part 12: REPL</a></li>
+<li><a href="/posts/golem15-part13-per-agent-config">Part 13: Per-agent configuration</a></li>
+<li><a href="/posts/golem15-part14-otlp">Part 14: OpenTelemetry</a></li>
+<li><a href="/posts/golem15-part15-moonbit">Part 15: MoonBit</a></li>
+<li><a href="/posts/golem15-part16-quotas">Part 16: Quotas</a></li>
+<li><a href="/posts/golem15-part17-semantic-retry-policies">Part 17: Semantic retry policies</a></li>
+</ul>
+<h2 id="moonbit-support">MoonBit support</h2>
+<p>The new <strong>Golem 1.5</strong> release compes with two new supported languages: <a href="/posts/golem15-part5-scala">Scala</a> and <strong>MoonBit</strong>. An experimental Golem MoonBit SDK has already been released as a separate project for the previous Golem version, but now it becomes a first-class supported language, integrated with our CLI and build flows.</p>
+<p><a rel="external" href="https://www.moonbitlang.com">MoonBit</a> is an interesting new language with many nice features. One property that distinguishes it from the other languages we support is that it can compile to very small WASM binaries (and very quickly). This makes a difference in Golem, as the smallest the actual compiled component is, the faster we can instantiate an agent.</p>
+<p>As with Scala, we don't have <a href="/posts/golem15-part11-bridges">bridge generators</a> and a MoonBit <a href="/posts/golem15-part12-repl">REPL</a> yet, but the TypeScript REPL is fully usable with MoonBit agents as well.</p>
+<h3 id="how-does-it-look-like">How does it look like?</h3>
+<p>Let's see how the simplest <em>counter agent</em> example looks like in MooBit:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">///|</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">/// Counter agent in MoonBit</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">#derive.agent</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  name</span><span> :</span><span class="z-l-9 z-d-10"> String</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  mut</span><span class="z-l-11 z-d-9"> value</span><span> :</span><span class="z-l-9 z-d-10"> UInt64</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">///|</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">/// Creates a new counter with the given name</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">fn</span><span class="z-l-9 z-d-10"> Counter</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">new</span><span>(</span><span class="z-l-11 z-d-9">name</span><span> :</span><span class="z-l-9 z-d-10"> String</span><span>)</span><span class="z-l-8 z-d-7"> -&gt;</span><span class="z-l-9 z-d-10"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span>  {</span><span class="z-l-11 z-d-9"> name</span><span>,</span><span class="z-l-11 z-d-9"> value</span><span>:</span><span class="z-l-6 z-d-8"> 0</span><span> }</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">///|</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">/// Increments the counter and returns the new value</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-9 z-d-10"> Counter</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">increment</span><span>(</span><span class="z-l-11 z-d-9">self</span><span> :</span><span class="z-l-9 z-d-10"> Self</span><span>)</span><span class="z-l-8 z-d-7"> -&gt;</span><span class="z-l-9 z-d-10"> UInt64</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  self</span><span>.</span><span class="z-l-11 z-d-9">value</span><span class="z-d-1"> +=</span><span class="z-l-6 z-d-8"> 1</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  self</span><span>.</span><span class="z-l-11 z-d-9">value</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">///|</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">/// Returns the current value of the counter</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-9 z-d-10"> Counter</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">get_value</span><span>(</span><span class="z-l-11 z-d-9">self</span><span> :</span><span class="z-l-9 z-d-10"> Self</span><span>)</span><span class="z-l-8 z-d-7"> -&gt;</span><span class="z-l-9 z-d-10"> UInt64</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  self</span><span>.</span><span class="z-l-11 z-d-9">value</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Agents are structs annotated with <code>#derive.agent</code>, and all public methods are becoming <strong>agent methods</strong>. The type needs a <code>new</code> constructor that is going to the agent's <strong>identity</strong>.</p>
+<p>Custom data types are supported by annotating them with <code>#derive.golem_schema</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-3 z-d-3">#derive.golem_schema</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> MyData</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  field1</span><span>:</span><span class="z-l-9 z-d-10"> String</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  field2</span><span>:</span><span class="z-l-9 z-d-10"> UInt</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">#derive.golem_schema</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">enum</span><span class="z-l-9 z-d-10"> Status</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  Active</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  Inactive</span><span>(</span><span class="z-l-9 z-d-10">String</span><span>)</span></span></code></pre>
+<p>Every type used in the constructor or agent methods (either as a parameter or return type) must have a derived Golem schema.</p>
+<h4 id="rpc">RPC</h4>
+<p>Agent to agent communication works just like with the other languages - for each agent we have a <strong>client type</strong> generated:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-9 z-d-10">CounterClient</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">scoped</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">my-counter</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-8 z-d-7"> fn</span><span>(</span><span class="z-l-11 z-d-9">counter</span><span>)</span><span class="z-l-8 z-d-7"> raise</span><span class="z-d-10"> @common</span><span>.</span><span class="z-l-9 z-d-10">AgentError</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  counter</span><span>.</span><span class="z-l-3 z-d-3">increment</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  counter</span><span>.</span><span class="z-l-3 z-d-3">increment</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  let</span><span class="z-l-11 z-d-9"> value</span><span class="z-d-1"> =</span><span class="z-l-11 z-d-9"> counter</span><span>.</span><span class="z-l-3 z-d-3">get_value</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  value</span></span>
+<span class="giallo-l"><span>}</span><span>)</span></span></code></pre>
+<p>The <code>scoped</code> function is equivalent to calling the <code>get</code> constructor (that in Golem means "get or create if not existing" an agent), and dropping the remote connection in the end.</p>
+<h4 id="exposing-http-endpoints">Exposing HTTP endpoints</h4>
+<p>As we've seen, Golem 1.5 comes with <a href="/posts/golem15-part1-code-first-routes">code-first routes</a> and MoonBit also fully supports this. For example we could expose our counter via a POST endpoint by just adding a few more annotations:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="moonbit"><span class="giallo-l"><span class="z-l-3 z-d-3">#derive.agent</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">#derive.mount</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">/moonbit-counters/{name}</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">struct</span><span class="z-l-9 z-d-10"> Counter</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i"> // ...</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">#derive.endpoint</span><span>(</span><span class="z-l-11 z-d-9">post</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">/increment</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">pub</span><span class="z-l-8 z-d-7"> fn</span><span class="z-l-9 z-d-10"> Counter</span><span>:</span><span>:</span><span class="z-l-3 z-d-3">increment</span><span>(</span><span class="z-l-11 z-d-9">self</span><span> :</span><span class="z-l-9 z-d-10"> Self</span><span>)</span><span class="z-l-8 z-d-7"> -&gt;</span><span class="z-l-9 z-d-10"> UInt64</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  // ..</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="other-features">Other features</h3>
+<p>Every other feature we mentioned in <a rel="external" href="https://blog.vigoo.dev/tags/golem/">this series</a> is available for MoonBit. The new version of our <a rel="external" href="https://learn.golem.cloud">documentation</a> will have every code snippet presented in all supported languages including MoonBit, and we our <a href="/posts/golem15-part9-skills">skill catalog</a> also have a large number of MoonBit specific agent skills. Until the new documentation site is published, they can be checked in <a rel="external" href="https://github.com/golemcloud/golem/tree/main/golem-skills/skills/moonbit">the repo</a>.</p>
+<h3 id="implementation-details">Implementation details</h3>
+<p>The MoonBit SDK consists of two major parts: a code-level transformation tool implemented in MoonBit using the <a rel="external" href="https://mooncakes.io/docs/moonbitlang/parser">moonbitlang/parser</a> and <a rel="external" href="https://mooncakes.io/docs/moonbitlang/formatter">moonbitlang/formatter</a> packages, and a MoonBit library every Golem application must depend on.</p>
+<p>The tool parses the user's source code and finds all the Golem-specific derive attributes, and generates code (typeclass implementations for annotated custom types, agent registration code, RPC clients etc). The SDK encapsulates the generated WASM bindings (using <code>wit-bindgen-moonbit</code>) and presents them as a higher level MoonBit library for the Golem developers.</p>
+<p>The whole multi-step build flow is <em>hidden</em> in a <a rel="external" href="https://github.com/golemcloud/golem/blob/main/cli/golem-cli/templates/moonbit/common-on-demand/golem.yaml">golem-managed build template</a>.</p>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

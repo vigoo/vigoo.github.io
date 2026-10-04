@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <meta name="robots" content="index, follow">
+        <title>Golem as a Coding Agent engine</title>
+
+        
+        
+        
+        
+        <meta name="description" content="Introduction Coding agents became the new way of writing software for many of us; even though I was skeptical about this for a long time, in the past few months…">
+
+        
+        <meta name="author" content="Daniel Vigovszky">
+        
+
+        
+        <link rel="canonical" href="https://blog.vigoo.dev/posts/golem-coding-agent/">
+        
+
+        <meta property="og:site_name" content="vigoo&#39;s software development blog">
+        <meta property="og:type" content="article">
+        <meta property="og:title" content="Golem as a Coding Agent engine">
+        <meta property="og:description" content="Introduction Coding agents became the new way of writing software for many of us; even though I was skeptical about this for a long time, in the past few months…">
+        
+        <meta property="og:url" content="https://blog.vigoo.dev/posts/golem-coding-agent/">
+        
+        
+        <meta property="article:published_time" content="2026-03-29T00:00:00+00:00">
+        
+        <meta name="twitter:card" content="summary">
+
+        
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": "Golem as a Coding Agent engine",
+            "datePublished": "2026-03-29T00:00:00+00:00",
+            "url": "https://blog.vigoo.dev/posts/golem-coding-agent/",
+            "mainEntityOfPage": "https://blog.vigoo.dev/posts/golem-coding-agent/",
+            "author": {
+                "@type": "Person",
+                "name": "Daniel Vigovszky",
+                "url": "https://blog.vigoo.dev/about/"
+            },
+            "keywords": ["golem","durable-execution","agents","coding-agents","ai","typescript","rust"]
+        }
+        </script>
+        
+        
+
+        
+        <link rel="alternate" type="application/atom+xml" title="Atom" href="https://blog.vigoo.dev/atom.xml">
+        
+
+        <script type="speculationrules">
+        {
+            "prefetch": [
+                { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+            ],
+            "prerender": [
+                { "source": "document", "where": { "href_matches": "/posts/*" }, "eagerness": "moderate" }
+            ]
+        }
+        </script>
+
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/poppins-700-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/fira-code-400-latin.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-400.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="https://blog.vigoo.dev/fonts/iosevka-term-latin-700.woff2" crossorigin>
+        <link rel="stylesheet" href="https://blog.vigoo.dev/fonts/fonts.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/style.css">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-light.css" media="(prefers-color-scheme: light)">
+        <link rel="stylesheet" href="https://blog.vigoo.dev/giallo-dark.css" media="(prefers-color-scheme: dark)">
+        <script>
+        (function () {
+            var theme;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+            var light = document.querySelector('link[href*="giallo-light"]');
+            var dark = document.querySelector('link[href*="giallo-dark"]');
+            if (light && dark) {
+                light.media = theme === "dark" ? "not all" : "all";
+                dark.media = theme === "dark" ? "all" : "not all";
+            }
+        })();
+        </script>
+    </head>
+<body>
+    
+    <header class="hdr">
+        <div class="hdr-inner">
+            
+            <p class="site-title"><a href="/">vigoo&#39;s software development blog</a></p>
+            
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/tags">Tags</a></li>
+                    <li><a href="/archive">Archive</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li>
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+                            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+
+    <main>
+        
+    <article class="post">
+        <header>
+            <h1>Golem as a Coding Agent engine</h1>
+            <p class="posted-on">Posted on <time datetime="2026-03-29">March 29, 2026</time></p>
+        </header>
+
+        <h2 id="introduction">Introduction</h2>
+<p><strong>Coding agents</strong> became the new way of writing software for many of us; even though I was skeptical about this for a long time, in the past few months all my code was written by agents, with productivity I had never experienced before. The whole ecosystem is changing extremely fast, and people are trying to <a rel="external" href="https://x.com/jdegoes/status/2036931874057314390?s=20">figure out</a> what the best set of tools and workflows are to work efficiently in this new era. I cannot answer what set of coding agents, terminals, IDEs or post-IDE user interfaces fit best to the agentic development era. What I want to do is explore how <a rel="external" href="https://golem.cloud">Golem</a>, the agent-native durable execution platform I'm working on could be a useful component of implementing reliable coding agents.</p>
+<h3 id="what-is-a-coding-agent">What is a coding agent?</h3>
+<p>There are many existing articles about what exactly coding agents are, and how you can write your own, for example <a rel="external" href="https://ampcode.com/notes/how-to-build-an-agent">one from Thorsten Ball from last year</a>. Today we have even <a rel="external" href="https://pi.dev">frameworks to build your own</a>. But the basic idea is very simple: you use an LLM and provide a set of <strong>tools</strong> to it to be able to work on a project. The basic tools it needs are discovering files of your project, reading and editing these files. The models seem to like to do all kind of queries with standard piped Unix commands and <a rel="external" href="https://ripgrep.dev">ripgrep</a>; they need a way to look up external information on the web, and most importantly they need to be able to actually try things out, to have a full feedback loop. This means they need to be able to trigger compilation, running the code, the test suites, and so on.</p>
+<p>There are other aspects of course - finding and loading skill files, spawning sub-agents, dealing with the context size limitations, managing multiple connected threads etc.</p>
+<p>All of this is not really super complicated, but it gets worse if you start to think about what can go wrong:</p>
+<ul>
+<li>LLM calls can fail. There can be temporary outages, timeouts, etc. You don't want your expensive, long running agent session to be lost in this case</li>
+<li>We said above we have to give the agent <em>write access</em> and ability to execute arbitrary(?) commands on our computer. How do we prevent it from doing something malicious?</li>
+<li>What if my computer crashed, or just accidentally closed the terminal where the agent was operating - do I have to start from scratch?</li>
+<li>Can we guarantee that all the parallel running agents together are not exceeding some kind of AI API quota?</li>
+</ul>
+<h3 id="golem">Golem</h3>
+<p>Golem is an <strong>agent-native</strong> cloud platform that provides <strong>durable execution</strong>, exactly-once remote calls and many more features. The core entity in Golem is an <strong>agent</strong> - a stateful, potentially long running entity that can process external <strong>invocations</strong>, can spawn and communicate with other Golem agents, access external APIs and databases, and most importantly, can never die.</p>
+<p>This what makes Golem (and other durable execution platforms) special - even if the server process crashes, or just need to restart for reasons like rebalancing, updates, etc, the running agents are guaranteed to survive this without any assistance from the programmer. You can store your state in memory, and stop worrying about losing it for any external reasons.</p>
+<p>Another important property of Golem agents is that they are <strong>completely sandboxed</strong>. They are <a rel="external" href="https://component-model.bytecodealliance.org">WASM components</a>, each having their own linear memory and their own file system. There is no way an agent can interfere with any other agent, only through the trusted agent-to-agent communication channels. There is no way an agent can access any files that are not in its sandboxed file system.</p>
+<h2 id="golem-as-a-coding-agent-platform">Golem as a Coding Agent platform</h2>
+<p>Let's start thinking about how we could take advantage of Golem's durability and sandboxing properties to implement our own coding agent!</p>
+<p>This is going to be a little unusual way to use Golem. Golem is a cloud platform - we provide our hosted infrastructure you can use, or you can bring up your own infrastructure as it is fully open source. We provide a local, single-executable version of it, which is primarily intended to be used for local development and testing.</p>
+<p>In this experiment, we are going to fully build on this local Golem build. This will be an important detail when we figure out how to combine the fully sandboxed Golem environment with the need to build and run the developed applications.</p>
+<h3 id="architecture">Architecture</h3>
+<p>In this experimental Golem based coding agent, I'm going to mix in a little the question of managing parallel workspaces as well. The idea we are going to explore is that there is exactly one <strong>read/write coding agent</strong> for a specific repository's specific <strong>branch</strong>. There can be an arbitrary number of <strong>read-only coding agents</strong> on the same branches, with no rights to do any changes. These can be used for exploratory work.</p>
+<p>In Golem every <em>golem agent</em> is identified by their constructor parameters. There can be only one instance for a concrete value of these parameters, and invocations and every other command work by using <em>upsert</em> semantics - if the agent identified by your provided constructor parameters (that we call the <strong>agent identity</strong>) does not exist yet, it's going to be transparently created for you. There is an extra feature that is going to be very useful for us: <strong>phantom agents</strong>. Phantom agents are "secondary" instances of an agent, distinguished from the primary one with an extra random uuid. This maps perfectly to our plan of representing read/write and read-only coding agents:</p>
+<ul>
+<li><code>CodingAgent(repository, branch)</code> is the ID of a read/write coding agent</li>
+<li><code>CodingAgent(repository, branch)[uuid]</code> is the ID of a read-only coding agent</li>
+</ul>
+<p>These Golem agents are going to run the main loop of the coding agent - checkout their repository's branch into their own sandboxed file system, do the LLM calls, and implement tools that work on the files. All sandboxed and all durable automatically.</p>
+<p>We also need a user-facing interface for this, of course. This is going to be a text user interface communicating with these Golem agents using another Golem feature - the ability to generate <strong>bridge libraries</strong> that can be used to invoke Golem agents from the outside in a fully type-safe way. It can currently generate Rust and TypeScript libraries.</p>
+<p>This all looks straightforward, but we have not talked about one important thing yet:</p>
+<blockquote>
+<p>How do we make our agent be able to compile and run code?</p>
+</blockquote>
+<p>We can't assume that the agent can set up a build tool-chain in its sandboxed WASM environment. We need to delegate that work to the host machine of the user. Conceptually, we need something like this:</p>
+<ul>
+<li>The agent reaches a state of its branch where it wants to, let's say, compile and run all tests</li>
+<li>We need to mirror the current state of the whole repository to the host machine</li>
+<li>There, we need to use the host machine's tool-chains to compile and run all the tests</li>
+<li>The agent needs to be able to observe the results (standard output, files)</li>
+</ul>
+<p>We are going to tweak Golem a little and take advantage that we run it locally. By default each agent's sandboxed virtual filesystem is stored in a separate temp directory on the host filesystem. We are going to enable deterministic, agent-id base locations for these directories. Then we expose some feature through a HTTP server from our host application. Our coding agents will get the ability to call the host app and run some tools there. We are going to define a strict set of allowed commands to be executed on the host. (For example to build a Rust project using <code>cargo</code>).</p>
+<p>Of course once we allow the agent to run arbitrary compiled code on our host, we are not safe anymore - I'm not going to try to solve this in this post. Having sandboxed and durable editing sessions and being able to strictly limit the host-execution to build tools and the actual generated artifacts is already interesting and different enough from current state of art.</p>
+<p>One last thing we haven't talked about yet: LLM sessions have a limited context window so we cannot keep appending forever to a single session within one coding agent instance. We need to be able to start new threads, potentially do compaction of the old one, etc. With the proposed architecture of having one agent instance per "feature branch", we can do all this in the agent's memory. We can store multiple threads in memory, provide ways to query old ones, and provide tools for the LLM to get the compacted version of previous threads, or to read from them if needed.</p>
+<h2 id="implementation">Implementation</h2>
+<h3 id="agent-language">Agent language</h3>
+<p>With the initial design we are ready to start implementing this. Let's first decide what <em>language</em> to use for the agent side. Golem currently fully supports Rust and TypeScript, with experimental support for Scala.js and MoonBit. For this experiment, I'm going to choose between Rust and TypeScript. What we need is a <strong>git client</strong> that works in Golem (will get back to that), a fast grep library and a way to emulate standard Unix commands on the agent's file system, and of course a way to call an LLM.</p>
+<p>Let's see a comparison:</p>
+<table><thead><tr><th>Aspect</th><th>Rust</th><th>TypeScript</th></tr></thead><tbody>
+<tr><td>Git client</td><td>https://github.com/GitoxideLabs/gitoxide</td><td>https://isomorphic-git.org/</td></tr>
+<tr><td>AI client</td><td>https://github.com/golemcloud/golem-ai</td><td>Several options, such as <a rel="external" href="https://effect.website/blog/effect-ai/">@effect/ai</a></td></tr>
+<tr><td>Unix tools</td><td>https://crates.io/crates/brush</td><td>https://github.com/shelljs/shelljs</td></tr>
+</tbody></table>
+<p>Golem provides an increasing level of Node.js compatibility so many existing libraries can be used as-is. Also, the browser <code>fetch</code> API and <code>node:http</code> are both working so any library built on top of these will be able to call external services from a Golem agent.</p>
+<p>Unfortunately the Rust ecosystem makes this much harder. Golem does not provide low-level socket capabilities at the moment, the only way to make HTTP requests is through the <a rel="external" href="https://github.com/WebAssembly/WASI/tree/main/proposals/http/">WASI HTTP interface</a>. There are <a rel="external" href="https://crates.io/crates/wstd">existing Rust crates</a> wrapping this interface but most of the Rust ecosystem is built on other ones such as <code>reqwest</code>, which are <em>not</em> working in Golem out of the box. This is why we provide our own set of AI connector libraries (<a rel="external" href="https://github.com/golemcloud/golem-ai">golem-ai</a>) for Rust projects. But we also need a git client. So, if we'd choose Rust, we would need to either:</p>
+<ul>
+<li>be able to plug in our own http library (<code>wstd</code>'s client) into the git library</li>
+<li>or implement the git cloning on our host and proxy it through a custom http request to our agents</li>
+</ul>
+<p>In addition to the <code>wasi-http</code> requirement, all Rust crates we choose to depend on must be compilable to <code>wasm32-wasip2</code> target.</p>
+<p>Based on a short AI analysis of the <code>gitoxide</code> project, it seems like we <em>could</em> extend it with a new, wasi-http based transport layer and most likely it could be compiled to <code>wasip2</code>, but it requires forking the library. Even though having <code>brush</code> would have been a nice tool for our agent implementation, for this experiment we are going to choose <strong>TypeScript</strong>.</p>
+<h3 id="tui-language">TUI language</h3>
+<p>Using TypeScript on the backend does not mean we are forced to use TypeScript for the text user interface. For that, I'm going to use <strong>Rust</strong> simply as a personal preference and the easiness of building distributable single executables.</p>
+<p>Golem supports generating cross-language bridge libraries. This means our TypeScript agent's interface will be exposed as a generated Rust crate that we can use to communicate with the agents.</p>
+<h3 id="the-first-version-of-our-agent">The first version of our agent</h3>
+<p>We can start building the agent and build the host environment around it later. To not block on figuring out a nice name for this, I'll just call the project <code>golem-coding-agent</code>. We can create a new TypeScript Golem application with the CLI:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> new</span><span class="z-l-4 z-d-5"> gca-agents</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Applying</span><span class="z-l-4 z-d-5"> template</span><span>(</span><span class="z-l-3 z-d-3">s</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/.gitignore</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/AGENTS.md</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/golem.yaml</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/package.json</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/src/counter-agent.ts</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/src/main.ts</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Creating</span><span class="z-l-4 z-d-5"> /home/vigoo/projects/golem-coding-agent/gca-agents/tsconfig.json</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Finished</span><span class="z-l-4 z-d-5"> applying</span><span class="z-l-4 z-d-5"> template</span><span>(</span><span class="z-l-3 z-d-3">s</span><span>)</span><span> [OK</span><span>]</span></span></code></pre>
+<p>We select TypeScript and the basic template, and we end up with an initial TypeScript project implementing a simple agent that implements a counter.</p>
+<p>We can validate that it works by doing <code>golem build</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> build</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Finished</span><span class="z-l-4 z-d-5"> building</span><span> [OK</span><span>]</span></span></code></pre>
+<p>The build command compiles and bundles the TypeScript project, injects it into a WASM base image, performs some pre-initialization optimizations and then it is ready to be deployed to Golem.</p>
+<p>The first thing we should check if we can add all the npm packages we are planning to use (as said, Golem is more and more compatible with Node.js, but there are still gaps). Let's do it:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> npm</span><span class="z-l-4 z-d-5"> install</span><span class="z-l-4 z-d-5"> effect</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> npm</span><span class="z-l-4 z-d-5"> install</span><span class="z-l-4 z-d-5"> @effect/ai</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> npm</span><span class="z-l-4 z-d-5"> install</span><span class="z-l-4 z-d-5"> @effect/ai-openai</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> npm</span><span class="z-l-4 z-d-5"> install</span><span class="z-l-4 z-d-5"> isomorphic-git</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> npm</span><span class="z-l-4 z-d-5"> install</span><span class="z-l-4 z-d-5"> shelljs</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> build</span></span></code></pre>
+<p>It still compiles. Now we can start a local, fresh golem server with <code>golem server run --clean</code> and then deploy our code to it:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> deploy</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Deployed</span><span class="z-l-4 z-d-5"> all</span><span class="z-l-4 z-d-5"> changes</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">╔═</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Created</span><span class="z-l-4 z-d-5"> new</span><span class="z-l-4 z-d-5"> deployment</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Application:</span><span class="z-l-4 z-d-5">         gca-agents</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Environment:</span><span class="z-l-4 z-d-5">         local</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Environment</span><span class="z-l-4 z-d-5"> ID:</span><span class="z-l-4 z-d-5">      019d3982-c09d-7822-b35e-0692657a0503</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Deployment</span><span class="z-l-4 z-d-5"> Revision:</span><span class="z-l-6 z-d-8"> 0</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Hash:</span><span class="z-l-4 z-d-5">                75c45be092d7b5478df95af253bff74fa66ceb8f208a93d8c313ac9cc7a74c93</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Deploy</span><span class="z-l-4 z-d-5"> Revision:</span><span class="z-l-6 z-d-8">     0</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">╚═</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Summary</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Finished</span><span class="z-l-4 z-d-5"> deploying</span><span> [OK</span><span>]</span></span></code></pre>
+<p>Then try it out with Golem's TypeScript REPL:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> repl</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span></span>
+<span class="giallo-l"><span>&gt;</span></span>
+<span class="giallo-l"><span>&gt;</span><span> Available agent client types:</span></span>
+<span class="giallo-l"><span>&gt;</span><span>   CounterAgent.get(</span><span class="z-l-3 z-d-3">name:</span><span class="z-l-4 z-d-5"> string</span><span>)</span></span>
+<span class="giallo-l"><span>&gt;</span><span class="z-l-3 z-d-3">     increment:</span><span> (</span><span>)</span><span> =</span><span>&gt;</span><span> number</span></span>
+<span class="giallo-l"><span>&gt;</span></span>
+<span class="giallo-l"><span>&gt;</span><span> To see this message again, use the </span><span class="z-l-4 z-d-5">`</span><span class="z-l-3 z-d-3">.agent-type-info</span><span class="z-l-4 z-d-5">`</span><span class="z-l-2 z-d-1"> command</span><span class="z-l-4 z-d-5">!</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> const</span><span class="z-l-4 z-d-5"> c</span><span class="z-l-4 z-d-5"> =</span><span class="z-l-4 z-d-5"> CounterAgent.get</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">test</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> c.increment</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span>&gt;</span><span> awaiting Promise</span><span>&lt;</span><span>number</span><span>&gt;</span></span>
+<span class="giallo-l"><span>~</span><span>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">1</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span></span></code></pre>
+<p>Everything seems to work. From this point I'll just let my (non-golem) coding agent do the actual implementation. First we replace the counter agent with a new agent called <code>CodingAgent</code> that already takes the repository and branch names, as we planned, and uses the git library to clone and check out that branch:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span>@</span><span class="z-l-3 z-d-3">agent</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> CodingAgent</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  readonly</span><span class="z-d-9"> repository</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  readonly</span><span class="z-d-9"> branch</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  readonly</span><span class="z-d-9"> readOnly</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> boolean</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">  repoInitialized</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> boolean</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> false</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  constructor</span><span>(</span><span class="z-d-9 z-d-i">repository</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span><span class="z-d-9 z-d-i"> branch</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10 z-d-i">    super</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">repository</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> repository</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">branch</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> branch</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">readOnly</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-3 z-d-3">phantomId</span><span>(</span><span>)</span><span class="z-l-2 z-d-1"> !==</span><span class="z-l-6 z-d-8"> undefined</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-10">    console</span><span>.</span><span class="z-l-3 z-d-3">info</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">      `</span><span class="z-l-4 z-d-5">[CodingAgent] Constructed: repository=</span><span class="z-l-10 z-d-7">${</span><span class="z-d-9">repository</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">, branch=</span><span class="z-l-10 z-d-7">${</span><span class="z-d-9">branch</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">, readOnly=</span><span class="z-l-10 z-d-7">${</span><span class="z-l-11 z-d-10">this</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">readOnly</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">, phantomId=</span><span class="z-l-10 z-d-7">${</span><span class="z-l-11 z-d-10">this</span><span class="z-l-4">.</span><span class="z-l-3 z-d-3">phantomId</span><span>(</span><span>)</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">`</span></span>
+<span class="giallo-l"><span>    )</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">async</span><span class="z-l-3 z-d-3"> dump</span><span>(</span><span>)</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Promise</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-10"> Effect</span><span>.</span><span class="z-l-3 z-d-3">runPromise</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">      Effect</span><span>.</span><span class="z-l-3 z-d-3">gen</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>,</span><span class="z-l-8 z-d-7"> function</span><span class="z-l-8 z-d-7">*</span><span> (</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> logInfo</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">[CodingAgent.dump] Starting dump</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-3 z-d-3">initRepo</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> tree</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-3 z-d-3">buildTree</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> logInfo</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">          `</span><span class="z-l-4 z-d-5">[CodingAgent.dump] Dump complete, tree length=</span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">tree</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">length</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">`</span><span>,</span></span>
+<span class="giallo-l"><span>        )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span class="z-d-9"> tree</span><span>;</span></span>
+<span class="giallo-l"><span>      }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    )</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>initRepo</code> and <code>buildTree</code> functions are not very exciting - just effect-ts functions wrapping the git and node:fs modules.</p>
+<p>We can try it out by calling <code>dump()</code> on <code>CodingAgent("https://github.com/vigoo/test-r.git", "test1")</code>:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="log"><span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:42:33.985Z</span><span>] [INVOKE  ] STARTED  golem:agent/guest@</span><span class="z-l-6 z-d-8">1</span><span>.</span><span class="z-l-6 z-d-8">5</span><span>.</span><span class="z-l-6 z-d-8">0</span><span>.{invoke} (</span><span class="z-l-6 z-d-8">06e40a0f-ccfd-4571-8614-f86ef22787eb</span><span>)</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:42:33.985Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [</span><span class="z-l-6 z-d-8">CodingAgent.dump</span><span>] Starting dump</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:42:33.986Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [initRepo] Cloning repository </span><span class="z-l-6 z-d-8">https://github.com/vigoo/test-r.git</span><span> into /</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.700Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [initRepo] Clone completed successfully</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.700Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [initRepo] Listing local branches</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.701Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [initRepo] Local branches: [</span><span class="z-l-4 z-d-5">&quot;master&quot;</span><span>]</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.701Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [initRepo] Listing remote branches</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.969Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [initRepo] Remote branches: [</span><span class="z-l-4 z-d-5">&quot;HEAD&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;experiment&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;gh-pages&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;master&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-05T17-10-16Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T09-00-48Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T10-04-28Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T13-49-33Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T14-16-30Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T15-07-52Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T15-12-36Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T15-23-15Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-06T16-21-51Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-11T08-35-32Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-11T09-10-17Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-11T10-10-21Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-14T11-31-50Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-21T08-45-47Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-21T08-46-34Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-21T13-29-32Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-10-27T13-18-39Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-12-29T10-03-43Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-12-29T11-06-51Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-12-29T12-13-17Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2024-12-29T13-17-50Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-01-30T14-13-36Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-04-05T11-48-31Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-05-14T18-08-55Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-05-14T19-47-48Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-05-31T11-07-46Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-05-31T17-56-08Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-06-01T20-31-20Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-06-02T07-12-42Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2025-08-27T15-56-32Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T11-24-02Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T12-10-01Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T12-23-41Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T13-29-14Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T13-31-11Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T13-54-34Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-02-25T14-17-43Z&quot;</span><span>,</span><span class="z-l-4 z-d-5">&quot;release-plz-2026-03-02T15-30-44Z&quot;</span><span>]</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.969Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [initRepo] Branch </span><span class="z-l-4 z-d-5">&#39;test1&#39;</span><span> does not exist, creating it</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:01.979Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [initRepo] Created branch </span><span class="z-l-4 z-d-5">&#39;test1&#39;</span><span>, checking out</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:04.395Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [initRepo] Checked out new branch </span><span class="z-l-4 z-d-5">&#39;test1&#39;</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:04.395Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [initRepo] Repository initialization complete</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:04.395Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [buildTree] Building file tree</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:04.395Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [listFilesRecursive] Reading directory: /</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:04.577Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [listFilesRecursive] Found </span><span class="z-l-6 z-d-8">19</span><span> entries in /</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T12:43:04.577Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [listFilesRecursive] Skipping .git directory</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"></span></code></pre>
+<p>So cloning the repository works! The next thing we should add is an agent method that sends a <strong>user prompt</strong> to the LLM. Here we will start using the <code>@effect/ai</code> library to communicate with the AI. As I wrote earlier, we will store sessions simply in the agent's memory. Golem is durable so we don't have to worry about loosing anything.</p>
+<p>So let's add a <code>Thread</code> class that is going to be responsible for a single AI thread and remembering its full context:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> SYSTEM_PROMPT</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">You are a helpful coding assistant.</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> Message</span><span class="z-l-2 z-d-1"> =</span><span> {</span><span class="z-d-9"> role</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">user</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2"> |</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">assistant</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span><span class="z-d-9"> content</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span> }</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> Thread</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  readonly</span><span class="z-d-9"> id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">  messages</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Message</span><span>[</span><span>]</span><span class="z-l-2 z-d-1"> =</span><span> [</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-d-9"> chat</span><span class="z-l-2">:</span><span class="z-l-4 z-d-10"> Chat</span><span>.</span><span class="z-l-9 z-d-10">Service</span><span class="z-l-2"> |</span><span class="z-l-2 z-d-10"> undefined</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  constructor</span><span>(</span><span class="z-d-9 z-d-i">id</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> id</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  private</span><span class="z-l-3 z-d-3"> initSession</span><span>(</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-10"> Effect</span><span>.</span><span class="z-l-3 z-d-3">gen</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>,</span><span class="z-l-8 z-d-7"> function</span><span class="z-l-8 z-d-7">*</span><span> (</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      if</span><span> (</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">chat</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span>;</span></span>
+<span class="giallo-l"><span>      }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">      this</span><span>.</span><span class="z-l-11 z-d-9">chat</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> Chat</span><span>.</span><span class="z-l-3 z-d-3">fromPrompt</span><span>(</span><span>[</span></span>
+<span class="giallo-l"><span>        {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          role</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">system</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          content</span><span class="z-l-2">:</span><span class="z-l-6 z-d-10"> SYSTEM_PROMPT</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>,</span></span>
+<span class="giallo-l"><span>      ]</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  send</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">    prompt</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span></span>
+<span class="giallo-l"><span>  )</span><span class="z-l-2">:</span><span class="z-l-4 z-d-10"> Effect</span><span>.</span><span class="z-l-9 z-d-10">Effect</span><span>&lt;</span><span class="z-d-10">string</span><span>,</span><span class="z-d-10"> unknown</span><span>,</span><span class="z-l-4 z-d-10"> LanguageModel</span><span>.</span><span class="z-l-9 z-d-10">LanguageModel</span><span>&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-10"> Effect</span><span>.</span><span class="z-l-3 z-d-3">gen</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>,</span><span class="z-l-8 z-d-7"> function</span><span class="z-l-8 z-d-7">*</span><span> (</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-3 z-d-3">initSession</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">      this</span><span>.</span><span class="z-l-11 z-d-10">messages</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> role</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">user</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> content</span><span class="z-l-2">:</span><span class="z-d-9"> prompt</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> response</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">chat</span><span class="z-l-2 z-d-1">!</span><span>.</span><span class="z-l-3 z-d-3">generateText</span><span>(</span><span>{</span><span class="z-d-9"> prompt</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> text</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> response</span><span>.</span><span class="z-l-11 z-d-9">text</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">      this</span><span>.</span><span class="z-l-11 z-d-10">messages</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> role</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">assistant</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> content</span><span class="z-l-2">:</span><span class="z-d-9"> text</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      return</span><span class="z-d-9"> text</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Note: in <code>@effect/ai</code> the <code>Chat</code> object itself remembers the session so there is no need to store it outside for ourselves. We still store all messages  in the <code>messages</code> field, but it's not fed back to the chat session. It's just our history that will be easy to tweak and made queryable for our text user interface.</p>
+<p>In our <code>CodingAgent</code> class we add a map of threads, and expose a new agent method:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> CodingAgent</span><span class="z-l-8 z-d-7"> extends</span><span class="z-l-9 z-d-10"> BaseAgent</span><span> {</span><span>  </span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-d-9">  threads</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Map</span><span>&lt;</span><span class="z-d-10">string</span><span>,</span><span class="z-l-9 z-d-10"> Thread</span><span>&gt;</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Map</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">  activeThreadId</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  constructor</span><span>(</span><span class="z-d-9 z-d-i">repository</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span><span class="z-d-9 z-d-i"> branch</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span><span class="z-d-9 z-d-i"> config</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Config</span><span>&lt;</span><span class="z-l-9 z-d-10">CodingAgentConfig</span><span>&gt;</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">    //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-6 z-d-10"> threadId</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> crypto</span><span>.</span><span class="z-l-3 z-d-3">randomUUID</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    const</span><span class="z-l-6 z-d-10"> thread</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> Thread</span><span>(</span><span class="z-d-9">threadId</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-10">threads</span><span>.</span><span class="z-l-3 z-d-3">set</span><span>(</span><span class="z-d-9">threadId</span><span>,</span><span class="z-d-9"> thread</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-9">activeThreadId</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> threadId</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span></code></pre>
+<p>Notice the new <code>config</code> parameter to our agent! It is a special parameter with the <code>Config&lt;&gt;</code> type, so it is NOT participating in our agent's identity. We can still refer to an agent by only the repository and branch names, but it uses Golem's underlying configuration engine to access type-safe configuration that we have to provide deploy-time.</p>
+<p>For now, we only require an OpenAI API key:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> CodingAgentConfig</span><span class="z-l-2 z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-9">  openaiApiKey</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Secret</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span></code></pre>
+<p>and use it in our <code>sendPrompt</code> method:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-9">  async</span><span class="z-l-3 z-d-3"> sendPrompt</span><span>(</span><span class="z-d-9">prompt</span><span>: </span><span class="z-d-9">string</span><span>)</span><span>: </span><span class="z-l-9 z-d-10">Promise</span><span class="z-l-2 z-d-1">&lt;</span><span class="z-d-9">string</span><span class="z-l-2 z-d-1">&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>    return Effect.runPromise(</span></span>
+<span class="giallo-l"><span>      Effect.gen(</span><span class="z-d-9">this</span><span>,</span><span> function* () </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> initRepo</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> thread</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">threads</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-11 z-d-9">activeThreadId</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        if</span><span> (</span><span class="z-l-2 z-d-1">!</span><span class="z-d-9">thread</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">          return</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-8 z-d-7"> new</span><span class="z-l-3 z-d-3"> ThreadNotFound</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> threadId</span><span class="z-l-2">:</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">activeThreadId</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> apiKey</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-10">config</span><span>.</span><span class="z-l-11 z-d-10">value</span><span>.</span><span class="z-l-11 z-d-10">openaiApiKey</span><span>.</span><span class="z-l-3 z-d-3">get</span><span>(</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        const</span><span class="z-l-6 z-d-10"> response</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> thread</span><span>.</span><span class="z-l-3 z-d-3">send</span><span>(</span><span class="z-d-9">prompt</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">          Effect</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-l-11 z-d-10">this</span><span>.</span><span class="z-l-3 z-d-3">makeModelLayer</span><span>(</span><span class="z-d-9">apiKey</span><span>)</span><span>)</span></span>
+<span class="giallo-l"><span>        )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">        return</span><span class="z-d-9"> response</span><span>;</span></span>
+<span class="giallo-l"><span>      }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>    );</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>The <code>makeModelLayer</code> just constructs the necessary effect-ai layer for running our effect:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-d-9">  private</span><span class="z-l-3 z-d-3"> makeModelLayer</span><span>(</span><span class="z-d-9">apiKey</span><span>: </span><span class="z-d-9">string</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-10"> OpenAiLanguageModel</span><span>.</span><span class="z-l-3 z-d-3">model</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">gpt-5.4</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">      Layer</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">        OpenAiClient</span><span>.</span><span class="z-l-3 z-d-3">layer</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">          apiKey</span><span class="z-l-2">:</span><span class="z-d-10"> Redacted</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span><span class="z-d-9">apiKey</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>        }</span><span>)</span></span>
+<span class="giallo-l"><span>      )</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">      Layer</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-d-10">FetchHttpClient</span><span>.</span><span class="z-l-11 z-d-9">layer</span><span>)</span></span>
+<span class="giallo-l"><span>    )</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span></code></pre>
+<p>Note that even though our <em>configuration</em> is injected through the constructor, <strong>secrets</strong> are dynamic - they can be updated while your agent is running, and the <code>openaiApiKey.get()</code> call will always return the latest value.</p>
+<p>We can set default values for our secrets in the application's manifest file:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">s</span><span class="z-l-11 z-d-9">ecretDefaults</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  l</span><span class="z-l-11 z-d-9">ocal</span><span>:</span></span>
+<span class="giallo-l"><span>    -</span><span class="z-l-11 z-d-9"> p</span><span class="z-l-11 z-d-9">ath</span><span>:</span><span> [</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">openaiApiKey</span><span class="z-l-4 z-d-5">&quot;</span><span>]</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">      v</span><span class="z-l-11 z-d-9">alue</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">{{ OPENAI_API_KEY }}</span><span class="z-l-4 z-d-5">&quot;</span></span></code></pre>
+<p>Let's try this out with our REPL:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> repl</span></span>
+<span class="giallo-l"><span>&gt;</span></span>
+<span class="giallo-l"><span>&gt;</span><span> Available agent client types:</span></span>
+<span class="giallo-l"><span>&gt;</span><span>   CodingAgent.get(</span><span class="z-l-3 z-d-3">repository:</span><span class="z-l-4 z-d-5"> string,</span><span class="z-l-4 z-d-5"> branch:</span><span class="z-l-4 z-d-5"> string</span><span>)</span></span>
+<span class="giallo-l"><span>&gt;</span><span class="z-l-3 z-d-3">     dump:</span><span> (</span><span>)</span><span> =</span><span>&gt;</span><span> string</span></span>
+<span class="giallo-l"><span>&gt;</span><span>     sendPrompt: </span><span>(</span><span class="z-l-3 z-d-3">prompt:</span><span class="z-l-4 z-d-5"> string</span><span>)</span><span> =</span><span>&gt;</span><span> string</span></span>
+<span class="giallo-l"><span>&gt;</span></span>
+<span class="giallo-l"><span>&gt;</span><span> To see this message again, use the </span><span class="z-l-4 z-d-5">`</span><span class="z-l-3 z-d-3">.agent-type-info</span><span class="z-l-4 z-d-5">`</span><span class="z-l-2 z-d-1"> command</span><span class="z-l-4 z-d-5">!</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> const</span><span class="z-l-4 z-d-5"> testr</span><span class="z-l-4 z-d-5"> =</span><span class="z-l-4 z-d-5"> await</span><span class="z-l-4 z-d-5"> CodingAgent.get</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">https://github.com/vigoo/test-r.git</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">test1</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testr.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">Who are you?</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>&gt;</span><span> awaiting Promise</span><span>&lt;</span><span>string</span><span>&gt;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-3 z-d-3">I’m a coding assistant here to help with your programming questions and provide guidance on technical topics. How can I assist you today?</span><span class="z-l-3 z-d-3">&#39;</span></span></code></pre><h3 id="our-first-tools">Our first tools</h3>
+<p>Now that we have the source code and the AI connection set up, we have to add our first <strong>tools</strong> for our LLM so it can reach out and read and manipulate the source files.</p>
+<p>We are going to add the following tools in this step:</p>
+<ul>
+<li><strong>List files</strong> with optional starting directory and simple filtering</li>
+<li><strong>Read file</strong> with optional start/end line numbers</li>
+<li><strong>Write file</strong> creating/replacing a file's contents completely</li>
+<li><strong>Replace in file</strong> to replace a source string with a destination string, optionally constrained by line numbers</li>
+</ul>
+<p>Note that we don't have to worry about the write/replace tools to do anything dangerous - we are operating in our agent's sandbox.</p>
+<p>We use <code>@effect/ai</code>'s tool definition mechanism to define these. For example, let's see how the <strong>read file tool</strong> looks like:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> ReadFile</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Tool</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">ReadFile</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  description</span><span class="z-l-2">:</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Read the contents of a file. Optionally specify 1-indexed start/end line numbers </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">to read a slice of the file.</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  parameters</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    path</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    startLine</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">optional</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    endLine</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">optional</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  failure</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> message</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span> }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  failureMode</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">return</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-7"> as</span><span class="z-l-8 z-d-7"> const</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">annotate</span><span>(</span><span class="z-d-10">Tool</span><span>.</span><span class="z-l-11 z-d-9">Readonly</span><span>,</span><span class="z-l-6 z-d-8"> true</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> CodingToolkit</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Toolkit</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span><span class="z-d-9">ListFiles</span><span>,</span><span class="z-d-9"> ReadFile</span><span>,</span><span class="z-d-9"> WriteFile</span><span>,</span><span class="z-d-9"> ReplaceInFile</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> CodingToolkitLayer</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> CodingToolkit</span><span>.</span><span class="z-l-3 z-d-3">toLayer</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  ReadFile</span><span class="z-l-2">:</span><span> (</span><span class="z-d-9 z-d-i">params</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-d-10">    Effect</span><span>.</span><span class="z-l-3 z-d-3">gen</span><span>(</span><span class="z-l-8 z-d-7">function</span><span class="z-l-8 z-d-7">*</span><span> (</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> logDebug</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        `</span><span class="z-l-4 z-d-5">[Tool:ReadFile] path=</span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">params</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">path</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">, startLine=</span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">params</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">startLine</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">, endLine=</span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">params</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">endLine</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">`</span><span>,</span></span>
+<span class="giallo-l"><span>      )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> content</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> Effect</span><span>.</span><span class="z-l-3 z-d-3">tryPromise</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        try</span><span class="z-l-2">:</span><span> (</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-10"> fsPromises</span><span>.</span><span class="z-l-3 z-d-3">readFile</span><span>(</span><span class="z-d-10">params</span><span>.</span><span class="z-l-11 z-d-9">path</span><span>,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">utf8</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        catch</span><span class="z-l-2">:</span><span> (</span><span class="z-d-9 z-d-i">e</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> (</span><span>{</span><span class="z-l-11 z-d-9"> message</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> String</span><span>(</span><span class="z-d-9">e</span><span>)</span><span> }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>      }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> result</span><span class="z-l-2 z-d-1"> =</span></span>
+<span class="giallo-l"><span class="z-d-10">        params</span><span>.</span><span class="z-l-11 z-d-9">startLine</span><span class="z-l-2 z-d-1"> !==</span><span class="z-l-6 z-d-8"> null</span><span class="z-l-2 z-d-1"> ||</span><span class="z-d-10"> params</span><span>.</span><span class="z-l-11 z-d-9">endLine</span><span class="z-l-2 z-d-1"> !==</span><span class="z-l-6 z-d-8"> null</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-7">          ?</span><span> (</span><span>(</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">              const</span><span class="z-l-6 z-d-10"> lines</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> content</span><span>.</span><span class="z-l-3 z-d-3">split</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1">\n</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">              const</span><span class="z-l-6 z-d-10"> start</span><span class="z-l-2 z-d-1"> =</span><span> (</span><span class="z-d-10">params</span><span>.</span><span class="z-l-11 z-d-9">startLine</span><span class="z-l-2 z-d-1"> ??</span><span class="z-l-6 z-d-8"> 1</span><span>)</span><span class="z-l-2 z-d-1"> -</span><span class="z-l-6 z-d-8"> 1</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">              const</span><span class="z-l-6 z-d-10"> end</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> params</span><span>.</span><span class="z-l-11 z-d-9">endLine</span><span class="z-l-2 z-d-1"> ??</span><span class="z-d-10"> lines</span><span>.</span><span class="z-l-11 z-d-9">length</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">              return</span><span class="z-d-10"> lines</span><span>.</span><span class="z-l-3 z-d-3">slice</span><span>(</span><span class="z-d-9">start</span><span>,</span><span class="z-d-9"> end</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">join</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1">\n</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span><span>)</span><span>(</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-7">          :</span><span class="z-d-9"> content</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> logDebug</span><span>(</span><span class="z-l-4 z-d-5">`</span><span class="z-l-4 z-d-5">[Tool:ReadFile] returned </span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">result</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">length</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5"> chars</span><span class="z-l-4 z-d-5">`</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      return</span><span class="z-d-9"> result</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span><span>    </span></span></code></pre>
+<p>We inject these tools for our LLM using the <code>toolkit</code> parameter:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> response</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">chat</span><span class="z-l-2 z-d-1">!</span><span>.</span><span class="z-l-3 z-d-3">generateText</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-d-9">    prompt</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    toolkit</span><span class="z-l-2">:</span><span class="z-d-9"> CodingToolkit</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>But this is not enough. When the LLM returns with tool call requests, it is our responsibility to execute the tools and loop:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> MAX_STEPS</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 15</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-d-9"> currentPrompt</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span class="z-l-2"> |</span><span class="z-l-8 z-d-7"> readonly</span><span class="z-l-2 z-d-10"> any</span><span>[</span><span>]</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-9"> prompt</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">for</span><span> (</span><span class="z-l-8 z-d-7">let</span><span class="z-d-9"> step</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-6 z-d-8"> 0</span><span>;</span><span class="z-d-9"> step</span><span class="z-l-2 z-d-1"> &lt;</span><span class="z-l-6 z-d-10"> MAX_STEPS</span><span>;</span><span class="z-d-9"> step</span><span class="z-l-2 z-d-1">++</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  const</span><span class="z-l-6 z-d-10"> response</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-11 z-d-10"> this</span><span>.</span><span class="z-l-11 z-d-9">chat</span><span class="z-l-2 z-d-1">!</span><span>.</span><span class="z-l-3 z-d-3">generateText</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    prompt</span><span class="z-l-2">:</span><span class="z-d-9"> currentPrompt</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    toolkit</span><span class="z-l-2">:</span><span class="z-d-9"> CodingToolkit</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  if</span><span> (</span><span class="z-d-10">response</span><span>.</span><span class="z-l-11 z-d-10">text</span><span>.</span><span class="z-l-11 z-d-9">length</span><span class="z-l-2 z-d-1"> &gt;</span><span class="z-l-6 z-d-8"> 0</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-10">messages</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> role</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">assistant</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> content</span><span class="z-l-2">:</span><span class="z-d-10"> response</span><span>.</span><span class="z-l-11 z-d-9">text</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-d-10"> response</span><span>.</span><span class="z-l-11 z-d-9">text</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  if</span><span> (</span><span class="z-d-10">response</span><span>.</span><span class="z-l-11 z-d-10">toolCalls</span><span>.</span><span class="z-l-11 z-d-9">length</span><span class="z-l-2 z-d-1"> ===</span><span class="z-l-6 z-d-8"> 0</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-10">    this</span><span>.</span><span class="z-l-11 z-d-10">messages</span><span>.</span><span class="z-l-3 z-d-3">push</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> role</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">assistant</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span class="z-l-11 z-d-9"> content</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">&quot;</span><span> }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    return</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">&quot;</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  const</span><span class="z-l-6 z-d-10"> toolResults</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> response</span><span>.</span><span class="z-l-11 z-d-10">content</span><span>.</span><span class="z-l-3 z-d-3">filter</span><span>(</span></span>
+<span class="giallo-l"><span>    (</span><span class="z-d-9 z-d-i">p</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-10"> p</span><span>.</span><span class="z-l-11 z-d-9">type</span><span class="z-l-2 z-d-1"> ===</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">tool-result</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>  )</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">  yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> logDebug</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    `</span><span class="z-l-4 z-d-5">[Thread:</span><span class="z-l-10 z-d-7">${</span><span class="z-l-11 z-d-10">this</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">id</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">] Tool calls executed: </span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">response</span><span class="z-l-4">.</span><span class="z-l-11 z-d-10">toolCalls</span><span class="z-l-4">.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span>(</span><span class="z-d-9 z-d-i">tc</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-d-10"> tc</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">name</span><span>)</span><span class="z-l-4">.</span><span class="z-l-3 z-d-3">join</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">, </span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5">; looping back to model</span><span class="z-l-4 z-d-5">`</span><span>,</span></span>
+<span class="giallo-l"><span>  )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> History is accumulated by Chat — send empty prompt to let the model</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">  //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> see the tool results and continue.</span></span>
+<span class="giallo-l"><span class="z-d-9">  currentPrompt</span><span class="z-l-2 z-d-1"> =</span><span> [</span><span>]</span><span>;</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Let's see if we can actually ask our agent to work on our branch now!</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> repl</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> const</span><span class="z-l-4 z-d-5"> testr</span><span class="z-l-4 z-d-5"> =</span><span class="z-l-4 z-d-5"> await</span><span class="z-l-4 z-d-5"> CodingAgent.get</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">https://github.com/vigoo/test-r.git</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">test1</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testr.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">First take a look at this repository and tell me what it is</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span>&gt;</span><span> awaiting Promise</span><span>&lt;</span><span>string</span><span>&gt;</span></span>
+<span class="giallo-l"><span>~</span><span>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:07.985Z</span><span>]</span><span> [</span><span>INFO    </span><span>]</span><span> [</span><span>]</span><span> [</span><span>initRepo</span><span>]</span><span> Cloning repository https://github.com/vigoo/test-r.git into /</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:41.264Z</span><span>]</span><span> [</span><span>INFO    </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> Initializing AI session</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:41.268Z</span><span>]</span><span> [</span><span>INFO    </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> AI session initialized</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:41.268Z</span><span>]</span><span> [</span><span>INFO    </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> Sending prompt: First take a look at this repository and tell me what it is...</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:41.268Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> generateText step 1/15</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:44.119Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Tool:ListFiles</span><span>]</span><span class="z-l-11 z-d-9"> directory</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">,</span><span class="z-l-11 z-d-9"> filter</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">n</span><span class="z-l-4 z-d-5">u</span><span class="z-l-4 z-d-5">l</span><span class="z-l-4 z-d-5">l</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:44.467Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Tool:ListFiles</span><span>]</span><span> returned 104 entries</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:44.840Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> Tool calls executed: ListFiles</span><span>;</span><span class="z-l-3 z-d-3"> looping</span><span class="z-l-4 z-d-5"> back</span><span class="z-l-4 z-d-5"> to</span><span class="z-l-4 z-d-5"> model</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:44.840Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> generateText step 2/15</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:46.127Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Tool:ReadFile</span><span>]</span><span class="z-l-11 z-d-9"> path</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">/</span><span class="z-l-4 z-d-5">R</span><span class="z-l-4 z-d-5">E</span><span class="z-l-4 z-d-5">A</span><span class="z-l-4 z-d-5">D</span><span class="z-l-4 z-d-5">M</span><span class="z-l-4 z-d-5">E</span><span class="z-l-4 z-d-5">.</span><span class="z-l-4 z-d-5">m</span><span class="z-l-4 z-d-5">d</span><span class="z-l-4 z-d-5">,</span><span class="z-l-11 z-d-9"> startLine</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">,</span><span class="z-l-11 z-d-9"> endLine</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">2</span><span class="z-l-4 z-d-5">0</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:46.128Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Tool:ReadFile</span><span>]</span><span> returned 109 chars</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:46.352Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> Tool calls executed: ReadFile</span><span>;</span><span class="z-l-3 z-d-3"> looping</span><span class="z-l-4 z-d-5"> back</span><span class="z-l-4 z-d-5"> to</span><span class="z-l-4 z-d-5"> model</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:46.352Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> generateText step 3/15</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:48.094Z</span><span>]</span><span> [</span><span>INFO    </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> Got text response,</span><span class="z-l-11 z-d-9"> length</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">9</span><span class="z-l-4 z-d-5">8</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:48.094Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Thread:54d30d83-a43a-4a3b-80dd-382741b95189</span><span>]</span><span> Response preview: This repository is </span><span class="z-l-8 z-d-7">for</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">test-r</span><span class="z-l-4 z-d-5">&quot;</span><span>, a test framework and runner for Rust. It provides testing capabilities for Rust projects. More details can be found in its </span><span>[</span><span>documentation</span><span>]</span><span>(</span><span class="z-l-3 z-d-3">https://test-r.vigoo.dev</span><span>)</span><span>.</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:14:48.102Z</span><span>]</span><span> [</span><span>INFO    </span><span>]</span><span> [</span><span>]</span><span> [</span><span>CodingAgent.sendPrompt</span><span>]</span><span> Got response,</span><span class="z-l-11 z-d-9"> length</span><span class="z-d-1">=</span><span class="z-l-4 z-d-5">1</span><span class="z-l-4 z-d-5">9</span><span class="z-l-4 z-d-5">8</span></span>
+<span class="giallo-l"><span>~</span><span>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-3 z-d-3">This repository is for &quot;test-r&quot;, a test framework and runner for Rust. It provides testing capabilities for Rust projects. More details can be found in its [documentation](https://test-r.vigoo.dev).</span><span class="z-l-3 z-d-3">&#39;</span></span></code></pre>
+<p>We can see that the agent used our <strong>ListFiles</strong> and <strong>ReadFile</strong> tools to take a look at the repository, and gave a correct answer!</p>
+<p>Let's try another one (not showing all the debug lines now):</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testr.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">What dependencies are in the cargo file?</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-3 z-d-3">Here are the dependencies for the main components of this project:\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">### `test-r-macro`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **test-r-core**: Local path dependency\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **darling**: &quot;0.21.3&quot;\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **humantime**: &quot;2.3.0&quot;\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **proc-macro2**: &quot;1&quot;\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **quote**: &quot;1&quot;\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **rand**: &quot;0.10&quot;\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- **syn**: &quot;2&quot; (with &quot;full&quot; features)\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">  .</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">These packages form the core of the test framework, providing various utilities and functionality for creating and running tests in Rust.</span><span class="z-l-3 z-d-3">&#39;</span></span></code></pre>
+<p>And let's try if it is willing to edit files too:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testr.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">Update the darling dependency to 0.23.0</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span>[</span><span>2026-03-29T15:18:12.114Z</span><span>]</span><span> [</span><span>DEBUG   </span><span>]</span><span> [</span><span>]</span><span> [</span><span>Tool:ReplaceInFile</span><span>]</span><span> 1 replacements in /test-r-macro/Cargo.toml</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-3 z-d-3">The `darling` dependency has been updated to version &quot;0.23.0&quot; in the `test-r-macro` package.</span><span class="z-l-3 z-d-3">&#39;</span></span></code></pre><h3 id="search-tool">Search tool</h3>
+<p>Let's add a few more tools before we switch to the host side. It's very useful for a coding agent to be able to search the web. We are going to add a tool that uses <a rel="external" href="https://exa.ai">exa</a> under the hood.</p>
+<p>After registering to <code>exa</code> and getting an API key, and telling my coding agent to wire up exa as a web search tool, we get the following:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> WebSearch</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Tool</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">WebSearch</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  description</span><span class="z-l-2">:</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Search the web using Exa AI. Returns relevant results with titles, URLs, and text content. </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Use this to find documentation, research, code examples, or any web-based information. </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Optionally restrict results to specific domains or a date range.</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  parameters</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    query</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    numResults</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    includeDomains</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    excludeDomains</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-3 z-d-3">Array</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    startPublishedDate</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    category</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">      Schema</span><span>.</span><span class="z-l-3 z-d-3">Literal</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">company</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">research paper</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">news</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">pdf</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        &quot;</span><span class="z-l-4 z-d-5">personal site</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>      )</span><span>,</span></span>
+<span class="giallo-l"><span>    )</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  failure</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> message</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span> }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  failureMode</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">return</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-7"> as</span><span class="z-l-8 z-d-7"> const</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>.</span><span class="z-l-3 z-d-3">annotate</span><span>(</span><span class="z-d-10">Tool</span><span>.</span><span class="z-l-11 z-d-9">Readonly</span><span>,</span><span class="z-l-6 z-d-8"> true</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">//</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-d-9">WebSearch</span><span>:</span><span> (</span><span class="z-d-9 z-d-i">params</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-d-10">    Effect</span><span>.</span><span class="z-l-3 z-d-3">gen</span><span>(</span><span class="z-l-8 z-d-7">function</span><span class="z-l-8 z-d-7">*</span><span> (</span><span>)</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">      //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"><span>      </span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      const</span><span class="z-l-6 z-d-10"> res</span><span class="z-l-2 z-d-1"> =</span><span class="z-l-8 z-d-7"> yield</span><span class="z-l-8 z-d-7">*</span><span class="z-d-10"> Effect</span><span>.</span><span class="z-l-3 z-d-3">tryPromise</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        try</span><span class="z-l-2">:</span><span> (</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">          fetch</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">https://api.exa.ai/search</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            method</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">POST</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            headers</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              &quot;</span><span class="z-l-4 z-d-5">Content-Type</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">application/json</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">              &quot;</span><span class="z-l-4 z-d-5">x-api-key</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2">:</span><span class="z-d-9"> exaApiKey</span><span>,</span></span>
+<span class="giallo-l"><span>            }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">            body</span><span class="z-l-2">:</span><span class="z-l-6 z-d-10"> JSON</span><span>.</span><span class="z-l-3 z-d-3">stringify</span><span>(</span><span class="z-d-9">body</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>          }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">        catch</span><span class="z-l-2">:</span><span> (</span><span class="z-d-9 z-d-i">e</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span><span> (</span><span>{</span><span class="z-l-11 z-d-9"> message</span><span class="z-l-2">:</span><span class="z-l-3 z-d-3"> String</span><span>(</span><span class="z-d-9">e</span><span>)</span><span> }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>      }</span><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-7 z-l-i z-d-4 z-d-i">      //</span><span class="z-l-7 z-l-i z-d-4 z-d-i"> ...</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      yield</span><span class="z-l-8 z-d-7">*</span><span class="z-l-3 z-d-3"> logDebug</span><span>(</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">        `</span><span class="z-l-4 z-d-5">[Tool:WebSearch] returned </span><span class="z-l-10 z-d-7">${</span><span class="z-d-10">result</span><span class="z-l-4">.</span><span class="z-l-11 z-d-9">length</span><span class="z-l-10 z-d-7">}</span><span class="z-l-4 z-d-5"> chars</span><span class="z-l-4 z-d-5">`</span><span>,</span></span>
+<span class="giallo-l"><span>      )</span><span>;</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">      return</span><span class="z-d-9"> result</span><span>;</span></span>
+<span class="giallo-l"><span>    }</span><span>)</span><span>,</span></span></code></pre>
+<p>Note: the official <code>exa-js</code> package had some trouble on Golem (to be investigated) but the actual API is just a single POST call so we can do it by hand.</p>
+<p>Let's see if the agent uses the new tool:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="log"><span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:26.861Z</span><span>] [</span><span class="z-l-4 z-d-5">INFO</span><span>    ] [] [Thread:</span><span class="z-l-6 z-d-8">f7550e6c-d8d0-46aa-ac1a-1b1771d814b3</span><span>] Sending prompt: Does any of the dependencies of this project (based on any </span><span class="z-l-6 z-d-8">Cargo.toml</span><span> in the repo) have a newer vers...</span></span>
+<span class="giallo-l"><span>...</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:38.483Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] query=darling latest version, numResults=</span><span class="z-l-6 z-d-8">1</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:39.794Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] returned </span><span class="z-l-6 z-d-8">2865</span><span> chars</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:39.795Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] query=humantime latest version, numResults=</span><span class="z-l-6 z-d-8">1</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:41.099Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] returned </span><span class="z-l-6 z-d-8">2841</span><span> chars</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:41.101Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] query=proc-macro2 latest version, numResults=</span><span class="z-l-6 z-d-8">1</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:41.990Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] returned </span><span class="z-l-6 z-d-8">2397</span><span> chars</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T15:53:41.992Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:WebSearch] query=quote latest version, numResults=</span><span class="z-l-6 z-d-8">1</span></span>
+<span class="giallo-l"><span>...</span></span></code></pre><h3 id="unix-commands">Unix commands</h3>
+<p>Agents can more efficiently work on the code base if they can execute standard Unix commands. As we are in our sandboxed WASM environment, we can't actually run these commands - but we can use the <a rel="external" href="https://github.com/shelljs/shelljs">shelljs library</a> which emulates them in pure JS.</p>
+<p>This library implements many of the standard unix commands in pure JavaScript, and supports composing them on the code level. But we should not just expose them as separate tools to the coding agent - we want it to be able to compose them (pipe them together, etc), and to use standard shell syntax for that. We will use the <a rel="external" href="https://github.com/shell-quote/shell-quote">shell-quote</a> package for parsing the shell scripts passed by the LLM, and translate them to shelljs calls.</p>
+<p>We advertise this new tool towards the AI with the following tool definition:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">const</span><span class="z-l-6 z-d-10"> RunPipeline</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Tool</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">RunPipeline</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  description</span><span class="z-l-2">:</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Run a shell-style pipeline. </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Supported commands: cat, grep, sed, head, tail, sort, uniq, wc, find, ls, echo, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">cp, mv, rm, mkdir, touch, chmod, ln, pwd, cd. </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Supports pipes `|`, output redirection `&gt;` and `&gt;&gt;`, quotes, and globs. </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Does NOT support `;`, `&amp;&amp;`, `||`, subshells, or env vars. </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">Examples: `grep -rn </span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">TODO</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5"> src/`, `find src -name </span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">*.ts</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5"> | wc -l`, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">`sed -i </span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5">s/foo/bar/g</span><span class="z-l-2 z-d-1">\&quot;</span><span class="z-l-4 z-d-5"> file.ts`, `cp src/a.ts src/b.ts`, </span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-2 z-d-1"> +</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">`cat file.ts | grep import | sort &gt; imports.txt`.</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  parameters</span><span class="z-l-2">:</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    command</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    cwd</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">NullOr</span><span>(</span><span class="z-d-10">Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  success</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    stdout</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    stderr</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    exitCode</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Number</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    truncated</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">Boolean</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  failure</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-3 z-d-3">Struct</span><span>(</span><span>{</span><span class="z-l-11 z-d-9"> message</span><span class="z-l-2">:</span><span class="z-d-10"> Schema</span><span>.</span><span class="z-l-11 z-d-9">String</span><span> }</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  failureMode</span><span class="z-l-2">:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">return</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-d-7"> as</span><span class="z-l-8 z-d-7"> const</span><span>,</span></span>
+<span class="giallo-l"><span>}</span><span>)</span><span>;</span></span></code></pre>
+<p>The implementation itself is not that interesting to show here in details, so let's just have a summary of what it does:</p>
+<ul>
+<li>First it parses the command using <code>shell-quote</code>'s <code>parse</code> function</li>
+<li>Based on the parsed tokens, it defines <em>stages</em> - each stage is a command with arguments, and is either piped to the next stage or redirected to a file</li>
+<li>When running a command, it has a built-in set of allowed <code>shelljs</code> commands and maps them to those - it also allows adding custom commands, and implements <code>wc</code>, <code>find</code> and <code>sed</code> like that, as shelljs either did not implement them or it was not matching our requirements</li>
+<li>Finally it executes the whole pipeline of stages, and constructs the tool result</li>
+</ul>
+<p>Trying this out, we can see that the agent is trying to use the new tool, but runs into lot of failures, for example:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="log"><span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T17:02:49.957Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:RunPipeline] command=find / -type f | grep -v </span><span class="z-l-4 z-d-5">&#39;^/proc&#39;</span><span> | grep -v </span><span class="z-l-4 z-d-5">&#39;^/sys&#39;</span><span> | grep -v </span><span class="z-l-4 z-d-5">&#39;^/dev&#39;</span><span> | grep -v </span><span class="z-l-4 z-d-5">&#39;^/node_modules&#39;</span><span> | grep -v </span><span class="z-l-4 z-d-5">&#39;^/target&#39;</span><span> | grep -E </span><span class="z-l-4 z-d-5">&#39;\.(rs|toml|md|lock)$&#39;</span><span> | xargs grep -Rni </span><span class="z-l-4 z-d-5">&quot;desert[-_]rust\|desert_rust\|desert rust&quot;</span><span>, cwd=/</span></span>
+<span class="giallo-l"><span>[</span><span class="z-l-7 z-l-i z-d-4 z-d-i">2026-03-29</span><span class="z-l-7 z-l-i z-d-4 z-d-i">T17:02:49.958Z</span><span>] [</span><span class="z-l-8">DEBUG</span><span>   ] [] [Tool:RunPipeline] exitCode=</span><span class="z-l-6 z-d-8">2</span><span>, stdout=</span><span class="z-l-6 z-d-8">0</span><span> chars, truncated=</span><span class="z-l-6 z-d-8">false</span></span></code></pre>
+<p>What I did next: asked our coding agent about what it thinks about our <code>RunPipeline</code> tool:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testr.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">Can you analyse all your RunPipeline tool calls so far, and tell me what did you expect and did not work, etc? I&#39;m a developer of this tool and looking for feedback</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span></code></pre>
+<p>This returned a huge report that I've just pasted to my primary coding agent working on this example, to come up with a set of action items:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">Here</span><span class="z-l-4 z-d-5"> are</span><span class="z-l-4 z-d-5"> the</span><span class="z-l-4 z-d-5"> action</span><span class="z-l-4 z-d-5"> items</span><span class="z-l-4 z-d-5"> extracted</span><span class="z-l-4 z-d-5"> from</span><span class="z-l-4 z-d-5"> the</span><span class="z-l-4 z-d-5"> feedback,</span><span class="z-l-4 z-d-5"> in</span><span class="z-l-4 z-d-5"> priority</span><span class="z-l-4 z-d-5"> order:</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Must</span><span class="z-l-4 z-d-5"> fix</span><span> (caused</span><span class="z-l-4 z-d-5"> real</span><span class="z-l-4 z-d-5"> failures</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">1.</span><span class="z-l-4 z-d-5"> Support</span><span class="z-l-4 z-d-5"> grep</span><span class="z-l-6 z-d-8"> -</span><span class="z-l-6 z-d-8">r</span><span class="z-l-4 z-d-5"> /</span><span class="z-l-6 z-d-8"> -</span><span class="z-l-6 z-d-8">R</span><span> (recursive</span><span class="z-l-4 z-d-5"> grep</span><span>) — Most impactful missing feature. Shelljs grep already supports this flag, so it</span><span class="z-l-4 z-d-5">&#39;</span><span class="z-l-4 z-d-5">s likely our args passing that</span><span class="z-l-4 z-d-5">&#39;</span><span>s broken </span><span class="z-l-8 z-d-7">for</span><span> combined flags like -Rni.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">2.</span><span class="z-l-4 z-d-5"> Support</span><span class="z-l-4 z-d-5"> grep</span><span class="z-l-6 z-d-8"> -</span><span class="z-l-6 z-d-8">E</span><span> (extended</span><span class="z-l-4 z-d-5"> regex</span><span>) — Shelljs grep uses JS RegExp which already supports extended syntax, so -E just needs to be accepted (</span><span class="z-l-3 z-d-3">and</span><span class="z-l-4 z-d-5"> ignored,</span><span class="z-l-4 z-d-5"> since</span><span class="z-l-4 z-d-5"> JS</span><span class="z-l-4 z-d-5"> regex</span><span class="z-l-4 z-d-5"> is</span><span class="z-l-4 z-d-5"> already</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">extended</span><span class="z-l-4 z-d-5">&quot;</span><span>).</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">3.</span><span class="z-l-4 z-d-5"> Add</span><span class="z-l-4 z-d-5"> xargs</span><span class="z-l-4 z-d-5"> command</span><span class="z-l-4 z-d-5"> —</span><span class="z-l-4 z-d-5"> Natural</span><span class="z-l-4 z-d-5"> companion</span><span class="z-l-4 z-d-5"> to</span><span class="z-l-4 z-d-5"> find.</span><span class="z-l-4 z-d-5"> At</span><span class="z-l-4 z-d-5"> minimum</span><span class="z-l-4 z-d-5"> support</span><span class="z-l-4 z-d-5"> find</span><span class="z-l-4 z-d-5"> ...</span><span> |</span><span class="z-l-3 z-d-3"> xargs</span><span class="z-l-4 z-d-5"> grep</span><span class="z-l-4 z-d-5"> pattern.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">4.</span><span class="z-l-4 z-d-5"> Fix</span><span class="z-l-4 z-d-5"> empty</span><span class="z-l-4 z-d-5"> grep</span><span class="z-l-4 z-d-5"> error</span><span class="z-l-4 z-d-5"> message</span><span class="z-l-4 z-d-5"> —</span><span class="z-l-4 z-d-5"> grep:</span><span class="z-l-4 z-d-5">  with</span><span class="z-l-4 z-d-5"> no</span><span class="z-l-4 z-d-5"> diagnostic</span><span class="z-l-4 z-d-5"> when</span><span class="z-l-4 z-d-5"> pattern</span><span class="z-l-4 z-d-5"> like</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">desert_rust\|desert-rust</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5"> fails.</span><span class="z-l-4 z-d-5"> Need</span><span class="z-l-4 z-d-5"> to</span><span class="z-l-4 z-d-5"> catch</span><span class="z-l-4 z-d-5"> regex</span><span class="z-l-4 z-d-5"> parse</span><span class="z-l-4 z-d-5"> errors</span><span class="z-l-4 z-d-5"> and</span><span class="z-l-4 z-d-5"> report</span><span class="z-l-4 z-d-5"> them</span><span class="z-l-4 z-d-5"> clearly.</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Should</span><span class="z-l-4 z-d-5"> fix</span><span> (UX/documentation</span><span>)</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">5.</span><span class="z-l-4 z-d-5"> Improve</span><span class="z-l-4 z-d-5"> tool</span><span class="z-l-4 z-d-5"> description</span><span class="z-l-4 z-d-5"> —</span><span class="z-l-4 z-d-5"> Rewrite</span><span class="z-l-4 z-d-5"> to</span><span class="z-l-4 z-d-5"> explicitly</span><span class="z-l-4 z-d-5"> say</span><span class="z-l-4 z-d-5"> it</span><span class="z-l-4 z-d-5">&#39;</span><span class="z-l-4 z-d-5">s not a full shell. Mention: no loops, no ;/&amp;&amp;/||, no subshells, no env vars. Say &quot;restricted pipeline executor&quot; not &quot;shell-style pipeline&quot;.</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">6. Document supported flags per command in the description — Even a brief summary like grep: -n, -i, -v, -l, -r, -c, -E.</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">7. Clarify control structures are unsupported — Explicitly state no while, for, if, etc.</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">Nice to have</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">8. Standardize error messages — Every failure should say: which command, why, which flag/pattern caused it. No blank error strings.</span></span></code></pre>
+<p>Let's leave the agents figuring this out and move to our next topic - we can see that our proof of concept for emulating shell commands is working.</p>
+<h3 id="read-only-mode">Read-only mode</h3>
+<p>In our design we said we want to be able to have multiple <strong>read-only</strong> sessions of the same repository/branch combination. Why have multiple agents for this, instead of just having multiple <code>Thread</code>s within the same agent? Because Golem agents are single-threaded and they do not allow overlapping async invocations. This means that we cannot run two parallel threads within the same agents.</p>
+<p>We already determined that we are going to use the phantom agent feature for this. It's actually not requiring any further work - but we should explicitly disallow making changes in the phantom agents, to make sure the LLMs will not get confused. This means reducing the available tools presented to the AI based on our agent's phantom ID.</p>
+<p>We define a limited toolkit for read-only agents:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-6 z-d-10"> ReadOnlyCodingToolkit</span><span class="z-l-2 z-d-1"> =</span><span class="z-d-10"> Toolkit</span><span>.</span><span class="z-l-3 z-d-3">make</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-9">  ListFiles</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">  ReadFile</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">  WebSearch</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9">  ReadOnlyRunPipeline</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span></code></pre>
+<p>and define an abstraction over <code>chat.generateText</code> using Effect's <code>Context.Tag</code> service pattern:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> class</span><span class="z-l-9 z-d-10"> ThreadAi</span><span class="z-l-8 z-d-7"> extends</span><span class="z-d-10"> Context</span><span>.</span><span class="z-l-3 z-d-3">Tag</span><span>(</span><span class="z-l-4 z-d-5">&quot;</span><span class="z-l-4 z-d-5">ThreadAi</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span><span>&lt;</span></span>
+<span class="giallo-l"><span class="z-l-9 z-d-10">  ThreadAi</span><span>,</span></span>
+<span class="giallo-l"><span>  {</span></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">    readonly</span><span class="z-l-3 z-d-3"> generateStep</span><span class="z-l-2">:</span><span> (</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">      chat</span><span class="z-l-2">:</span><span class="z-l-4 z-d-10"> Chat</span><span>.</span><span class="z-l-9 z-d-10">Service</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-9 z-d-i">      prompt</span><span class="z-l-2">:</span><span class="z-l-4 z-d-10"> Prompt</span><span>.</span><span class="z-l-9 z-d-10">RawInput</span><span>,</span></span>
+<span class="giallo-l"><span>    )</span><span class="z-l-8 z-d-7"> =&gt;</span><span class="z-l-4 z-d-10"> Effect</span><span>.</span><span class="z-l-9 z-d-10">Effect</span><span>&lt;</span><span class="z-l-9 z-d-10">ThreadStep</span><span>,</span><span class="z-l-4 z-d-10"> AiError</span><span>.</span><span class="z-l-9 z-d-10">AiError</span><span>,</span><span class="z-l-4 z-d-10"> LanguageModel</span><span>.</span><span class="z-l-9 z-d-10">LanguageModel</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span>  }</span></span>
+<span class="giallo-l"><span>&gt;</span><span>(</span><span>)</span><span> {</span><span>}</span></span></code></pre>
+<p>Then we can change our <code>Thread</code> to use <code>ThreadAi</code> to send the messages, and we can provide the proper <code>ThreadAi</code> implementation based on the read-only flag:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">export</span><span class="z-l-8 z-d-7"> const</span><span class="z-l-3 z-d-3"> makeThreadAiLayer</span><span class="z-l-2 z-d-1"> =</span><span> (</span><span class="z-d-9 z-d-i">exaApiKey</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> string</span><span>,</span><span class="z-d-9 z-d-i"> readOnly</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> boolean</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-d-10">  Layer</span><span>.</span><span class="z-l-3 z-d-3">succeed</span><span>(</span><span class="z-d-9">ThreadAi</span><span>,</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    generateStep</span><span class="z-l-2">:</span><span class="z-d-9"> readOnly</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-7">      ?</span><span> (</span><span class="z-d-9 z-d-i">chat</span><span>,</span><span class="z-d-9 z-d-i"> prompt</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-d-9">          chat</span></span>
+<span class="giallo-l"><span>            .</span><span class="z-l-3 z-d-3">generateText</span><span>(</span><span>{</span><span class="z-d-9"> prompt</span><span>,</span><span class="z-l-11 z-d-9"> toolkit</span><span class="z-l-2">:</span><span class="z-d-9"> ReadOnlyCodingToolkit</span><span> }</span><span>)</span></span>
+<span class="giallo-l"><span>            .</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">              Effect</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-l-3 z-d-3">makeReadOnlyCodingToolkitLayer</span><span>(</span><span class="z-d-9">exaApiKey</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">              Effect</span><span>.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span class="z-d-9">normalize</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>            )</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-7">      :</span><span> (</span><span class="z-d-9 z-d-i">chat</span><span>,</span><span class="z-d-9 z-d-i"> prompt</span><span>)</span><span class="z-l-8 z-d-7"> =&gt;</span></span>
+<span class="giallo-l"><span class="z-d-9">          chat</span></span>
+<span class="giallo-l"><span>            .</span><span class="z-l-3 z-d-3">generateText</span><span>(</span><span>{</span><span class="z-d-9"> prompt</span><span>,</span><span class="z-l-11 z-d-9"> toolkit</span><span class="z-l-2">:</span><span class="z-d-9"> CodingToolkit</span><span> }</span><span>)</span></span>
+<span class="giallo-l"><span>            .</span><span class="z-l-3 z-d-3">pipe</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">              Effect</span><span>.</span><span class="z-l-3 z-d-3">provide</span><span>(</span><span class="z-l-3 z-d-3">makeCodingToolkitLayer</span><span>(</span><span class="z-d-9">exaApiKey</span><span>)</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span class="z-d-10">              Effect</span><span>.</span><span class="z-l-3 z-d-3">map</span><span>(</span><span class="z-d-9">normalize</span><span>)</span><span>,</span></span>
+<span class="giallo-l"><span>            )</span><span>,</span></span>
+<span class="giallo-l"><span>  }</span><span>)</span><span>;</span></span></code></pre>
+<p>We can try this out in the Golem REPL:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> repl</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> const</span><span class="z-l-4 z-d-5"> testr</span><span class="z-l-4 z-d-5"> =</span><span class="z-l-4 z-d-5"> await</span><span class="z-l-4 z-d-5"> CodingAgent.get</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">https://github.com/vigoo/test-r.git</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">test1</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testr.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">Give me a list of all the tools you have</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-3 z-d-3">I have these tools available in this environment:\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.ListFiles`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.ReadFile`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.WriteFile`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.ReplaceInFile`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.WebSearch`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.RunPipeline`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `multi_tool_use.parallel`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">I can also respond directly in chat without using a tool.</span><span class="z-l-3 z-d-3">&#39;</span></span>
+<span class="giallo-l"><span>  </span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> const</span><span class="z-l-4 z-d-5"> testrRo</span><span class="z-l-4 z-d-5"> =</span><span class="z-l-4 z-d-5"> await</span><span class="z-l-4 z-d-5"> CodingAgent.newPhantom</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">https://github.com/vigoo/test-r.git</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">,</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">test1</span><span class="z-l-4 z-d-5">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">golem-ts-repl[gca-agents][local]</span><span>&gt;</span><span class="z-l-4 z-d-5"> testrRo.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">Gie me a list of all the tools you have</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-3 z-d-3">Here are the tools I have available in this chat:\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.ListFiles`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - List files and directories.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Can filter by substring.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.ReadFile`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Read a file’s contents.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Can read specific line ranges.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.WebSearch`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Search the web for documentation, articles, research, etc.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Can restrict by domain, date, and category.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `functions.RunPipeline`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Run a restricted read-only shell-style pipeline.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Supports commands like `find`, `grep`, `cat`, `head`, `tail`, `ls`, `sort`, `uniq`, `wc`, `echo`, `xargs`, `pwd`.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">- `multi_tool_use.parallel`\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">  - Run multiple developer tools in parallel when appropriate.\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">\n</span><span class="z-l-3 z-d-3">&#39;</span><span class="z-l-4 z-d-5"> +</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  &#39;</span><span class="z-l-3 z-d-3">Also, per your environment, I’m in read-only mode on the checked-out repo at `/`, so I can inspect and analyze code but not modify it.</span><span class="z-l-3 z-d-3">&#39;</span></span></code></pre>
+<p>We can also see that we have two separate agent instances now:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> agent</span><span class="z-l-4 z-d-5"> list</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">+--------------------+-------------------------------+-----------+--------+-------------</span><span>|</span></span>
+<span class="giallo-l"><span>|</span><span class="z-l-3 z-d-3"> Component</span><span class="z-l-4 z-d-5"> name</span><span>     |</span><span class="z-l-3 z-d-3"> Agent</span><span class="z-l-4 z-d-5"> name</span><span>                    |</span><span class="z-l-3 z-d-3"> Component</span><span> |</span><span class="z-l-3 z-d-3"> Status</span><span> |</span><span class="z-l-3 z-d-3"> Pending</span><span>     |</span></span>
+<span class="giallo-l"><span>|</span><span>                    |</span><span>                               |</span><span class="z-l-3 z-d-3"> revision</span><span>  |</span><span>        |</span><span class="z-l-3 z-d-3"> invocations</span><span> |</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">+--------------------+-------------------------------+-----------+--------+-------------</span><span>|</span></span>
+<span class="giallo-l"><span>|</span><span class="z-l-3 z-d-3"> gca-agents:ts-main</span><span> |</span><span class="z-l-3 z-d-3"> CodingAgent(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">https://         |         0 |   Idle |           0 |</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">|                    | github.com/vigoo/test-r.git</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">,</span><span> |</span><span>           |</span><span>        |</span><span>             |</span></span>
+<span class="giallo-l"><span>|</span><span>                    |</span><span class="z-l-3 z-d-3"> &quot;</span><span class="z-l-3 z-d-3">test1</span><span class="z-l-3 z-d-3">&quot;</span><span>)</span><span>[</span><span>1e0d3e2b-b20c-4cdc-  </span><span>|</span><span>           |</span><span>        |</span><span>             |</span></span>
+<span class="giallo-l"><span>|</span><span>                    |</span><span> b1be-4d8ca1d22a72</span><span>]</span><span>            |</span><span>           |</span><span>        |</span><span>             |</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">+--------------------+-------------------------------+-----------+--------+-------------+</span></span>
+<span class="giallo-l"><span>|</span><span class="z-l-3 z-d-3"> gca-agents:ts-main</span><span> |</span><span class="z-l-3 z-d-3"> CodingAgent(</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">https://         |         0 |   Idle |           0 |</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">|                    | github.com/vigoo/test-r.git</span><span class="z-l-3 z-d-3">&quot;</span><span class="z-l-3 z-d-3">,</span><span> |</span><span>           |</span><span>        |</span><span>             |</span></span>
+<span class="giallo-l"><span>|</span><span>                    |</span><span class="z-l-3 z-d-3"> &quot;</span><span class="z-l-3 z-d-3">test1</span><span class="z-l-3 z-d-3">&quot;</span><span>)                      </span><span>|</span><span>           |</span><span>        |</span><span>             |</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">+--------------------+-------------------------------+-----------+--------+-------------+</span></span></code></pre><h3 id="threads">Threads</h3>
+<p>The last thing we will do in our coding agent is to have a basic concept of threads. We already started this - we have an active thread ID, and a map of threads, but so far we've only created one thread. We are going to introduce a few new <strong>agent methods</strong> for controlling the our coding agent's threads:</p>
+<h4 id="archiving-threads">Archiving threads</h4>
+<p>We add an <code>archiveThread()</code> method that archives the current thread - archived threads are going to be marked as such, and a summary is going to be stored for them, generated by a new LLM call.</p>
+<h4 id="listing-threads">Listing threads</h4>
+<p>We also expose a <code>listThread()</code> method, that returns all the threads with their ID, archive state and summary.</p>
+<h4 id="activating-a-thread">Activating a thread</h4>
+<p>There can be multiple non-archived threads, and we can switch between them. <code>sendPrompt</code> always works on the active one.</p>
+<h4 id="handoff">Handoff</h4>
+<p>We can <code>handoff</code> with a goal to archive the current thread, generate a summary and start a new thread. In the new thread's system prompt we include the parent thread's ID and the provided goal.</p>
+<p>Adding these new methods is straightforward and does not require anything that we haven't seen before - just manipulating in-memory data, and call out to the LLM using <code>@effect/ai</code>. What is interesting is that we will also provide some new <strong>tools</strong> for the LLM to work on threads:</p>
+<ul>
+<li><code>GetThreadInfo</code> tool to get a thread's message count and summary by id</li>
+<li><code>ReadThreadMessages</code> to read chunks of the full conversation of the given thread</li>
+</ul>
+<p>This way the agent can continue work in a new thread based on the summary of the parent thread (which is not included in the system prompt, just loaded on-demand with the tool) and it can decide to read more details from the parent thread if needed.</p>
+<p>Let's leave this feature for now, and get back to testing it once we have our text user interface!</p>
+<h3 id="text-user-interface">Text user interface</h3>
+<p>Let's start implementing our user interface for our coding agent system! As mentioned in the introduction, we are going to use <strong>Rust</strong> for this. The first thing we want is to tell Golem to generate a Rust client library for our coding agent:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="yaml"><span class="giallo-l"><span class="z-l-11 z-d-9">b</span><span class="z-l-11 z-d-9">ridge</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">  r</span><span class="z-l-11 z-d-9">ust</span><span>:</span></span>
+<span class="giallo-l"><span class="z-l-11 z-d-9">    a</span><span class="z-l-11 z-d-9">gents</span><span>:</span><span class="z-l-4 z-d-5"> &quot;</span><span class="z-l-4 z-d-5">*</span><span class="z-l-4 z-d-5">&quot;</span></span></code></pre>
+<p>Next run of <code>golem build</code> will generate our client crate:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">$</span><span class="z-l-4 z-d-5"> golem</span><span class="z-l-4 z-d-5"> build</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span><span class="z-l-2 z-d-1">.</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Generating</span><span class="z-l-4 z-d-5"> bridge</span><span class="z-l-4 z-d-5"> SDKs</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">  Generating</span><span class="z-l-4 z-d-5"> Rust</span><span class="z-l-4 z-d-5"> bridge</span><span class="z-l-4 z-d-5"> SDK</span><span class="z-l-4 z-d-5"> for</span><span class="z-l-4 z-d-5"> CodingAgent</span><span class="z-l-4 z-d-5"> to</span><span class="z-l-4 z-d-5"> golem-temp/bridge-sdk/rust/coding-agent-client</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">Finished</span><span class="z-l-4 z-d-5"> building</span><span> [OK</span><span>]</span></span></code></pre>
+<p>We can ask our (real) coding agent to generate a first version of a user interface using this bridge SDK and the <code>ratatui</code> crate:</p>
+<ul>
+<li>Accept a repo and branch parameter and a read-only flag</li>
+<li>If not provided, ask for it on startup</li>
+<li>Expose all agent methods as <code>/command</code> commands</li>
+<li>Everything else goes to <code>sendPrompt</code></li>
+</ul>
+<p>Setting up the client connection is straightforward and follows the same API that agent-to-agent communication and our REPL is providing:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-d-10">coding_agent_client</span><span>::</span><span class="z-l-3 z-d-3">configure</span><span>(</span></span>
+<span class="giallo-l"><span class="z-d-10">    golem_client</span><span>::</span><span class="z-d-10">bridge</span><span>::</span><span class="z-d-10">GolemServer</span><span>::</span><span class="z-l-2 z-d-10">Local</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">gca-agents</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span class="z-l-4 z-d-5">    &quot;</span><span class="z-l-4 z-d-5">local</span><span class="z-l-4 z-d-5">&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>)</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> client</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> if</span><span class="z-l-11 z-d-9"> cli</span><span>.</span><span>readonly </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    CodingAgent</span><span>::</span><span class="z-l-3 z-d-3">new_phantom</span><span>(</span><span class="z-l-11 z-d-9">repo</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> branch</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>?</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    CodingAgent</span><span>::</span><span class="z-l-3 z-d-3">get</span><span>(</span><span class="z-l-11 z-d-9">repo</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> branch</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>?</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span></code></pre>
+<p>After a few short iterations, we have something like this:</p>
+<div id="tui-demo1"></div>
+<h3 id="log-streaming">Log streaming</h3>
+<p>Note that our coding agent interface is <strong>non-streaming</strong> so we cannot see the agent's progress while waiting for the final answer to our prompt. With the current version of Golem, we cannot really make the agent methods streaming, but we can do a few things:</p>
+<ul>
+<li>In this particular project we could send messages to a local http server started by the host application - we need this http server anyway for exposing the build/test tools</li>
+<li>But Golem itself has a <strong>log stream</strong> web socket API we can use to get all the logs generated by our agent. Let's go with this choice for now.</li>
+</ul>
+<p>We will connect to this web-socket stream for the whole lifetime of the coding-agent TUI, but only show the messages while waiting for an answer - and collapsing them once the answer arrived.</p>
+<div id="tui-demo2"></div>
+<h3 id="message-history">Message history</h3>
+<p>We missed some necessary APIs from our agent to properly implement switching between threads:</p>
+<ul>
+<li>we should be able to start new active threads without handoff (<code>newThread()</code>)</li>
+<li>we should store something for active threads that helps the user identifying them - let's say the first prompt's first 30 characters</li>
+<li>we need to be able to get the full history when activating a thread (including on startup). this way when switching between threads, or restarting the TUI, we will always get the whole thread in our display</li>
+</ul>
+<p>Adding these new features gives us the following agent interface (I also introduced a <code>ThreadId</code> type just to make it more type-safe):</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="shellscript"><span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5"> Exports:</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent</span><span>(</span><span class="z-l-3 z-d-3">repository:</span><span class="z-l-4 z-d-5"> string,</span><span class="z-l-4 z-d-5"> branch:</span><span class="z-l-4 z-d-5"> string</span><span>)</span><span class="z-l-4 z-d-5"> agent</span><span class="z-l-4 z-d-5"> constructor</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.activateThread</span><span>(</span><span class="z-l-3 z-d-3">threadId:</span><span class="z-l-4 z-d-5"> ThreadId</span><span>)</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.archiveThread</span><span>(</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> string</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.dump</span><span>(</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> string</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.getActiveThreadId</span><span>(</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> ThreadId</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.getHistory</span><span>(</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> HistoryEntry[]</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.handoff</span><span>(</span><span class="z-l-3 z-d-3">goal:</span><span class="z-l-4 z-d-5"> string</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> ThreadId</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.listThreads</span><span>(</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> ThreadInfo[]</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.newThread</span><span>(</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> ThreadId</span></span>
+<span class="giallo-l"><span class="z-l-3 z-d-3">║</span><span class="z-l-4 z-d-5">   CodingAgent.sendPrompt</span><span>(</span><span class="z-l-3 z-d-3">prompt:</span><span class="z-l-4 z-d-5"> string</span><span>)</span><span> -</span><span>&gt;</span><span class="z-l-4 z-d-5"> string</span></span></code></pre>
+<p>With the ability to start new threads we have two conflicting features now:</p>
+<ul>
+<li>we can have read-only phantom agents that can act fully in parallel</li>
+<li>we can have multiple parallel threads in our primary agent (or any other) that can all make modifications on the shared code base, but they cannot run in parallel</li>
+</ul>
+<p>Is this too much, or a useful feature? I am not sure, it would require some real user testing to find what's working best.</p>
+<h3 id="host-features-as-tools">Host features as tools</h3>
+<p>Up until this point we did not take any advantage of our Golem server being a local one. Everything we've seen can just as well run in a hosted Golem infrastructure.</p>
+<p>The last feature we are going to add is to allow our coding agents to run build and test operations <strong>on our machine</strong>; this, of course, as mentioned in the introduction makes them break out of their sandbox, but that's something we accept for this experiment. I'm going to write some ideas of what else could be done at the end of this post.</p>
+<p>To develop this feature we are going to take advantage of Golem being started as a local process in our machine in two ways:</p>
+<ul>
+<li>We make the agent filesystem's temporary directories deterministic, so we don't have to get the whole repository through agent invocation, we can mirror it directly on the file system</li>
+<li>We are going to start a local http server in our TUI that the agents can connect to through <code>localhost</code></li>
+</ul>
+<h4 id="deterministic-agent-file-systems">Deterministic agent file systems</h4>
+<p>With a small tweak to <code>golem</code> itself we can make it accept a command-line option to switch from temporary directories as agent file systems to deterministic ones - a known root directory, and a subdirectory derived from the <code>AgentId</code> for each agent. Note that we <strong>must not</strong> ever touch these directories, otherwise we break Golem's deterministic execution guarantees. This is just a hack to speed up file synchronization locally - so we are always going to only <strong>read</strong> from these directories. We could enforce this with file-system permissions and users, but I'm not going to do it in this proof of concept implementation.</p>
+<p>To find an agent's directory in this new deterministic mode, our host application will need to be able to resolve <code>&lt;root&gt;/&lt;environment_id&gt;/&lt;component_id&gt;/&lt;agent_name&gt;/</code>.</p>
+<h4 id="calling-out-to-the-host">Calling out to the host</h4>
+<p>We are going to keep this simple, and offer two endpoints from our host application, both exposed as <strong>tools</strong> to the LLM.</p>
+<ul>
+<li><code>RunOnHost</code> is going to take a command and arguments. It's going to use a white-list on the host (for this experiment, we are only going to allow <code>cargo</code> and anything in the <code>target</code> dir) and we are always going to save the process output to a file. I have seen too many times agents applying filters (<code>grep</code>, <code>head</code>, <code>tail</code>, etc) to expensive test runs just to realize in the end they don't see everything they are interested in. We will return the name of this file, and we will also provide timeout capability.</li>
+<li><code>ReadProcessOutput</code> to read the executed host process outputs. It will be similar to <code>ReadFile</code>, but only for files generated by <code>RunOnHost</code></li>
+</ul>
+<p>We can easily start a HTTP server in our Rust application providing endpoints for these, I'm not going to get into the details of it. The only trick is that, as said earlier, we must not change the agent's file system from the outside. So before <code>RunOnHost</code> we need to synchronize from the agent's file system directory to a mirrored one, where we are running the actual commands.</p>
+<p>Let's see what we need to do in our Golem agent to make use of it!</p>
+<p>We extend our agent configuration with a new field, which is <strong>not</strong> a secret:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="typescript"><span class="giallo-l"><span class="z-l-8 z-d-7">type</span><span class="z-l-9 z-d-10"> CodingAgentConfig</span><span class="z-l-2 z-d-1"> =</span><span> {</span></span>
+<span class="giallo-l"><span class="z-d-9">  openaiApiKey</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Secret</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">  exaApiKey</span><span class="z-l-2">:</span><span class="z-l-9 z-d-10"> Secret</span><span>&lt;</span><span class="z-d-10">string</span><span>&gt;</span><span>;</span></span>
+<span class="giallo-l"><span class="z-d-9">  hostHttpPort</span><span class="z-l-2">:</span><span class="z-l-2 z-d-10"> number</span><span>;</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span></code></pre>
+<p>By having a non-secret configuration, we get a new <code>_with_config</code> variant of the client constructor in our generated bridge SDK, where we can specify values for the non-secret fields:</p>
+<pre class="giallo z-l-code z-d-code" ><code data-lang="rust"><span class="giallo-l"><span class="z-l-8 z-d-7">let</span><span class="z-l-11 z-d-9"> client</span><span class="z-d-1"> =</span><span class="z-l-8 z-d-7"> if</span><span class="z-l-11 z-d-9"> cli</span><span>.</span><span>readonly </span><span>{</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    CodingAgent</span><span>::</span><span class="z-l-3 z-d-3">new_phantom_with_config</span><span>(</span><span class="z-l-11 z-d-9">repo</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> branch</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> host_http_port</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>?</span></span>
+<span class="giallo-l"><span>}</span><span class="z-l-8 z-d-7"> else</span><span> {</span></span>
+<span class="giallo-l"><span class="z-l-2 z-d-10">    CodingAgent</span><span>::</span><span class="z-l-3 z-d-3">get_with_config</span><span>(</span><span class="z-l-11 z-d-9">repo</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> branch</span><span>.</span><span class="z-l-3 z-d-3">clone</span><span>(</span><span>)</span><span>,</span><span class="z-l-11 z-d-9"> host_http_port</span><span>)</span><span>.</span><span class="z-l-8 z-d-7">await</span><span>?</span></span>
+<span class="giallo-l"><span>}</span><span>;</span></span></code></pre>
+<p>With the port known in the agent, wiring the HTTP endpoints as tools is straightforward.</p>
+<h4 id="final-demo">Final demo</h4>
+<p>Let's see how our final version works. We are going to open a rust repository, update a dependency and verify it compiles in one thread, and ask some questions in another thread:</p>
+<div id="tui-demo3"></div>
+<h2 id="final-words">Final words</h2>
+<h3 id="durability">Durability</h3>
+<p>We talked about durability in the introduction and then it never came up again. I did this intentionally, to show that when using <strong>Golem</strong> you do NOT have to worry about durable execution at all!</p>
+<p>We can kill any of the processes involved any time - the local <code>golem</code> server, the TUI, the REPL, and so on. We just restart them and continue from where we were. Even if the server was killed in the middle of an LLM call, only that last request is going to be recreated, all the history to build up the context is recovered for free.</p>
+<h3 id="what-else">What else?</h3>
+<p>With this I consider this experiment done, but there could be a lot more features added to make this a real coding agent. Let's see some of them:</p>
+<h4 id="git-commands-as-tools-for-the-agents">Git commands as tools for the agents</h4>
+<p>It can be useful for the agent to observe git history, see its own diffs, etc. We can expose git commands to the LLM directly by defining more tools that are using the <code>isomorphic-git</code> library under the hood.</p>
+<h4 id="committing-a-branch">Committing a branch</h4>
+<p>We have not added any support yet to actually finish a branch and commit and push the changes before the agent gets closed.</p>
+<h4 id="automatic-tracking-of-context-size-and-managing-threads">Automatic tracking of context size and managing threads</h4>
+<p>We could automatically track the context size in the agent for each thread, and do automatic handoff when needed. The threads could expose metrics like the number of tokens used, or the cost involved, and report it to the text user interface.</p>
+<h4 id="agents-md-skill-support">Agents.md / skill support</h4>
+<p>Supporting <code>AGENTS.md</code> and skill files is also straightforward. We can include the contents of all discovered agent files in the system prompt, and we can add new <strong>tools</strong> for skill discovery and loading.</p>
+<h4 id="execution-rules-per-repository">Execution rules per repository</h4>
+<p>We've just hard-coded some simple rules for the host execution, but that should be evolved into having proper configurable per-repository rules.</p>
+<h4 id="use-a-live-web-socket-connection-to-the-agents">Use a live web-socket connection to the agents</h4>
+<p>This is something that is not supported by the current Golem release, but we plan to support it in the future. By having a bidirectional WebSocket connection to our users, we can do the host tool invocations through that, and we can also live-stream the events directly, not through the log event stream as today.</p>
+<h4 id="virtual-machines">Virtual machines</h4>
+<p>The host execution feature is convenient and maybe necessary for some projects, but it breaks the sandboxing and basically lets the coding agent to run arbitrary code on our machine. We could evolve this to use virtual machines instead - the concept is the same, we mirror the agent's file-system into the virtual machine, set up the toolchain there and then run the commands the agent is asking for through its tool call. The split would remain the same - all the editing and exploration is done locally in the agent, it only calls out to run something that cannot be done in its sandboxed WASM environment.</p>
+<p>With either virtual machines, or live web socket connections, or a combination of both, this can be turned into a real hosted service that no longer needs to run locally.</p>
+<h4 id="seeing-the-agent-s-changes">Seeing the agent's changes</h4>
+<p>One drawback of this experimental implementation is that we cannot really see easily what changes the agent made. When using a coding agent on a local checked out repository we can use IDEs or git UIs to examine the changes. We can do the same with the deterministic agent working directory trick, but doing so risks of making changes from the outside to the agent's file system that we definitely don't want to. It would also not possible to move to a hosted golem later. What we could do is improve the syncing that we already have for the host execution to keep a live mirror of the agent's file system locally. Then we can use existing tools to observe the changes as they happen.</p>
+<p>We could also evolve our user interface to a text (or graphical) post-IDE agentic coding interface that has built-in support for viewing the repository and the changes happening in them.</p>
+<h3 id="conclusion">Conclusion</h3>
+<p>The most important take-away from this experiment is, in my opinion, that writing this whole initial working proof-of-concept implementation took less than a day, and that includes several Golem fixes I had to make (we are in the bug fixing / testing phase for our new release) and includes writing this post.</p>
+<p>With Golem providing the durable agent infrastructure, the generated client libraries, configuration system etc, we (and our coding agent writing the actual TypeScript and Rust code) could focus on the important parts of defining our interface, our tools and our user interface. The hard parts are just working out of the box. Our final Golem release will even make this faster, because we are going to include a <strong>skill catalog</strong> for coding agents so they don't have to figure out how to use Golem on their own. Even without those, I haven had to write a single line of code during this experiment.</p>
+<p>I am publishing the code for this <a rel="external" href="https://github.com/vigoo/gca">on GitHub</a> but today it's not that easy to try it out - as I said I had to make some Golem fixes to make everything work, and some of those fixes have not even merged to <code>main</code> yet. But <strong>Golem 1.5</strong> is going to be released soon, in April, 2026. Within a few weeks you can do the same by just downloading the official Golem binaries!</p>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
+<script>AsciinemaPlayer.create('/images/tui1.cast', document.getElementById('tui-demo1'), { theme: 'monokai', fit: 'width' });</script>
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
+<script>AsciinemaPlayer.create('/images/tui2.cast', document.getElementById('tui-demo2'), { theme: 'monokai', fit: 'width' });</script>
+<script>AsciinemaPlayer.create('/images/tui3.cast', document.getElementById('tui-demo3'), { theme: 'monokai', fit: 'width' });</script>
+
+
+    </article>
+
+    </main>
+
+    
+    <footer class="ftr">
+        <p>&copy; Daniel Vigovszky &middot; <a href="https://blog.vigoo.dev/atom.xml">Atom feed</a></p>
+    </footer>
+    
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var langNames = {
+            "typescript": "TypeScript", "ts": "TypeScript",
+            "rust": "Rust",
+            "scala": "Scala",
+            "moonbit": "MoonBit", "MoonBit": "MoonBit"
+        };
+        var allTabs = [];
+        var tabCounter = 0;
+        document.querySelectorAll(".code-tabs").forEach(function (tabs) {
+            var blocks = tabs.querySelectorAll("pre");
+            if (blocks.length === 0) return;
+            var nav = document.createElement("div");
+            nav.className = "code-tabs-nav";
+            nav.setAttribute("role", "tablist");
+            var langs = [];
+            blocks.forEach(function(pre, i) {
+                var code = pre.querySelector("code");
+                var lang = code ? (code.getAttribute("data-lang") || "") : "";
+                langs.push(lang);
+                var label = langNames[lang] || lang || ("Tab " + (i + 1));
+                var btn = document.createElement("button");
+                var btnId = "code-tab-" + (tabCounter++);
+                btn.id = btnId;
+                btn.className = "code-tab-btn" + (i === 0 ? " active" : "");
+                btn.setAttribute("data-lang", lang);
+                btn.setAttribute("role", "tab");
+                btn.setAttribute("aria-selected", i === 0 ? "true" : "false");
+                btn.textContent = label;
+                nav.appendChild(btn);
+                pre.setAttribute("role", "tabpanel");
+                pre.setAttribute("aria-labelledby", btnId);
+                pre.style.display = i === 0 ? "" : "none";
+            });
+            tabs.insertBefore(nav, tabs.firstChild);
+            allTabs.push({ nav: nav, blocks: blocks, langs: langs });
+        });
+        function activateLang(lang) {
+            allTabs.forEach(function(t) {
+                var found = t.langs.indexOf(lang);
+                if (found === -1) return;
+                t.nav.querySelectorAll(".code-tab-btn").forEach(function(b) {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                var active = t.nav.querySelector('.code-tab-btn[data-lang="' + lang + '"]');
+                active.classList.add("active");
+                active.setAttribute("aria-selected", "true");
+                t.blocks.forEach(function(pre, i) { pre.style.display = i === found ? "" : "none"; });
+            });
+        }
+        allTabs.forEach(function(t) {
+            t.nav.addEventListener("click", function(e) {
+                if (e.target.tagName !== "BUTTON") return;
+                activateLang(e.target.getAttribute("data-lang"));
+            });
+        });
+
+        var themeToggle = document.getElementById("theme-toggle");
+        if (themeToggle) {
+            themeToggle.addEventListener("click", function () {
+                var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", next);
+                try { localStorage.setItem("theme", next); } catch (e) {}
+                var light = document.querySelector('link[href*="giallo-light"]');
+                var dark = document.querySelector('link[href*="giallo-dark"]');
+                if (light && dark) {
+                    light.media = next === "dark" ? "not all" : "all";
+                    dark.media = next === "dark" ? "all" : "not all";
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>
